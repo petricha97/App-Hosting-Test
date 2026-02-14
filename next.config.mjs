@@ -1,8 +1,4 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  images: {
-    remotePatterns: [{ hostname: 'firebasestorage.googleapis.com' }, { hostname: 'rstr.in' }]
-  }
-}
+const nextConfig = {};
 
-export default nextConfig
+export default nextConfig;
