@@ -1,0 +1,40 @@
+[debug] [2026-02-15T13:17:24.322Z] ----------------------------------------------------------------------
+[debug] [2026-02-15T13:17:24.324Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Petri\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start
+[debug] [2026-02-15T13:17:24.324Z] CLI Version:   14.17.0
+[debug] [2026-02-15T13:17:24.324Z] Platform:      win32
+[debug] [2026-02-15T13:17:24.324Z] Node Version:  v22.16.0
+[debug] [2026-02-15T13:17:24.324Z] Time:          Sun Feb 15 2026 21:17:24 GMT+0800 (Singapore Standard Time)
+[debug] [2026-02-15T13:17:24.325Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-15T13:17:24.511Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-15T13:17:24.511Z] > authorizing via signed-in user (petricha96@gmail.com)
+[info] i  emulators: Starting emulators: apphosting {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: apphosting"}}
+[debug] [2026-02-15T13:17:24.520Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-02-15T13:17:24.520Z] [apphosting] App Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-02-15T13:17:24.520Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"apphosting":[{"address":"127.0.0.1","family":"IPv4","port":5002}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2026-02-15T13:17:24.523Z] Emulator locator file path: C:\Users\Petri\AppData\Local\Temp\hub-ai-driven-app-hosting.json
+[debug] [2026-02-15T13:17:24.523Z] [hub] writing locator at C:\Users\Petri\AppData\Local\Temp\hub-ai-driven-app-hosting.json
+[info] i  apphosting: running custom start command: 'npm run dev' {"metadata":{"emulator":{"name":"apphosting"},"message":"running custom start command: 'npm run dev'"}}
+[debug] [2026-02-15T13:17:24.553Z] Checked if tokens are valid: true, expires at: 1771163042132
+[debug] [2026-02-15T13:17:24.553Z] Checked if tokens are valid: true, expires at: 1771163042132
+[debug] [2026-02-15T13:17:24.554Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access [none]
+[debug] [2026-02-15T13:17:24.961Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access 200
+[debug] [2026-02-15T13:17:24.961Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access {"name":"projects/91187639297/secrets/GPT_API_KEY/versions/2","payload":{"data":"c2stcHJvai1MVVZXS01xVmMyem5oVmlYQ2dwTW1CVnlEeW0wZGRZQjJBT0piNjVFbUJPZk5lMk4ybklXdGhidVhTRzFsVFB6dWp3LXNfazFxOFQzQmxia0ZKU2N1eU9EU1V1dnVZTU50QXFWNGxyVUFKV2djcjF4UWV5clc3WUVjU3RtT0JvQnIwb0lVS1U0WHBRNThfV0ZCR0RSSUNZMXlHOEE=","dataCrc32c":"3382453023"}}
+[warn] !  emulators: The Emulator UI is not starting because none of the running emulators have a UI component. {"metadata":{"emulator":{"name":"hub"},"message":"The Emulator UI is not starting because none of the running emulators have a UI component."}}
+[info] i  apphosting: connecting apphosting emulator {"metadata":{"emulator":{"name":"apphosting"},"message":"connecting apphosting emulator"}}
+[debug] [2026-02-15T13:17:27.500Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] 
+┌─────────────────────────────────────────────────────────────┐
+│ ✔  All emulators ready! It is now safe to connect your app. │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────┬────────────────┐
+│ Emulator    │ Host:Port      │
+├─────────────┼────────────────┤
+│ App Hosting │ localhost:5002 │
+└─────────────┴────────────────┘
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500
+
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 

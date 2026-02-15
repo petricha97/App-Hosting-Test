@@ -16,7 +16,8 @@ env:
     availability:
       - BUILD
       - RUNTIME
-
+  - variable: GPT_API_KEY
+    secret: GPT_API_KEY
   # Configure secrets
   # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
   # - variable: API_KEY
