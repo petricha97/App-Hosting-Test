@@ -22,3 +22,33 @@ env:
   # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
   # - variable: API_KEY
   #   secret: myApiKeySecret
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyDvWOtA68Iq9svp9gFxuvsoWYHcYA56hT4
+    availability:
+    - BUILD
+    - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: ai-driven-app-hosting.firebaseapp.com
+    availability:
+    - BUILD
+    - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: ai-driven-app-hosting
+    availability:
+    - BUILD
+    - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: ai-driven-app-hosting.firebasestorage.app
+    availability:
+    - BUILD
+    - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "91187639297"
+    availability:
+    - BUILD
+    - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:91187639297:web:ff2daf68697ddac1c1bc00
+    availability:
+    - BUILD
+    - RUNTIME

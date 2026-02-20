@@ -1,28 +1,132 @@
-[debug] [2026-02-15T13:17:24.322Z] ----------------------------------------------------------------------
-[debug] [2026-02-15T13:17:24.324Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Petri\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start
-[debug] [2026-02-15T13:17:24.324Z] CLI Version:   14.17.0
-[debug] [2026-02-15T13:17:24.324Z] Platform:      win32
-[debug] [2026-02-15T13:17:24.324Z] Node Version:  v22.16.0
-[debug] [2026-02-15T13:17:24.324Z] Time:          Sun Feb 15 2026 21:17:24 GMT+0800 (Singapore Standard Time)
-[debug] [2026-02-15T13:17:24.325Z] ----------------------------------------------------------------------
+[debug] [2026-02-20T09:53:33.129Z] ----------------------------------------------------------------------
+[debug] [2026-02-20T09:53:33.131Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Petri\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start
+[debug] [2026-02-20T09:53:33.132Z] CLI Version:   14.17.0
+[debug] [2026-02-20T09:53:33.132Z] Platform:      win32
+[debug] [2026-02-20T09:53:33.132Z] Node Version:  v22.16.0
+[debug] [2026-02-20T09:53:33.132Z] Time:          Fri Feb 20 2026 17:53:33 GMT+0800 (Singapore Standard Time)
+[debug] [2026-02-20T09:53:33.132Z] ----------------------------------------------------------------------
 [debug] 
-[debug] [2026-02-15T13:17:24.511Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
-[debug] [2026-02-15T13:17:24.511Z] > authorizing via signed-in user (petricha96@gmail.com)
+[debug] [2026-02-20T09:53:33.134Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-02-20T09:53:33.324Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-20T09:53:33.324Z] > authorizing via signed-in user (petricha96@gmail.com)
 [info] i  emulators: Starting emulators: apphosting {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: apphosting"}}
-[debug] [2026-02-15T13:17:24.520Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
-[debug] [2026-02-15T13:17:24.520Z] [apphosting] App Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
-[debug] [2026-02-15T13:17:24.520Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"apphosting":[{"address":"127.0.0.1","family":"IPv4","port":5002}]},"metadata":{"message":"assigned listening specs for emulators"}}
-[debug] [2026-02-15T13:17:24.523Z] Emulator locator file path: C:\Users\Petri\AppData\Local\Temp\hub-ai-driven-app-hosting.json
-[debug] [2026-02-15T13:17:24.523Z] [hub] writing locator at C:\Users\Petri\AppData\Local\Temp\hub-ai-driven-app-hosting.json
+[debug] [2026-02-20T09:53:33.334Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-02-20T09:53:33.334Z] [apphosting] App Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-02-20T09:53:33.334Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"apphosting":[{"address":"127.0.0.1","family":"IPv4","port":5002}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2026-02-20T09:53:33.340Z] Emulator locator file path: C:\Users\Petri\AppData\Local\Temp\hub-ai-driven-app-hosting.json
+[warn] !  emulators: It seems that you are running multiple instances of the emulator suite for project ai-driven-app-hosting. This may result in unexpected behavior. 
+[debug] [2026-02-20T09:53:33.341Z] [hub] writing locator at C:\Users\Petri\AppData\Local\Temp\hub-ai-driven-app-hosting.json
 [info] i  apphosting: running custom start command: 'npm run dev' {"metadata":{"emulator":{"name":"apphosting"},"message":"running custom start command: 'npm run dev'"}}
-[debug] [2026-02-15T13:17:24.553Z] Checked if tokens are valid: true, expires at: 1771163042132
-[debug] [2026-02-15T13:17:24.553Z] Checked if tokens are valid: true, expires at: 1771163042132
-[debug] [2026-02-15T13:17:24.554Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access [none]
-[debug] [2026-02-15T13:17:24.961Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access 200
-[debug] [2026-02-15T13:17:24.961Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access {"name":"projects/91187639297/secrets/GPT_API_KEY/versions/2","payload":{"data":"c2stcHJvai1MVVZXS01xVmMyem5oVmlYQ2dwTW1CVnlEeW0wZGRZQjJBT0piNjVFbUJPZk5lMk4ybklXdGhidVhTRzFsVFB6dWp3LXNfazFxOFQzQmxia0ZKU2N1eU9EU1V1dnVZTU50QXFWNGxyVUFKV2djcjF4UWV5clc3WUVjU3RtT0JvQnIwb0lVS1U0WHBRNThfV0ZCR0RSSUNZMXlHOEE=","dataCrc32c":"3382453023"}}
+[debug] [2026-02-20T09:53:33.378Z] Checked if tokens are valid: false, expires at: 1771163042132
+[debug] [2026-02-20T09:53:33.378Z] Checked if tokens are valid: false, expires at: 1771163042132
+[debug] [2026-02-20T09:53:33.378Z] > refreshing access token with scopes: []
+[debug] [2026-02-20T09:53:33.379Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-02-20T09:53:33.379Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-02-20T09:53:33.511Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-02-20T09:53:33.511Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-02-20T09:53:33.526Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access [none]
+[debug] [2026-02-20T09:53:33.816Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2026-02-20T09:53:33.816Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2026-02-20T09:53:33.988Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access 200
+[debug] [2026-02-20T09:53:33.988Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access {"name":"projects/91187639297/secrets/GPT_API_KEY/versions/2","payload":{"data":"c2stcHJvai1MVVZXS01xVmMyem5oVmlYQ2dwTW1CVnlEeW0wZGRZQjJBT0piNjVFbUJPZk5lMk4ybklXdGhidVhTRzFsVFB6dWp3LXNfazFxOFQzQmxia0ZKU2N1eU9EU1V1dnVZTU50QXFWNGxyVUFKV2djcjF4UWV5clc3WUVjU3RtT0JvQnIwb0lVS1U0WHBRNThfV0ZCR0RSSUNZMXlHOEE=","dataCrc32c":"3382453023"}}
 [warn] !  emulators: The Emulator UI is not starting because none of the running emulators have a UI component. {"metadata":{"emulator":{"name":"hub"},"message":"The Emulator UI is not starting because none of the running emulators have a UI component."}}
 [info] i  apphosting: connecting apphosting emulator {"metadata":{"emulator":{"name":"apphosting"},"message":"connecting apphosting emulator"}}
-[debug] [2026-02-15T13:17:27.500Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[debug] [2026-02-20T09:53:37.799Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] 
+┌─────────────────────────────────────────────────────────────┐
+│ ✔  All emulators ready! It is now safe to connect your app. │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────┬────────────────┐
+│ Emulator    │ Host:Port      │
+├─────────────┼────────────────┤
+│ App Hosting │ localhost:5002 │
+└─────────────┴────────────────┘
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500
+
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 
+[error] !!  apphosting: failed to start Dev Server: Error: Error: spawn(npm run dev) 
+ exited with code: 3221225786 {"metadata":{"emulator":{"name":"apphosting"},"message":"failed to start Dev Server: Error: Error: spawn(npm run dev) \n exited with code: 3221225786"}}
+[info] i  apphosting: Dev Server stopped {"metadata":{"emulator":{"name":"apphosting"},"message":"Dev Server stopped"}}
+[debug] [2026-02-20T09:54:18.999Z] Received signal SIGHUP 1
+[info]  
+[info] i  emulators: Received SIGHUP for the first time. Starting a clean shutdown. 
+[info] i  emulators: Please wait for a clean shutdown or send the SIGHUP signal again to stop right now. 
+[info] i  emulators: Shutting down emulators. {"metadata":{"emulator":{"name":"hub"},"message":"Shutting down emulators."}}
+[info] i  apphosting: Stopping App Hosting Emulator {"metadata":{"emulator":{"name":"apphosting"},"message":"Stopping App Hosting Emulator"}}
+[info] i  apphosting: stopping apphosting emulator {"metadata":{"emulator":{"name":"apphosting"},"message":"stopping apphosting emulator"}}
+[info] i  hub: Stopping emulator hub {"metadata":{"emulator":{"name":"hub"},"message":"Stopping emulator hub"}}
+[debug] [2026-02-20T09:54:19.002Z] Emulator locator file path: C:\Users\Petri\AppData\Local\Temp\hub-ai-driven-app-hosting.json
+[info] i  logging: Stopping Logging Emulator {"metadata":{"emulator":{"name":"logging"},"message":"Stopping Logging Emulator"}}
+[debug] [2026-02-20T09:54:19.006Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[debug] [2026-02-20T09:54:26.372Z] ----------------------------------------------------------------------
+[debug] [2026-02-20T09:54:26.375Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Petri\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start
+[debug] [2026-02-20T09:54:26.376Z] CLI Version:   14.17.0
+[debug] [2026-02-20T09:54:26.376Z] Platform:      win32
+[debug] [2026-02-20T09:54:26.376Z] Node Version:  v22.16.0
+[debug] [2026-02-20T09:54:26.376Z] Time:          Fri Feb 20 2026 17:54:26 GMT+0800 (Singapore Standard Time)
+[debug] [2026-02-20T09:54:26.376Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-20T09:54:26.566Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-20T09:54:26.566Z] > authorizing via signed-in user (petricha96@gmail.com)
+[info] i  emulators: Starting emulators: apphosting {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: apphosting"}}
+[debug] [2026-02-20T09:54:26.575Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-02-20T09:54:26.575Z] [apphosting] App Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-02-20T09:54:26.575Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"apphosting":[{"address":"127.0.0.1","family":"IPv4","port":5002}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2026-02-20T09:54:26.580Z] Emulator locator file path: C:\Users\Petri\AppData\Local\Temp\hub-ai-driven-app-hosting.json
+[debug] [2026-02-20T09:54:26.580Z] [hub] writing locator at C:\Users\Petri\AppData\Local\Temp\hub-ai-driven-app-hosting.json
+[info] i  apphosting: running custom start command: 'npm run dev' {"metadata":{"emulator":{"name":"apphosting"},"message":"running custom start command: 'npm run dev'"}}
+[debug] [2026-02-20T09:54:26.612Z] Checked if tokens are valid: true, expires at: 1771584812511
+[debug] [2026-02-20T09:54:26.612Z] Checked if tokens are valid: true, expires at: 1771584812511
+[debug] [2026-02-20T09:54:26.613Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access [none]
+[debug] [2026-02-20T09:54:26.860Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access 200
+[debug] [2026-02-20T09:54:26.860Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access {"name":"projects/91187639297/secrets/GPT_API_KEY/versions/2","payload":{"data":"c2stcHJvai1MVVZXS01xVmMyem5oVmlYQ2dwTW1CVnlEeW0wZGRZQjJBT0piNjVFbUJPZk5lMk4ybklXdGhidVhTRzFsVFB6dWp3LXNfazFxOFQzQmxia0ZKU2N1eU9EU1V1dnVZTU50QXFWNGxyVUFKV2djcjF4UWV5clc3WUVjU3RtT0JvQnIwb0lVS1U0WHBRNThfV0ZCR0RSSUNZMXlHOEE=","dataCrc32c":"3382453023"}}
+[warn] !  emulators: The Emulator UI is not starting because none of the running emulators have a UI component. {"metadata":{"emulator":{"name":"hub"},"message":"The Emulator UI is not starting because none of the running emulators have a UI component."}}
+[info] i  apphosting: connecting apphosting emulator {"metadata":{"emulator":{"name":"apphosting"},"message":"connecting apphosting emulator"}}
+[debug] [2026-02-20T09:54:29.475Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] 
+┌─────────────────────────────────────────────────────────────┐
+│ ✔  All emulators ready! It is now safe to connect your app. │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────┬────────────────┐
+│ Emulator    │ Host:Port      │
+├─────────────┼────────────────┤
+│ App Hosting │ localhost:5002 │
+└─────────────┴────────────────┘
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500
+
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 
+[debug] [2026-02-20T09:58:49.430Z] ----------------------------------------------------------------------
+[debug] [2026-02-20T09:58:49.432Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Petri\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start
+[debug] [2026-02-20T09:58:49.433Z] CLI Version:   14.17.0
+[debug] [2026-02-20T09:58:49.433Z] Platform:      win32
+[debug] [2026-02-20T09:58:49.433Z] Node Version:  v22.16.0
+[debug] [2026-02-20T09:58:49.433Z] Time:          Fri Feb 20 2026 17:58:49 GMT+0800 (Singapore Standard Time)
+[debug] [2026-02-20T09:58:49.433Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-20T09:58:49.632Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-20T09:58:49.632Z] > authorizing via signed-in user (petricha96@gmail.com)
+[info] i  emulators: Starting emulators: apphosting {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: apphosting"}}
+[debug] [2026-02-20T09:58:49.640Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-02-20T09:58:49.640Z] [apphosting] App Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-02-20T09:58:49.641Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"apphosting":[{"address":"127.0.0.1","family":"IPv4","port":5002}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2026-02-20T09:58:49.644Z] Emulator locator file path: C:\Users\Petri\AppData\Local\Temp\hub-ai-driven-app-hosting.json
+[warn] !  emulators: It seems that you are running multiple instances of the emulator suite for project ai-driven-app-hosting. This may result in unexpected behavior. 
+[debug] [2026-02-20T09:58:49.645Z] [hub] writing locator at C:\Users\Petri\AppData\Local\Temp\hub-ai-driven-app-hosting.json
+[info] i  apphosting: running custom start command: 'npm run dev' {"metadata":{"emulator":{"name":"apphosting"},"message":"running custom start command: 'npm run dev'"}}
+[debug] [2026-02-20T09:58:49.679Z] Checked if tokens are valid: true, expires at: 1771584812511
+[debug] [2026-02-20T09:58:49.679Z] Checked if tokens are valid: true, expires at: 1771584812511
+[debug] [2026-02-20T09:58:49.680Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access [none]
+[debug] [2026-02-20T09:58:49.944Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access 200
+[debug] [2026-02-20T09:58:49.944Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/ai-driven-app-hosting/secrets/GPT_API_KEY/versions/latest:access {"name":"projects/91187639297/secrets/GPT_API_KEY/versions/2","payload":{"data":"c2stcHJvai1MVVZXS01xVmMyem5oVmlYQ2dwTW1CVnlEeW0wZGRZQjJBT0piNjVFbUJPZk5lMk4ybklXdGhidVhTRzFsVFB6dWp3LXNfazFxOFQzQmxia0ZKU2N1eU9EU1V1dnVZTU50QXFWNGxyVUFKV2djcjF4UWV5clc3WUVjU3RtT0JvQnIwb0lVS1U0WHBRNThfV0ZCR0RSSUNZMXlHOEE=","dataCrc32c":"3382453023"}}
+[warn] !  emulators: The Emulator UI is not starting because none of the running emulators have a UI component. {"metadata":{"emulator":{"name":"hub"},"message":"The Emulator UI is not starting because none of the running emulators have a UI component."}}
+[info] i  apphosting: connecting apphosting emulator {"metadata":{"emulator":{"name":"apphosting"},"message":"connecting apphosting emulator"}}
+[debug] [2026-02-20T09:58:52.884Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
 [info] 
 ┌─────────────────────────────────────────────────────────────┐
 │ ✔  All emulators ready! It is now safe to connect your app. │

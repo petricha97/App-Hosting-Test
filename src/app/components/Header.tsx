@@ -20,6 +20,23 @@ export function Header() {
       <header className="header">
         <Firebase />
       </header>
+
+      {pathname !== "/login" && pathname !== "/signup" && (
+        <Link
+          href="/login"
+          className="button"
+          style={{
+            position: "fixed",
+            top: "32px",
+            right: "32px",
+            background: "var(--button)",
+            color: "var(--primary-contrast)",
+            textDecoration: "none",
+          }}
+        >
+          Login
+        </Link>
+      )}
     </>
   );
 }
