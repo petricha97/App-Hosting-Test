@@ -26,18 +26,15 @@ import { getAuth } from "firebase-admin/auth";
 // Without this guard, each hot reload would try to call initializeApp() again,
 // which throws an error because the app is already initialized.
 // So we only initialize if no app exists yet.
-getApps().length > 0
-  ? getApps()[0]
-  : initializeApp({
-    credential:
-      process.env.FIREBASE_PRIVATE_KEY
-        ? cert({
-          projectId: process.env.FIREBASE_PROJECT_ID!,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-        })
-        : applicationDefault(),
+if (!getApps().length) {
+  initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID!,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, "\n"),
+    }),
   });
+}
 
 // Export the Firestore instance so other files can import it like:
 //   import { db } from "../lib/firestore";
