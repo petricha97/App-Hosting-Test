@@ -1,7 +1,7 @@
 // Import the Firestore instance we set up in lib/firestore.ts.
 // Because this is a Server Component (no "use client" at the top),
 // this code runs on the server — so it's safe to use the Admin SDK here.
-import { db } from "../lib/firestore";
+import { adminDb } from "../lib/firestore";
 
 // force-dynamic tells Next.js to ALWAYS render this page on the server
 // for every request (no caching). This ensures we always get fresh data
@@ -25,7 +25,7 @@ export default async function Page() {
   // db.collection("messages") points to the "messages" collection in Firestore.
   // .get() fetches ALL documents in that collection.
   // The result is a "QuerySnapshot" containing all matching documents.
-  const snapshot = await db.collection("messages").get();
+  const snapshot = await adminDb.collection("messages").get();
 
   // snapshot.docs is an array of document snapshots.
   // For each doc, we extract:
