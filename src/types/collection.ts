@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp, FieldValue } from "firebase/firestore";
 
 export type WithId<T> = T & { id: string };
 
@@ -18,14 +18,14 @@ export interface OrganizationDoc {
     allowDomainAutoJoin: boolean;
     ownerId: string;
     memberCount: number;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt: Timestamp | FieldValue;
+    updatedAt: Timestamp | FieldValue;
 }
 
 export interface OrganizationMembership {
     organizationId: string;
     role: "owner" | "admin" | "member";
-    joinedAt: Timestamp;
+    joinedAt: Timestamp | FieldValue;
     joinMethod: "created" | "invite_link" | "invite_code" | "domain_auto_join";
 }
 
@@ -64,8 +64,8 @@ export interface UserDoc {
     emailVerified: boolean;
     status: "active" | "pending" | "suspended";
     permissions: UserPermission[];
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt: Timestamp | FieldValue;
+    updatedAt: Timestamp | FieldValue;
     lastLoginAt?: Timestamp;
 }
 

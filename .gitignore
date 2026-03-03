@@ -36,3 +36,4 @@ next-env.d.ts
 apphosting.emulator.yaml
 
 /AI-Driven-Project
+*.md

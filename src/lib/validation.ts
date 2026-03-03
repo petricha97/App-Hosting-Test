@@ -4,21 +4,6 @@ import { z } from "zod";
 // Auth Schemas
 // ============================================================================
 
-export const signUpSchema = z.object({
-  name: z.string().trim().max(80, "Name is too long.").optional(),
-  email: z.email("Enter a valid email."),
-  password: z.string()
-    .min(8, "Use at least 8 characters.")
-    .regex(/[A-Za-z]/, "Include at least one letter.")
-    .regex(/[0-9]/, "Include at least one number."),
-  confirmPassword: z.string(),
-}).refine(v => v.password === v.confirmPassword, {
-  path: ["confirmPassword"],
-  message: "Passwords do not match.",
-});
-
-export type SignUpValues = z.infer<typeof signUpSchema>;
-
 export const loginSchema = z.object({
   email: z.email("Enter a valid email."),
   password: z.string().min(1, "Password is required."),
@@ -93,25 +78,6 @@ export const verificationStepSchema = z.object({
 });
 
 export type VerificationStepValues = z.infer<typeof verificationStepSchema>;
-
-export const signUpWizardSchema = z.object({
-  name: z.string().trim().max(80).optional(),
-  email: z.email("Enter a valid email."),
-  password: z.string()
-    .min(8, "Use at least 8 characters.")
-    .regex(/[A-Za-z]/, "Include at least one letter.")
-    .regex(/[0-9]/, "Include at least one number."),
-  organizationAction: z.enum(["create", "join", "auto-join"]),
-  organizationName: z.string().trim().min(2).max(100).optional(),
-  organizationType: z.enum(["organization", "workspace"]).optional(),
-  inviteCode: z.string().optional(),
-  existingOrgId: z.string().optional(),
-  verificationMethod: z.enum(["email", "dns_txt"]).optional(),
-  verificationEmail: z.enum(["admin", "webmaster"]).optional(),
-  skipVerification: z.boolean().optional(),
-});
-
-export type SignUpWizardValues = z.infer<typeof signUpWizardSchema>;
 
 // ============================================================================
 // Join Organization Schemas

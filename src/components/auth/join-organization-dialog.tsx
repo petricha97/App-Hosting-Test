@@ -5,8 +5,15 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, setDoc, serverTimestamp, increment } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
+import {
+    getOrganizationByInviteCode,
+    getUser,
+    createUser,
+    updateUser,
+    updateOrganizationMemberCount,
+    serverTimestamp,
+} from "@/lib/db";
 
 import {
     Dialog,
@@ -81,23 +88,9 @@ export function JoinOrganizationDialog({ children, onSuccess }: JoinOrganization
 
             try {
                 const normalized = normalizeInviteCode(codeValue);
-                const orgQuery = query(
-                    collection(db, "Organization"),
-                    where("inviteCode", "==", normalized),
-                    where("inviteCodeEnabled", "==", true)
-                );
-                const orgSnap = await getDocs(orgQuery);
-
-                if (orgSnap.empty) {
-                    setError("Invalid invite code");
-                    setFoundOrg(null);
-                } else {
-                    setFoundOrg({
-                        org: orgSnap.docs[0].data() as OrganizationDoc,
-                        id: orgSnap.docs[0].id,
-                    });
-                    setError(null);
-                }
+                const found = await getOrganizationByInviteCode(normalized);
+                setFoundOrg(found ? { org: found, id: found.id } : null);
+                if (!found) setError("Invalid invite code");
             } catch {
                 setError("Error validating code");
                 setFoundOrg(null);
@@ -125,11 +118,9 @@ export function JoinOrganizationDialog({ children, onSuccess }: JoinOrganization
 
         try {
             const userEmail = user.email.toLowerCase();
-            const userRef = doc(db, "User", userEmail);
-            const userSnap = await getDoc(userRef);
+            const userData = await getUser(userEmail);
 
-            if (userSnap.exists()) {
-                const userData = userSnap.data() as UserDoc;
+            if (userData) {
                 const isMember = userData.organizations.some(
                     m => m.organizationId === foundOrg.id
                 );
@@ -143,25 +134,24 @@ export function JoinOrganizationDialog({ children, onSuccess }: JoinOrganization
                 const membership: OrganizationMembership = {
                     organizationId: foundOrg.id,
                     role: "member",
-                    joinedAt: serverTimestamp() as any,
+                    joinedAt: serverTimestamp(),
                     joinMethod: "invite_code",
                 };
 
-                await updateDoc(userRef, {
+                await updateUser(userEmail, {
                     organizationId: foundOrg.id,
                     organizationRole: "member",
                     organizations: [...userData.organizations, membership],
-                    updatedAt: serverTimestamp(),
                 });
             } else {
                 const membership: OrganizationMembership = {
                     organizationId: foundOrg.id,
                     role: "member",
-                    joinedAt: serverTimestamp() as any,
+                    joinedAt: serverTimestamp(),
                     joinMethod: "invite_code",
                 };
 
-                const userData: UserDoc = {
+                const newUserData: UserDoc = {
                     uid: user.uid,
                     name: user.displayName || "",
                     email: userEmail,
@@ -172,17 +162,14 @@ export function JoinOrganizationDialog({ children, onSuccess }: JoinOrganization
                     emailVerified: user.emailVerified,
                     status: "active",
                     permissions: MEMBER_PERMISSIONS,
-                    createdAt: serverTimestamp() as any,
-                    updatedAt: serverTimestamp() as any,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
                 };
 
-                await setDoc(userRef, userData);
+                await createUser(userEmail, newUserData);
             }
 
-            await updateDoc(doc(db, "Organization", foundOrg.id), {
-                memberCount: increment(1),
-                updatedAt: serverTimestamp(),
-            });
+            await updateOrganizationMemberCount(foundOrg.id, 1);
 
             setState("success");
             onSuccess?.();

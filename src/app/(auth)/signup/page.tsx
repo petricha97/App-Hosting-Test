@@ -1,15 +1,10 @@
-import { SignupWizard } from "@/components/auth/signup-wizard";
+import { redirect } from "next/navigation";
 
 interface PageProps {
-  searchParams: Promise<{ code?: string; token?: string }>;
+    searchParams: Promise<{ code?: string; token?: string }>;
 }
 
 export default async function SignupPage({ searchParams }: PageProps) {
-  const params = await searchParams;
-  return (
-    <SignupWizard
-      inviteCode={params.code}
-      inviteToken={params.token}
-    />
-  );
+    const { code } = await searchParams;
+    redirect(`/signup/credentials${code ? `?code=${code}` : ""}`);
 }
