@@ -127,9 +127,23 @@ export function LoginForm({
     }
   };
 
+  async function syncSessionCookie() {
+    const user = auth.currentUser;
+    if (!user) return;
+  
+    const token = await user.getIdToken(); // optionally getIdToken(true) to force refresh
+  
+    await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+  }
+
   const onSubmit: SubmitHandler<LoginValues> = async (values) => {
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
+      await syncSessionCookie();
       router.push(redirectTo);
     } catch (e) {
       if (e instanceof FirebaseError) mapFirebaseError(e);

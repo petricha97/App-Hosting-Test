@@ -50,7 +50,7 @@ if (!getApps().length) {
 
 
 export const adminDb = getFirestore();
-adminDb.settings({ preferRest: true });
+// adminDb.settings({ preferRest: true });
 export const adminAuth = getAuth();
 
 
