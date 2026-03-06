@@ -44,16 +44,20 @@ export function Header() {
         }}
       >
         {user ? (
-          <button
-            onClick={handleLogout}
-            className="button"
-            style={{
-              background: "var(--button)",
-              color: "var(--primary-contrast)",
-            }}
-          >
-            Logout
-          </button>
+          <p className="inline-flex items-center gap-2">
+            {user.displayName}{" "}
+            <button
+              onClick={handleLogout}
+              className="button"
+              style={{
+                background: "var(--button)",
+                color: "var(--primary-contrast)",
+              }}
+            >
+              Logout
+            </button>
+          </p>
+
         ) : (
           pathname !== "/login" &&
           pathname !== "/signup" && (
