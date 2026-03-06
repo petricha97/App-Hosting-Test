@@ -102,3 +102,19 @@ export interface DomainVerificationDoc {
     createdAt: Timestamp;
     updatedAt: Timestamp;
 }
+
+export interface EventDoc {
+    allowOverlap: boolean;
+    capacity: number;
+    createdAt: Timestamp;
+    description: string;
+    expectedGuests: number;
+    formPath: string;
+    invoicePath: string;
+    name: string;
+    organizationPath: string;
+    periods: Array<Map<string, string>>;
+    status: "Draft" | "Published";
+    timezone: string;
+    updatedAt: Timestamp;
+}
