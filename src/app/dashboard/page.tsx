@@ -1,3 +1,4 @@
+import EventFormTest from "@/features/event/event-form-test";
 import decodeUser from "@/lib/auth-utils";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -43,6 +44,7 @@ export default async function DashboardPage() {
             <div className="text-sm text-muted-foreground">
                 Signed in as <span className="font-medium">{picture}</span>
             </div>
+            <EventFormTest/>
         </div>
     );
 }
