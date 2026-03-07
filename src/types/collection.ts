@@ -113,7 +113,7 @@ export interface EventDoc {
     invoicePath: string;
     name: string;
     organizationPath: string;
-    periods: Array<Map<string, string>>;
+    periods: Array<Record<string, string>>;
     status: "Draft" | "Published";
     timezone: string;
     updatedAt: Timestamp;

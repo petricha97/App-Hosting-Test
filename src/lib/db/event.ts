@@ -1,77 +1,76 @@
-import {
-    doc,
-    getDoc,
-    setDoc,
-    updateDoc,
-    collection,
-    query,
-    where,
-    getDocs,
-    deleteDoc,
-} from "firebase/firestore";
-export { serverTimestamp } from "firebase/firestore";
-
-import { db } from "@/lib/firebase";
+import { serverTimestamp } from "firebase/firestore";
+import { createCollectionApi } from "@/lib/db/base";
 import type { EventDoc } from "@/types/collection";
 
-const EVENTS = "Event";
+const eventApi = createCollectionApi<EventDoc>("Event");
 
-export async function createEvent(data: EventDoc): Promise<string> {
-    const ref = doc(collection(db, EVENTS));
-    await setDoc(ref, data);
-    return ref.id;
-}
+export { serverTimestamp };
 
-// GET ONE
-export async function getEvent(eventId: string): Promise<EventDoc | null> {
-    const ref = doc(db, EVENTS, eventId);
-    const snap = await getDoc(ref);
-
-    if (!snap.exists()) return null;
-
-    return snap.data() as EventDoc;
-}
+export const {
+    create: createEvent,
+    set: setEvent,
+    getById: getEventById,
+    getAll: getEvents,
+    update: updateEvent,
+    remove: deleteEvent,
+    findWhere: findEventsByField,
+    findMany: findManyEvents,
+} = eventApi;
 
 
-// GET ALL
-export async function getEvents(): Promise<(EventDoc & { id: string })[]> {
-    const snap = await getDocs(collection(db, EVENTS));
 
-    return snap.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as EventDoc),
-    }));
-}
+// Example of the factory pattern. Not fully tested. Need to add pagination.
+
+// Get Event
+// const eventId = await eventApi.create(data);
+// OR
+// const eventId = await createEvent({
+//     allowOverlap: false,
+//     capacity: 50,
+//     createdAt: serverTimestamp(),
+//     updatedAt: serverTimestamp(),
+//     description: "Annual Tech Meetup",
+//     expectedGuests: 40,
+//     formPath: "/forms/tech-meetup",
+//     invoicePath: "/invoices/tech-meetup",
+//     name: "Tech Meetup 2026",
+//     organizationPath: "/organizations/dev-club",
+//     periods: [
+//         new Map([
+//             ["start", "2026-05-01T10:00:00"],
+//             ["end", "2026-05-01T12:00:00"],
+//         ])
+//     ],
+//     status: "Draft",
+//     timezone: "Asia/Singapore",
+// });
+
+// // Get Event by Id
+// const event = await getEventById("abc123");
+
+// // Get all Events
+// const events = await getEvents();
+
+// // Update Event
+// await updateEvent("abc123", {
+//     status: "Published",
+//     updatedAt: serverTimestamp(),
+// });
 
 
-// UPDATE
-export async function updateEvent(
-    eventId: string,
-    data: Partial<EventDoc>
-): Promise<void> {
-    const ref = doc(db, EVENTS, eventId);
-    await updateDoc(ref, data);
-}
+// // Query Event
+// const publishedEvents = await findEventsByField("status", "Published");
 
 
-// DELETE
-export async function deleteEvent(eventId: string): Promise<void> {
-    const ref = doc(db, EVENTS, eventId);
-    await deleteDoc(ref);
-}
+// // Custom query using Firestore constraints
+// import { where, orderBy, limit } from "firebase/firestore";
+// import { findManyEvents } from "@/lib/db/event";
 
+// const events = await findManyEvents(
+//     where("status", "==", "Published"),
+//     orderBy("createdAt", "desc"),
+//     limit(5)
+// );
 
-// QUERY BY FIELD (example)
-export async function getEventsByField(
-    field: keyof EventDoc,
-    value: unknown
-): Promise<(EventDoc & { id: string })[]> {
-
-    const q = query(collection(db, EVENTS), where(field as string, "==", value));
-    const snap = await getDocs(q);
-
-    return snap.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as EventDoc),
-    }));
-}
+// // Delete Event
+// await deleteEvent("abc123");
