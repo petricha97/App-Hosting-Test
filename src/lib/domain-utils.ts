@@ -58,9 +58,13 @@ export function isCorporateEmail(email: string): boolean {
 }
 
 export function extractDomain(email: string): string | null {
-    if (!email || !email.includes("@")) return null;
-    const parts = email.split("@");
-    return parts[1]?.toLowerCase() || null;
+    if (isValidEmail(email)) {
+        return email.split("@")[1].toLowerCase();
+    }
+    const lastAt = email.lastIndexOf("@");
+    if (lastAt === -1) return null;
+    const domain = email.slice(lastAt + 1).toLowerCase();
+    return domain || null;
 }
 
 export function suggestOrganizationType(email: string): "organization" | "workspace" {
@@ -75,8 +79,7 @@ export function formatDomainForDisplay(domain: string): string {
 }
 
 export function isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    return /^[^@]+@[^@]+$/.test(email);
 }
 
 export function getVerificationEmailOptions(domain: string): string[] {
