@@ -16,7 +16,7 @@ export const {
     findWhere: findEventsByField,
     findMany: findManyEvents,
 } = eventApi;
-
+//factory pattern 
 
 
 // Example of the factory pattern. Not fully tested. Need to add pagination.

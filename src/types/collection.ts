@@ -103,6 +103,30 @@ export interface DomainVerificationDoc {
     updatedAt: Timestamp;
 }
 
+export interface ConditionRule {
+    field: string;
+    operator: string;
+    value: string | number;
+}
+
+export interface PromotionTemplateDoc {
+    name: string;
+    description?: string;
+    discountType?: string;
+    discountValue?: number;
+    conditions: ConditionRule[];
+    isArchived?: boolean;
+    createdAt: Timestamp | FieldValue;
+    updatedAt: Timestamp | FieldValue;
+}
+
+export interface TodoDoc {
+    uid: string;
+    title: string;
+    completed: boolean;
+    createdAt: Timestamp | FieldValue;
+}
+
 export interface EventDoc {
     allowOverlap: boolean;
     capacity: number;

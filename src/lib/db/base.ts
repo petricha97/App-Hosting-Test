@@ -31,7 +31,7 @@ import {
     };
   }
   
-  export function createCollectionApi<T extends DocumentData>(collectionName: string) {
+  export function  createCollectionApi<T extends DocumentData>(collectionName: string) {
     const converter = createConverter<T>();
     const colRef = collection(db, collectionName).withConverter(converter);
   

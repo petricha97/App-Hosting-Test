@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { FieldValue } from "firebase-admin/firestore";
 
-import { adminAuth, adminDb } from "@/app/lib/firestore";
+import { adminAuth } from "@/app/lib/firestore";
+import { createTodo } from "@/lib/db/db";
+
+const CreateTodoSchema = z.object({
+    title: z.string().min(1, "Title cannot be empty"),
+});
 
 function getBearerToken(req: Request) {
     const h = req.headers.get("authorization");
@@ -13,14 +20,19 @@ export async function POST(req: Request) {
     if (!token) return NextResponse.json({ error: "Missing token" }, { status: 401 });
 
     const decoded = await adminAuth.verifyIdToken(token);
-    const { title } = await req.json();
-    
-    const ref = await adminDb.collection("todos").add({
+
+    const body = await req.json();
+    const parsed = CreateTodoSchema.safeParse(body);
+    if (!parsed.success) {
+        return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const id = await createTodo({
         uid: decoded.uid,
-        title,
+        title: parsed.data.title,
         completed: false,
-        createdAt: new Date(),
+        createdAt: FieldValue.serverTimestamp(),
     });
 
-    return NextResponse.json({ id: ref.id });
+    return NextResponse.json({ id });
 }
