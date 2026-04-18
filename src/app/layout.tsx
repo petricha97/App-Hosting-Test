@@ -4,6 +4,7 @@ import "./globals.css";
 import { Header } from "./components";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from "@/components/ui/sonner";
+import ChatSupport from "@/components/chat/ChatSupport";
 
 export const metadata: Metadata = {
   title: "Next.js on Firebase App Hosting",
@@ -29,6 +30,7 @@ export default function RootLayout({
           {children}
           <div className="bottom-gradient" />
           <Toaster />
+          <ChatSupport />
         </AuthProvider>
       </body>
     </html>
