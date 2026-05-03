@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   LogOut,
   Menu,
   Plus,
@@ -117,6 +119,8 @@ function getPageMeta(pathname: string) {
   };
 }
 
+const SIDEBAR_STORAGE_KEY = "eventa-dashboard-sidebar-collapsed";
+
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -129,18 +133,27 @@ function getInitials(name: string) {
 function SidebarContent({
   pathname,
   onNavigate,
+  collapsed = false,
+  onToggleCollapse,
 }: {
   pathname: string;
   onNavigate?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   return (
     <div className="flex h-full flex-col bg-white/95">
-      <div className="space-y-6 px-4 py-5">
-        <div className="flex items-center gap-3 px-2">
+      <div className={cn("space-y-6 py-5", collapsed ? "px-3" : "px-4")}>
+        <div
+          className={cn(
+            "flex items-center px-2",
+            collapsed ? "justify-center" : "gap-3",
+          )}
+        >
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ffb082,#ff7a59)] text-sm font-semibold text-white shadow-sm">
             E
           </span>
-          <div className="space-y-1">
+          <div className={cn("space-y-1", collapsed && "hidden")}>
             <p className="text-base font-semibold text-slate-950">Eventa</p>
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
               Dashboard
@@ -148,17 +161,53 @@ function SidebarContent({
           </div>
         </div>
 
-        <Button asChild className="w-full justify-center rounded-full">
-          <Link href="/dashboard/events/new" onClick={onNavigate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Event
-          </Link>
-        </Button>
+        {collapsed ? (
+          <Button
+            asChild
+            size="icon"
+            className="mx-auto flex rounded-full"
+            title="Create event"
+          >
+            <Link href="/dashboard/events/new" onClick={onNavigate}>
+              <Plus className="h-4 w-4" />
+            </Link>
+          </Button>
+        ) : (
+          <Button asChild className="w-full justify-center rounded-full">
+            <Link href="/dashboard/events/new" onClick={onNavigate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Event
+            </Link>
+          </Button>
+        )}
+
+        {onToggleCollapse ? (
+          <Button
+            type="button"
+            variant="outline"
+            size={collapsed ? "icon" : "sm"}
+            className={cn(
+              "rounded-full border-slate-200 bg-white shadow-sm",
+              collapsed ? "mx-auto flex" : "w-full justify-center",
+            )}
+            onClick={onToggleCollapse}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <ChevronsRight className="h-4 w-4" />
+            ) : (
+              <>
+                <ChevronsLeft className="h-4 w-4" />
+                Collapse sidebar
+              </>
+            )}
+          </Button>
+        ) : null}
       </div>
 
       <Separator />
 
-      <nav className="flex-1 space-y-2 px-3 py-5">
+      <nav className={cn("flex-1 space-y-2 py-5", collapsed ? "px-2" : "px-3")}>
         {dashboardNavItems.map((item) => {
           const isActive = item.exact
             ? pathname === item.href
@@ -169,8 +218,12 @@ function SidebarContent({
               key={item.href}
               href={item.href}
               onClick={onNavigate}
+              title={collapsed ? item.title : undefined}
               className={cn(
-                "group flex items-start gap-3 rounded-2xl px-3 py-3 transition",
+                "group rounded-2xl transition",
+                collapsed
+                  ? "flex justify-center px-2 py-3"
+                  : "flex items-start gap-3 px-3 py-3",
                 isActive
                   ? "bg-orange-50 text-slate-950 shadow-sm"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
@@ -186,7 +239,7 @@ function SidebarContent({
               >
                 <item.icon className="h-4 w-4" />
               </span>
-              <span className="space-y-1">
+              <span className={cn("space-y-1", collapsed && "hidden")}>
                 <span className="block text-sm font-semibold">{item.title}</span>
                 <span className="block text-xs leading-5 text-slate-500">
                   {item.description}
@@ -197,13 +250,20 @@ function SidebarContent({
         })}
       </nav>
 
-      <div className="px-4 pb-5">
+      <div className={cn("pb-5", collapsed ? "px-2" : "px-4")}>
         <div className="rounded-[1.5rem] border border-orange-100 bg-[#fff4ea] p-4">
-          <div className="flex items-center gap-2 text-orange-900">
+          <div
+            className={cn(
+              "flex items-center text-orange-900",
+              collapsed ? "justify-center" : "gap-2",
+            )}
+          >
             <Sparkles className="h-4 w-4" />
-            <p className="text-sm font-semibold">v1 dashboard scaffold</p>
+            <p className={cn("text-sm font-semibold", collapsed && "hidden")}>
+              v1 dashboard scaffold
+            </p>
           </div>
-          <p className="mt-2 text-xs leading-6 text-slate-600">
+          <p className={cn("mt-2 text-xs leading-6 text-slate-600", collapsed && "hidden")}>
             This shell is built to support events, event-owned forms, and
             response workflows before the Firestore schema is fully finalized.
           </p>
@@ -220,6 +280,7 @@ export function DashboardShell({
   const pathname = usePathname();
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const {
     user,
@@ -250,10 +311,35 @@ export function DashboardShell({
     router.refresh();
   }
 
+  useEffect(() => {
+    const storedValue = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    setDesktopSidebarCollapsed(storedValue === "true");
+  }, []);
+
+  function toggleDesktopSidebar() {
+    setDesktopSidebarCollapsed((currentValue) => {
+      const nextValue = !currentValue;
+      window.localStorage.setItem(
+        SIDEBAR_STORAGE_KEY,
+        String(nextValue),
+      );
+      return nextValue;
+    });
+  }
+
   return (
     <div className="min-h-screen bg-[#f7f3ec] text-slate-950 lg:flex">
-      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-80 lg:shrink-0 lg:border-r lg:border-slate-200/70 lg:bg-white/80 lg:backdrop-blur-xl">
-        <SidebarContent pathname={pathname} />
+      <aside
+        className={cn(
+          "hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:shrink-0 lg:border-r lg:border-slate-200/70 lg:bg-white/80 lg:backdrop-blur-xl lg:transition-[width]",
+          desktopSidebarCollapsed ? "lg:w-24" : "lg:w-80",
+        )}
+      >
+        <SidebarContent
+          pathname={pathname}
+          collapsed={desktopSidebarCollapsed}
+          onToggleCollapse={toggleDesktopSidebar}
+        />
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
