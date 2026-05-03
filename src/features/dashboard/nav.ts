@@ -1,0 +1,43 @@
+import {
+  FileStack,
+  Inbox,
+  LayoutDashboard,
+  Settings,
+  Ticket,
+} from "lucide-react";
+
+import type { DashboardNavItem } from "@/features/dashboard/types";
+
+export const dashboardNavItems: DashboardNavItem[] = [
+  {
+    title: "Overview",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    exact: true,
+    description: "Summary, quick actions, and setup progress.",
+  },
+  {
+    title: "Events",
+    href: "/dashboard/events",
+    icon: Ticket,
+    description: "Create, review, and organize every event.",
+  },
+  {
+    title: "Forms",
+    href: "/dashboard/forms",
+    icon: FileStack,
+    description: "Browse event-owned forms across the workspace.",
+  },
+  {
+    title: "Responses",
+    href: "/dashboard/responses",
+    icon: Inbox,
+    description: "Review attendee submissions and updates.",
+  },
+  {
+    title: "Settings",
+    href: "/dashboard/settings",
+    icon: Settings,
+    description: "Workspace profile and future team settings.",
+  },
+];
