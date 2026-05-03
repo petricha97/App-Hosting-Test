@@ -1,6 +1,12 @@
 import { serverTimestamp } from "firebase/firestore";
 import { createCollectionApi } from "@/lib/db/base";
-import type { EventDoc } from "@/types/collection";
+import type { EventDoc, WithId } from "@/types/collection";
+import { eventDocumentSchema } from "@/features/event/schema";
+import {
+    buildOrganizationPathCandidates,
+    eventBelongsToOrganization,
+    sortEventsByUpdatedAt,
+} from "@/features/event/utils";
 
 const eventApi = createCollectionApi<EventDoc>("Event");
 
@@ -16,6 +22,53 @@ export const {
     findWhere: findEventsByField,
     findMany: findManyEvents,
 } = eventApi;
+
+function parseEvent<T extends EventDoc>(event: T) {
+    const result = eventDocumentSchema.safeParse(event);
+    return result.success ? result.data : null;
+}
+
+export async function getEventsForOrganization(organizationId: string) {
+    const matches = await Promise.all(
+        buildOrganizationPathCandidates(organizationId).map((path) =>
+            findEventsByField("organizationPath", path)
+        )
+    );
+
+    const uniqueEvents = new Map<string, WithId<EventDoc>>();
+
+    for (const group of matches) {
+        for (const event of group) {
+            const parsed = parseEvent(event);
+            if (!parsed) continue;
+            uniqueEvents.set(event.id, { ...event, ...parsed });
+        }
+    }
+
+    return sortEventsByUpdatedAt(Array.from(uniqueEvents.values()));
+}
+
+export async function getEventForOrganization(
+    eventId: string,
+    organizationId: string
+) {
+    const event = await getEventById(eventId);
+
+    if (!event) {
+        return null;
+    }
+
+    const parsed = parseEvent(event);
+
+    if (!parsed || !eventBelongsToOrganization(parsed, organizationId)) {
+        return null;
+    }
+
+    return {
+        ...event,
+        ...parsed,
+    };
+}
 //factory pattern 
 
 

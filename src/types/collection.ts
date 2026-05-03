@@ -130,7 +130,7 @@ export interface TodoDoc {
 export interface EventDoc {
     allowOverlap: boolean;
     capacity: number;
-    createdAt: Timestamp;
+    createdAt: Timestamp | FieldValue;
     description: string;
     expectedGuests: number;
     formPath: string;
@@ -140,5 +140,5 @@ export interface EventDoc {
     periods: Array<Record<string, string>>;
     status: "Draft" | "Published";
     timezone: string;
-    updatedAt: Timestamp;
+    updatedAt: Timestamp | FieldValue;
 }
