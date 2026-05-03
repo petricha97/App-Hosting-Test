@@ -26,6 +26,7 @@ export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const isHomeRoute = pathname === "/";
+  const isDashboardRoute = pathname.startsWith("/dashboard");
   const isAuthRoute =
     pathname.startsWith("/login") || pathname.startsWith("/signup");
 
@@ -35,6 +36,10 @@ export function Header() {
     await signOut(auth);
     await fetch("/api/auth/session", { method: "DELETE" });
     router.push("/");
+  }
+
+  if (isDashboardRoute) {
+    return null;
   }
 
   if (isHomeRoute) {
