@@ -99,8 +99,36 @@ function getPageMeta(pathname: string) {
   if (pathname === "/dashboard/forms") {
     return {
       title: "Forms",
-      subtitle: "Browse event-owned forms across your active workspace.",
+      subtitle: "Browse event-owned forms and reusable templates across your active workspace.",
       breadcrumbs: ["Dashboard", "Forms"],
+    };
+  }
+
+  if (pathname === "/dashboard/forms/templates") {
+    return {
+      title: "Templates",
+      subtitle: "Manage reusable registration templates for future event forms.",
+      breadcrumbs: ["Dashboard", "Forms", "Templates"],
+    };
+  }
+
+  if (pathname === "/dashboard/forms/templates/new") {
+    return {
+      title: "New Template",
+      subtitle: "Design a reusable registration template for your workspace.",
+      breadcrumbs: ["Dashboard", "Forms", "Templates", "New Template"],
+    };
+  }
+
+  const templateMatch = pathname.match(/^\/dashboard\/forms\/templates\/([^/]+)$/);
+
+  if (templateMatch) {
+    const templateId = decodeURIComponent(templateMatch[1]);
+
+    return {
+      title: "Template Editor",
+      subtitle: "Update template fields and apply new versions to linked event forms.",
+      breadcrumbs: ["Dashboard", "Forms", "Templates", templateId],
     };
   }
 
