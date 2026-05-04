@@ -127,9 +127,15 @@ export function CreateEventWorkspace() {
         periods: values.periods,
       });
 
-      toast.success("Draft event created", {
-        description: "The event has been saved. Opening the event workspace now.",
-      });
+      toast.success(
+        values.status === "Published" ? "Event published" : "Draft event created",
+        {
+          description:
+            values.status === "Published"
+              ? "The event has been saved and can now appear in the public events list."
+              : "The event has been saved. Opening the event workspace now.",
+        },
+      );
 
       router.push(`/dashboard/events/${id}`);
       router.refresh();
@@ -142,13 +148,28 @@ export function CreateEventWorkspace() {
   }
 
   const isSubmitting = form.formState.isSubmitting;
+  const selectedStatus = form.watch("status");
+  const primaryActionLabel =
+    selectedStatus === "Published" ? "Publish event" : "Save draft";
+  const secondarySubmitLabel =
+    selectedStatus === "Published"
+      ? "Create published event"
+      : "Create event now";
 
   return (
     <div className="space-y-6">
       <DashboardPageHeader
         eyebrow="Create event"
-        title="Create a real draft event from the new dashboard workspace."
-        description="This route now saves to Firestore using the existing event helper, while keeping the calmer dashboard-first layout we already scaffolded."
+        title={
+          selectedStatus === "Published"
+            ? "Create and publish an event from the dashboard workspace."
+            : "Create a real draft event from the new dashboard workspace."
+        }
+        description={
+          selectedStatus === "Published"
+            ? "Published events can appear in the public events directory as soon as they are saved."
+            : "This route now saves to Firestore using the existing event helper, while keeping the calmer dashboard-first layout we already scaffolded."
+        }
         actions={
           <>
             <Button asChild variant="outline">
@@ -158,10 +179,12 @@ export function CreateEventWorkspace() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving draft
+                  {selectedStatus === "Published"
+                    ? "Publishing event"
+                    : "Saving draft"}
                 </>
               ) : (
-                "Save draft"
+                primaryActionLabel
               )}
             </Button>
           </>
@@ -629,7 +652,11 @@ export function CreateEventWorkspace() {
                 disabled={isSubmitting}
                 className="rounded-full bg-white text-slate-950 hover:bg-orange-50"
               >
-                {isSubmitting ? "Saving..." : "Create event now"}
+                {isSubmitting
+                  ? selectedStatus === "Published"
+                    ? "Publishing..."
+                    : "Saving..."
+                  : secondarySubmitLabel}
               </Button>
             </CardContent>
           </Card>
