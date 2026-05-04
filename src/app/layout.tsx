@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 import "./globals.css";
-import { Header } from "./components";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SiteHeader } from "@/components/layout/site-header";
 import { Toaster } from "@/components/ui/sonner";
 import ChatSupport from "@/components/chat/ChatSupport";
 
@@ -25,7 +25,7 @@ export default function RootLayout({
       </head>
       <body>
         <AuthProvider>
-          <Header />
+          <SiteHeader />
           {children}
           <Toaster />
           <ChatSupport />
