@@ -57,6 +57,8 @@ const EMPTY_SCHEDULE_RANGE: EventScheduleRangeValues = {
   endTime: "",
 };
 
+const PENDING_FORM_PATH = "Form/pending";
+
 function buildOrganizationPath(organizationId: string | null) {
   return organizationId ? buildOrganizationEventPath(organizationId) : "";
 }
@@ -77,7 +79,7 @@ export function CreateEventWorkspace() {
       description: "",
       capacity: 1,
       expectedGuests: 0,
-      formPath: "",
+      formPath: PENDING_FORM_PATH,
       invoicePath: "",
       organizationPath: organizationPathDefault,
       timezone: "Asia/Singapore",
@@ -103,6 +105,18 @@ export function CreateEventWorkspace() {
       });
     }
   }, [form, organizationPathDefault]);
+
+  useEffect(() => {
+    const currentFormPath = form.getValues("formPath");
+
+    if (currentFormPath !== PENDING_FORM_PATH) {
+      form.setValue("formPath", PENDING_FORM_PATH, {
+        shouldDirty: false,
+        shouldTouch: false,
+        shouldValidate: false,
+      });
+    }
+  }, [form]);
 
   async function onSubmit(values: EventFormValues) {
     try {
@@ -172,8 +186,8 @@ export function CreateEventWorkspace() {
                       Event basics
                     </CardTitle>
                     <CardDescription className="mt-2 text-sm leading-7 text-slate-600">
-                      Start with the essential event details and the document paths
-                      the current Firestore model expects.
+                      Start with the essential event details before moving into
+                      form design and responses.
                     </CardDescription>
                   </div>
                 </div>
@@ -491,54 +505,45 @@ export function CreateEventWorkspace() {
                     <FileStack className="h-5 w-5" />
                   </div>
                   <div>
-                    <CardTitle className="text-2xl text-slate-950">
-                      Registration and billing paths
-                    </CardTitle>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <CardTitle className="text-2xl text-slate-950">
+                        Registration and billing paths
+                      </CardTitle>
+                      <span className="rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-900">
+                        Dev only
+                      </span>
+                    </div>
                     <CardDescription className="mt-2 text-sm leading-7 text-slate-600">
-                      The current event document still expects linked path fields,
-                      so they stay editable here until the model evolves.
+                      These legacy linkage values still exist in the event
+                      document for development compatibility. They should be
+                      removed once the model is cleaned up.
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-5 px-6 pb-6 pt-0">
-                <div className="grid gap-5 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="formPath"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Form path</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="/forms/event-a"
-                            className="h-12 rounded-2xl border-slate-200 bg-slate-50"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="invoicePath"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Invoice path</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="/invoices/event-a"
-                            className="h-12 rounded-2xl border-slate-200 bg-slate-50"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="formPath"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Form path</FormLabel>
+                      <FormControl>
+                        <Input
+                          className="h-12 rounded-2xl border-slate-200 bg-slate-100 text-slate-600"
+                          readOnly
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        This stays system-managed for now. It will be replaced
+                        with the real `Form/&lt;id&gt;` link after the builder
+                        saves its first draft.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
@@ -548,13 +553,13 @@ export function CreateEventWorkspace() {
                       <FormLabel>Organization path</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Organization/acme"
-                          className="h-12 rounded-2xl border-slate-200 bg-slate-50"
+                          className="h-12 rounded-2xl border-slate-200 bg-slate-100 text-slate-600"
+                          readOnly
                           {...field}
                         />
                       </FormControl>
                       <FormDescription>
-                        We prefill this from the active workspace when possible.
+                        This is filled from the active workspace and cannot be edited here.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

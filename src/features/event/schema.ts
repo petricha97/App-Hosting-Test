@@ -45,7 +45,7 @@ export const eventFormSchema = z.object({
     .int()
     .min(0, "Expected guests cannot be negative"),
   formPath: z.string().trim().min(1, "Form path is required"),
-  invoicePath: z.string().trim().min(1, "Invoice path is required"),
+  invoicePath: z.string().trim().default(""),
   organizationPath: z.string().trim().min(1, "Organization path is required"),
   timezone: z.string().trim().min(1, "Timezone is required"),
   allowOverlap: z.boolean(),
