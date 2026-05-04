@@ -142,3 +142,30 @@ export interface EventDoc {
     timezone: string;
     updatedAt: Timestamp | FieldValue;
 }
+
+export type FormFieldType = "text" | "email" | "textarea";
+
+export type FormStatus = "draft" | "published";
+
+export interface FormFieldDoc {
+    id: string;
+    key: string;
+    label: string;
+    type: FormFieldType;
+    placeholder: string;
+    helpText: string;
+    required: boolean;
+    isMandatory: boolean;
+    order: number;
+    rows?: number;
+}
+
+export interface FormDoc {
+    eventId: string;
+    organizationId: string;
+    title: string;
+    status: FormStatus;
+    fields: FormFieldDoc[];
+    createdAt: Timestamp | FieldValue;
+    updatedAt: Timestamp | FieldValue;
+}

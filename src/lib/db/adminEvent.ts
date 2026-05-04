@@ -14,7 +14,10 @@ const eventAdminApi = createAdminCollectionApi<EventDoc>("Event");
 const {
   getById: getAdminEventById,
   findWhere: findAdminEventsByField,
+  update: updateAdminEvent,
 } = eventAdminApi;
+
+export { updateAdminEvent };
 
 function parseEvent<T extends EventDoc>(event: T) {
   const result = eventDocumentSchema.safeParse(event);
