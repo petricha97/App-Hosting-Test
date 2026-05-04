@@ -144,8 +144,10 @@ export interface EventDoc {
 }
 
 export type FormFieldType = "text" | "email" | "textarea";
+export type FormFieldOrigin = "mandatory" | "template" | "event";
 
 export type FormStatus = "draft" | "published";
+export type FormTemplateStatus = "active" | "archived";
 
 export interface FormFieldDoc {
     id: string;
@@ -157,7 +159,16 @@ export interface FormFieldDoc {
     required: boolean;
     isMandatory: boolean;
     order: number;
+    origin?: FormFieldOrigin;
+    sourceTemplateFieldId?: string;
     rows?: number;
+}
+
+export interface FormTemplateLinkDoc {
+    templateId: string;
+    templateVersion: number;
+    detached: boolean;
+    appliedAt: Timestamp | FieldValue;
 }
 
 export interface FormDoc {
@@ -165,6 +176,18 @@ export interface FormDoc {
     organizationId: string;
     title: string;
     status: FormStatus;
+    fields: FormFieldDoc[];
+    templateLink?: FormTemplateLinkDoc;
+    createdAt: Timestamp | FieldValue;
+    updatedAt: Timestamp | FieldValue;
+}
+
+export interface FormTemplateDoc {
+    organizationId: string;
+    title: string;
+    description: string;
+    status: FormTemplateStatus;
+    version: number;
     fields: FormFieldDoc[];
     createdAt: Timestamp | FieldValue;
     updatedAt: Timestamp | FieldValue;

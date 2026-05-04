@@ -33,6 +33,8 @@ export function createMandatoryFormFields(): FormFieldValues[] {
     required: true,
     isMandatory: true,
     order: index,
+    origin: "mandatory",
+    sourceTemplateFieldId: undefined,
     rows: undefined,
   }));
 }
