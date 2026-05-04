@@ -12,6 +12,28 @@ const firestoreTimestampSchema = z.custom<Timestamp | FieldValue>(
 
 export const eventStatusSchema = z.enum(["Draft", "Published"]);
 
+export const eventScheduleRangeSchema = z
+  .object({
+    startDate: z.string().min(1, "Start date is required"),
+    startTime: z.string().min(1, "Start time is required"),
+    endDate: z.string().min(1, "End date is required"),
+    endTime: z.string().min(1, "End time is required"),
+  })
+  .refine(
+    (value) => {
+      const start = new Date(`${value.startDate}T${value.startTime}`);
+      const end = new Date(`${value.endDate}T${value.endTime}`);
+
+      return !Number.isNaN(start.getTime()) &&
+        !Number.isNaN(end.getTime()) &&
+        end.getTime() >= start.getTime();
+    },
+    {
+      message: "End date and time must be after the start date and time.",
+      path: ["endTime"],
+    },
+  );
+
 export const eventPeriodSchema = z.record(z.string(), z.string());
 
 export const eventFormSchema = z.object({
@@ -28,6 +50,9 @@ export const eventFormSchema = z.object({
   timezone: z.string().trim().min(1, "Timezone is required"),
   allowOverlap: z.boolean(),
   status: eventStatusSchema,
+  periods: z
+    .array(eventScheduleRangeSchema)
+    .min(1, "Add at least one date and time range."),
 });
 
 export const eventDocumentSchema = eventFormSchema.extend({
@@ -39,3 +64,4 @@ export const eventDocumentSchema = eventFormSchema.extend({
 export type EventFormValues = z.infer<typeof eventFormSchema>;
 export type EventFormInput = z.input<typeof eventFormSchema>;
 export type EventDocumentValues = z.infer<typeof eventDocumentSchema>;
+export type EventScheduleRangeValues = z.infer<typeof eventScheduleRangeSchema>;

@@ -5,8 +5,16 @@ import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { serverTimestamp } from "firebase/firestore";
-import { CalendarClock, FileStack, Globe, Loader2, Sparkles } from "lucide-react";
-import { useForm } from "react-hook-form";
+import {
+  CalendarClock,
+  FileStack,
+  Globe,
+  Loader2,
+  Plus,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
+import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,6 +23,7 @@ import { DashboardPageHeader } from "@/features/dashboard/components/page-header
 import {
   eventFormSchema,
   type EventFormInput,
+  type EventScheduleRangeValues,
   type EventFormValues,
 } from "@/features/event/schema";
 import { buildOrganizationEventPath } from "@/features/event/utils";
@@ -40,6 +49,13 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 const FORM_ID = "create-event-form";
+
+const EMPTY_SCHEDULE_RANGE: EventScheduleRangeValues = {
+  startDate: "",
+  startTime: "",
+  endDate: "",
+  endTime: "",
+};
 
 function buildOrganizationPath(organizationId: string | null) {
   return organizationId ? buildOrganizationEventPath(organizationId) : "";
@@ -67,7 +83,12 @@ export function CreateEventWorkspace() {
       timezone: "Asia/Singapore",
       allowOverlap: false,
       status: "Draft",
+      periods: [{ ...EMPTY_SCHEDULE_RANGE }],
     },
+  });
+  const scheduleRanges = useFieldArray({
+    control: form.control,
+    name: "periods",
   });
 
   useEffect(() => {
@@ -89,7 +110,7 @@ export function CreateEventWorkspace() {
         ...values,
         createdAt: serverTimestamp() as never,
         updatedAt: serverTimestamp() as never,
-        periods: [],
+        periods: values.periods,
       });
 
       toast.success("Draft event created", {
@@ -259,13 +280,142 @@ export function CreateEventWorkspace() {
                       Schedule and timing
                     </CardTitle>
                     <CardDescription className="mt-2 text-sm leading-7 text-slate-600">
-                      Period blocks are still empty on creation, but the event
-                      still needs a timezone and overlap rule from day one.
+                      Add one or more date and time ranges. This supports
+                      schedules like Thursday and Friday, skipping the weekend,
+                      then continuing on Monday and Tuesday.
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-5 px-6 pb-6 pt-0">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-950">
+                        Event date ranges
+                      </h3>
+                      <p className="text-sm leading-6 text-slate-600">
+                        Each range represents one continuous block of event time.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => scheduleRanges.append({ ...EMPTY_SCHEDULE_RANGE })}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add range
+                    </Button>
+                  </div>
+
+                  {scheduleRanges.fields.map((range, index) => (
+                    <div
+                      key={range.id}
+                      className="space-y-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-950">
+                            Range {index + 1}
+                          </p>
+                          <p className="text-xs leading-6 text-slate-500">
+                            Start and end are required for every schedule block.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-full"
+                          onClick={() => scheduleRanges.remove(index)}
+                          disabled={scheduleRanges.fields.length === 1}
+                          title="Remove range"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Remove range</span>
+                        </Button>
+                      </div>
+
+                      <div className="grid gap-5 md:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name={`periods.${index}.startDate`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Start date</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="date"
+                                  className="h-12 rounded-2xl border-slate-200 bg-white"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`periods.${index}.startTime`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Start time</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="time"
+                                  className="h-12 rounded-2xl border-slate-200 bg-white"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid gap-5 md:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name={`periods.${index}.endDate`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>End date</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="date"
+                                  className="h-12 rounded-2xl border-slate-200 bg-white"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`periods.${index}.endTime`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>End time</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="time"
+                                  className="h-12 rounded-2xl border-slate-200 bg-white"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="grid gap-5 md:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -280,11 +430,11 @@ export function CreateEventWorkspace() {
                             {...field}
                           />
                         </FormControl>
-                        <FormDescription>
-                          Example: Asia/Singapore
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
+                      <FormDescription>
+                        Example: Asia/Singapore
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
                     )}
                   />
 
@@ -318,7 +468,8 @@ export function CreateEventWorkspace() {
                       <div className="space-y-1">
                         <FormLabel>Allow overlap</FormLabel>
                         <FormDescription>
-                          Whether future event periods are allowed to overlap.
+                          Useful when separate schedule ranges might collide with
+                          each other or with shared venue usage rules.
                         </FormDescription>
                       </div>
                       <FormControl>
