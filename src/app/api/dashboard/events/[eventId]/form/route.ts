@@ -23,6 +23,13 @@ const SaveEventFormRequestSchema = z.object({
   title: z.string().trim().min(1),
   status: z.enum(["draft", "published"]),
   fields: z.array(z.unknown()),
+  templateLink: z
+    .object({
+      templateId: z.string().trim().min(1),
+      templateVersion: z.coerce.number().int().min(1),
+      detached: z.boolean().default(false),
+    })
+    .optional(),
 });
 
 interface RouteContext {
@@ -100,6 +107,13 @@ export async function POST(_: Request, context: RouteContext) {
       title: parsedBuilder.data.title.trim(),
       status: parsedBuilder.data.status,
       fields: payloadFields,
+      templateLink: parsedRequest.data.templateLink
+        ? {
+            ...parsedRequest.data.templateLink,
+            appliedAt:
+              existingForm?.templateLink?.appliedAt ?? FieldValue.serverTimestamp(),
+          }
+        : existingForm?.templateLink,
       updatedAt: FieldValue.serverTimestamp(),
     });
   } else {
@@ -109,6 +123,12 @@ export async function POST(_: Request, context: RouteContext) {
       title: parsedBuilder.data.title.trim(),
       status: parsedBuilder.data.status,
       fields: payloadFields,
+      templateLink: parsedRequest.data.templateLink
+        ? {
+            ...parsedRequest.data.templateLink,
+            appliedAt: FieldValue.serverTimestamp(),
+          }
+        : undefined,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });

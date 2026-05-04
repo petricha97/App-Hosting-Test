@@ -48,9 +48,12 @@ import {
 } from "@/features/form/schema";
 import {
   buildInitialFormDraft,
+  buildFormDraftFromTemplate,
   createCustomFormField,
+  isTemplateManagedField,
   reorderFormFields,
   type SerializedForm,
+  type SerializedFormTemplate,
 } from "@/features/form/utils";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -101,9 +104,12 @@ const fieldPalette = [
 function buildBuilderDefaults(
   eventName: string,
   initialForm: SerializedForm | null,
+  initialTemplate: SerializedFormTemplate | null,
 ): FormBuilderValues {
   if (!initialForm) {
-    return buildInitialFormDraft(eventName);
+    return initialTemplate
+      ? buildFormDraftFromTemplate(eventName, initialTemplate)
+      : buildInitialFormDraft(eventName);
   }
 
   return {
@@ -163,6 +169,7 @@ function PreviewField({ field }: { field: FormFieldValues }) {
 interface SortableFieldRowProps {
   field: FormFieldValues;
   isSelected: boolean;
+  isTemplateManaged: boolean;
   onSelect: () => void;
   onRemove: () => void;
 }
@@ -170,6 +177,7 @@ interface SortableFieldRowProps {
 function SortableFieldRow({
   field,
   isSelected,
+  isTemplateManaged,
   onSelect,
   onRemove,
 }: SortableFieldRowProps) {
@@ -251,14 +259,16 @@ function SortableFieldRow({
           size="icon"
           className="rounded-full"
           onClick={onRemove}
-          disabled={field.isMandatory}
+          disabled={field.isMandatory || isTemplateManaged}
           title={
             field.isMandatory
               ? "Mandatory fields cannot be deleted"
+              : isTemplateManaged
+                ? "Template-managed fields stay controlled by the template while this form remains linked"
               : "Remove field"
           }
         >
-          {field.isMandatory ? (
+          {field.isMandatory || isTemplateManaged ? (
             <LockKeyhole className="h-4 w-4" />
           ) : (
             <Trash2 className="h-4 w-4" />
@@ -276,6 +286,7 @@ interface FormBuilderWorkspaceProps {
   organizationId: string;
   organizationName: string;
   initialForm: SerializedForm | null;
+  initialTemplate?: SerializedFormTemplate | null;
 }
 
 export function FormBuilderWorkspace({
@@ -284,6 +295,7 @@ export function FormBuilderWorkspace({
   organizationId,
   organizationName,
   initialForm,
+  initialTemplate = null,
 }: FormBuilderWorkspaceProps) {
   const router = useRouter();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -293,10 +305,25 @@ export function FormBuilderWorkspace({
   const [currentFormId, setCurrentFormId] = useState<string | null>(
     initialForm?.id ?? null,
   );
+  const [currentTemplateLink, setCurrentTemplateLink] = useState(
+    initialForm?.templateLink
+      ? {
+          templateId: initialForm.templateLink.templateId,
+          templateVersion: initialForm.templateLink.templateVersion,
+          detached: initialForm.templateLink.detached,
+        }
+      : initialTemplate
+        ? {
+            templateId: initialTemplate.id,
+            templateVersion: initialTemplate.version,
+            detached: false,
+          }
+        : null,
+  );
 
   const form = useForm<FormBuilderInput, undefined, FormBuilderValues>({
     resolver: zodResolver(formBuilderSchema),
-    defaultValues: buildBuilderDefaults(eventName, initialForm),
+    defaultValues: buildBuilderDefaults(eventName, initialForm, initialTemplate),
   });
 
   const fieldArray = useFieldArray({
@@ -344,6 +371,15 @@ export function FormBuilderWorkspace({
     () => reorderFormFields(watchedFields),
     [watchedFields],
   );
+  const linkedTemplateSummary =
+    currentTemplateLink && initialTemplate && initialTemplate.id === currentTemplateLink.templateId
+      ? initialTemplate
+      : null;
+  const templateUpdateAvailable =
+    Boolean(linkedTemplateSummary) &&
+    Boolean(currentTemplateLink) &&
+    !currentTemplateLink?.detached &&
+    (linkedTemplateSummary?.version ?? 0) > (currentTemplateLink?.templateVersion ?? 0);
 
   function handleAddField(type: FormFieldTypeValues) {
     const nextField = createCustomFormField(type, watchedFields.length);
@@ -355,7 +391,7 @@ export function FormBuilderWorkspace({
   function handleRemoveField(index: number) {
     const field = watchedFields[index];
 
-    if (!field || field.isMandatory) {
+    if (!field || field.isMandatory || isTemplateManagedField(field, currentTemplateLink)) {
       return;
     }
 
@@ -401,6 +437,7 @@ export function FormBuilderWorkspace({
           title: values.title.trim(),
           status: values.status,
           fields: reorderFormFields(values.fields),
+          templateLink: currentTemplateLink,
         }),
       });
 
@@ -432,6 +469,38 @@ export function FormBuilderWorkspace({
   }
 
   const isSubmitting = form.formState.isSubmitting;
+
+  async function handleDetachTemplate() {
+    if (!currentFormId || !currentTemplateLink || currentTemplateLink.detached) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/dashboard/events/${eventId}/form/detach`, {
+        method: "POST",
+      });
+
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to detach the form");
+      }
+
+      setCurrentTemplateLink((currentLink) =>
+        currentLink ? { ...currentLink, detached: true } : currentLink,
+      );
+      toast.success("Template detached", {
+        description:
+          "This event form can now be edited independently without future template updates.",
+      });
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      toast.error("Unable to detach template", {
+        description: "Please try again in a moment.",
+      });
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -471,6 +540,16 @@ export function FormBuilderWorkspace({
                 </>
               )}
             </Button>
+            {linkedTemplateSummary ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDetachTemplate}
+                disabled={!currentFormId || Boolean(currentTemplateLink?.detached)}
+              >
+                {currentTemplateLink?.detached ? "Detached" : "Detach template"}
+              </Button>
+            ) : null}
           </>
         }
       />
@@ -534,6 +613,31 @@ export function FormBuilderWorkspace({
                 <p className="mt-1 break-all text-xs text-slate-500">
                   Form ID: {currentFormId ?? "Draft not saved yet"}
                 </p>
+                {linkedTemplateSummary ? (
+                  <>
+                    <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Linked template
+                    </p>
+                    <p className="mt-1 text-sm text-slate-700">
+                      {linkedTemplateSummary.title}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Version {currentTemplateLink?.templateVersion ?? linkedTemplateSummary.version}
+                      {currentTemplateLink?.detached ? " • Detached" : " • Linked"}
+                    </p>
+                    {templateUpdateAvailable ? (
+                      <p className="mt-1 text-xs font-medium text-orange-900">
+                        A newer template version is available. Open the template to apply updates.
+                      </p>
+                    ) : null}
+                    <Link
+                      href={`/dashboard/forms/templates/${linkedTemplateSummary.id}`}
+                      className="mt-2 inline-flex text-xs font-medium text-orange-900 underline-offset-4 hover:underline"
+                    >
+                      Manage template
+                    </Link>
+                  </>
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -635,6 +739,10 @@ export function FormBuilderWorkspace({
                           key={field.fieldKey}
                           field={watchedFields[index] ?? field}
                           isSelected={selectedFieldId === field.id}
+                          isTemplateManaged={isTemplateManagedField(
+                            watchedFields[index] ?? field,
+                            currentTemplateLink,
+                          )}
                           onSelect={() => setSelectedFieldId(field.id)}
                           onRemove={() => handleRemoveField(index)}
                         />
@@ -681,6 +789,10 @@ export function FormBuilderWorkspace({
                         <Badge className="rounded-full bg-orange-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-900 shadow-none">
                           Locked
                         </Badge>
+                      ) : isTemplateManagedField(selectedField, currentTemplateLink) ? (
+                        <Badge className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700 shadow-none">
+                          Template
+                        </Badge>
                       ) : null}
                     </div>
                     <p className="mt-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
@@ -700,6 +812,7 @@ export function FormBuilderWorkspace({
                         <FormControl>
                           <Input
                             className="h-12 rounded-2xl border-slate-200 bg-slate-50"
+                            disabled={isTemplateManagedField(selectedField, currentTemplateLink)}
                             {...field}
                           />
                         </FormControl>
@@ -717,6 +830,7 @@ export function FormBuilderWorkspace({
                         <FormControl>
                           <Input
                             className="h-12 rounded-2xl border-slate-200 bg-slate-50"
+                            disabled={isTemplateManagedField(selectedField, currentTemplateLink)}
                             {...field}
                           />
                         </FormControl>
@@ -735,6 +849,7 @@ export function FormBuilderWorkspace({
                           <Textarea
                             rows={3}
                             className="min-h-24 rounded-[1.5rem] border-slate-200 bg-slate-50"
+                            disabled={isTemplateManagedField(selectedField, currentTemplateLink)}
                             {...field}
                           />
                         </FormControl>
@@ -762,7 +877,10 @@ export function FormBuilderWorkspace({
                           <Switch
                             checked={field.value}
                             onCheckedChange={field.onChange}
-                            disabled={selectedField.isMandatory}
+                            disabled={
+                              selectedField.isMandatory ||
+                              isTemplateManagedField(selectedField, currentTemplateLink)
+                            }
                           />
                         </FormControl>
                       </FormItem>
@@ -786,6 +904,7 @@ export function FormBuilderWorkspace({
                               ref={field.ref}
                               onBlur={field.onBlur}
                               value={field.value === undefined ? "" : String(field.value)}
+                              disabled={isTemplateManagedField(selectedField, currentTemplateLink)}
                               onChange={(event) => field.onChange(event.target.value)}
                             />
                           </FormControl>
