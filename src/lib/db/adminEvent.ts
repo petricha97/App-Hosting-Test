@@ -65,3 +65,39 @@ export async function getAdminEventForOrganization(
     ...parsed,
   };
 }
+
+export async function getAdminPublishedEvents() {
+  const events = await findAdminEventsByField("status", "Published");
+  const parsedEvents: WithId<EventDoc>[] = [];
+
+  for (const event of events) {
+    const parsed = parseEvent(event);
+    if (!parsed) continue;
+
+    parsedEvents.push({
+      ...event,
+      ...parsed,
+    });
+  }
+
+  return sortEventsByUpdatedAt(parsedEvents);
+}
+
+export async function getAdminPublishedEventById(eventId: string) {
+  const event = await getAdminEventById(eventId);
+
+  if (!event) {
+    return null;
+  }
+
+  const parsed = parseEvent(event);
+
+  if (!parsed || parsed.status !== "Published") {
+    return null;
+  }
+
+  return {
+    ...event,
+    ...parsed,
+  };
+}

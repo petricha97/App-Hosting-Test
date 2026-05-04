@@ -28,6 +28,15 @@ export function buildOrganizationPathCandidates(organizationId: string) {
   ];
 }
 
+export function extractOrganizationIdFromPath(path: string | undefined) {
+  if (!path) {
+    return null;
+  }
+
+  const segments = path.split("/").filter(Boolean);
+  return segments.length > 0 ? segments[segments.length - 1] : null;
+}
+
 export function eventBelongsToOrganization(
   event: Pick<EventDoc, "organizationPath">,
   organizationId: string,

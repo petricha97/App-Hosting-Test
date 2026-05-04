@@ -52,8 +52,8 @@ export function Header() {
             <Link href="#features" className="transition hover:text-slate-950">
               Product
             </Link>
-            <Link href="#discover" className="transition hover:text-slate-950">
-              Discover
+            <Link href="/events" className="transition hover:text-slate-950">
+              Events
             </Link>
             <Link
               href="#organizers"
@@ -118,6 +118,12 @@ export function Header() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              href="/events"
+              className="hidden rounded-full border border-orange-200 px-4 py-2 text-sm font-medium text-slate-900 transition hover:border-orange-300 hover:bg-orange-50 sm:inline-flex"
+            >
+              Events
+            </Link>
             {!initializing && user ? (
               <>
                 <span className="hidden text-sm text-slate-500 sm:inline">

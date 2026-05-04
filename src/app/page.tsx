@@ -176,7 +176,7 @@ function HeroSection() {
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="#discover"
+                href="/events"
                 className="inline-flex items-center justify-center rounded-full border border-orange-200 bg-white/85 px-6 py-3 text-sm font-semibold text-slate-900 transition hover:border-orange-300 hover:bg-white sm:w-auto"
               >
                 Browse events
@@ -414,6 +414,13 @@ function DiscoverySection() {
               <p className="mt-5 text-base leading-8 text-slate-600">
                 {event.description}
               </p>
+              <Link
+                href="/events"
+                className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-orange-900 transition hover:text-orange-700"
+              >
+                Browse public events
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </article>
           ))}
         </div>
