@@ -37,110 +37,130 @@ interface RouteContext {
 }
 
 export async function POST(_: Request, context: RouteContext) {
-  const { eventId } = await context.params;
-  const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
+  try {
+    const { eventId } = await context.params;
+    const cookieStore = await cookies();
+    const token = cookieStore.get(COOKIE_NAME)?.value;
 
-  if (!token) {
-    return NextResponse.json({ error: "Missing session" }, { status: 401 });
-  }
+    if (!token) {
+      return NextResponse.json({ error: "Missing session" }, { status: 401 });
+    }
 
-  const decodedUser = await decodeUser(token);
+    const decodedUser = await decodeUser(token);
 
-  if ("error" in decodedUser) {
-    return NextResponse.json({ error: decodedUser.error }, { status: 401 });
-  }
+    if ("error" in decodedUser) {
+      return NextResponse.json({ error: decodedUser.error }, { status: 401 });
+    }
 
-  const userDoc = await getAdminUserByEmail(decodedUser.email.toLowerCase());
+    const userDoc = await getAdminUserByEmail(decodedUser.email.toLowerCase());
 
-  if (!userDoc?.organizationId) {
-    return NextResponse.json({ error: "Missing organization scope" }, { status: 403 });
-  }
+    if (!userDoc?.organizationId) {
+      return NextResponse.json({ error: "Missing organization scope" }, { status: 403 });
+    }
 
-  if (!userDoc.permissions.includes("write:form")) {
-    return NextResponse.json({ error: "Missing write:form permission" }, { status: 403 });
-  }
+    if (!userDoc.permissions.includes("write:form")) {
+      return NextResponse.json({ error: "Missing write:form permission" }, { status: 403 });
+    }
 
-  const event = await getAdminEventForOrganization(eventId, userDoc.organizationId);
+    const event = await getAdminEventForOrganization(eventId, userDoc.organizationId);
 
-  if (!event) {
-    return NextResponse.json({ error: "Event not found" }, { status: 404 });
-  }
+    if (!event) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
+    }
 
-  const body = await _.json();
-  const parsedRequest = SaveEventFormRequestSchema.safeParse(body);
+    const body = await _.json();
+    const parsedRequest = SaveEventFormRequestSchema.safeParse(body);
 
-  if (!parsedRequest.success) {
+    if (!parsedRequest.success) {
+      return NextResponse.json(
+        { error: parsedRequest.error.flatten() },
+        { status: 400 },
+      );
+    }
+
+    const parsedBuilder = formBuilderSchema.safeParse({
+      title: parsedRequest.data.title,
+      status: parsedRequest.data.status,
+      fields: parsedRequest.data.fields,
+    });
+
+    if (!parsedBuilder.success) {
+      return NextResponse.json(
+        { error: parsedBuilder.error.flatten() },
+        { status: 400 },
+      );
+    }
+
+    const payloadFields = sanitizeFormFieldsForFirestore(parsedBuilder.data.fields);
+    const existingForm = await getAdminFormForEvent({
+      eventId,
+      eventName: event.name,
+      organizationId: userDoc.organizationId,
+      formPath: event.formPath,
+    });
+
+    let formId = existingForm?.id ?? null;
+
+    if (formId) {
+      await updateAdminForm(formId, {
+        eventId,
+        organizationId: userDoc.organizationId,
+        title: parsedBuilder.data.title.trim(),
+        status: parsedBuilder.data.status,
+        fields: payloadFields,
+        ...(parsedRequest.data.templateLink
+          ? {
+              templateLink: {
+                ...parsedRequest.data.templateLink,
+                appliedAt:
+                  existingForm?.templateLink?.appliedAt ?? FieldValue.serverTimestamp(),
+              },
+            }
+          : existingForm?.templateLink
+            ? { templateLink: existingForm.templateLink }
+            : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } else {
+      formId = await createAdminForm({
+        eventId,
+        organizationId: userDoc.organizationId,
+        title: parsedBuilder.data.title.trim(),
+        status: parsedBuilder.data.status,
+        fields: payloadFields,
+        ...(parsedRequest.data.templateLink
+          ? {
+              templateLink: {
+                ...parsedRequest.data.templateLink,
+                appliedAt: FieldValue.serverTimestamp(),
+              },
+            }
+          : {}),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      await updateAdminEvent(eventId, {
+        formPath: `Form/${formId}`,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    return NextResponse.json({
+      formId,
+      status: parsedBuilder.data.status,
+    });
+  } catch (error) {
+    console.error("Failed to save event form", error);
+
     return NextResponse.json(
-      { error: parsedRequest.error.flatten() },
-      { status: 400 },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to save event form",
+      },
+      { status: 500 },
     );
   }
-
-  const parsedBuilder = formBuilderSchema.safeParse({
-    title: parsedRequest.data.title,
-    status: parsedRequest.data.status,
-    fields: parsedRequest.data.fields,
-  });
-
-  if (!parsedBuilder.success) {
-    return NextResponse.json(
-      { error: parsedBuilder.error.flatten() },
-      { status: 400 },
-    );
-  }
-
-  const payloadFields = sanitizeFormFieldsForFirestore(parsedBuilder.data.fields);
-  const existingForm = await getAdminFormForEvent({
-    eventId,
-    eventName: event.name,
-    organizationId: userDoc.organizationId,
-    formPath: event.formPath,
-  });
-
-  let formId = existingForm?.id ?? null;
-
-  if (formId) {
-    await updateAdminForm(formId, {
-      eventId,
-      organizationId: userDoc.organizationId,
-      title: parsedBuilder.data.title.trim(),
-      status: parsedBuilder.data.status,
-      fields: payloadFields,
-      templateLink: parsedRequest.data.templateLink
-        ? {
-            ...parsedRequest.data.templateLink,
-            appliedAt:
-              existingForm?.templateLink?.appliedAt ?? FieldValue.serverTimestamp(),
-          }
-        : existingForm?.templateLink,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-  } else {
-    formId = await createAdminForm({
-      eventId,
-      organizationId: userDoc.organizationId,
-      title: parsedBuilder.data.title.trim(),
-      status: parsedBuilder.data.status,
-      fields: payloadFields,
-      templateLink: parsedRequest.data.templateLink
-        ? {
-            ...parsedRequest.data.templateLink,
-            appliedAt: FieldValue.serverTimestamp(),
-          }
-        : undefined,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    await updateAdminEvent(eventId, {
-      formPath: `Form/${formId}`,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-  }
-
-  return NextResponse.json({
-    formId,
-    status: parsedBuilder.data.status,
-  });
 }

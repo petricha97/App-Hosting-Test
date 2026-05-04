@@ -437,17 +437,32 @@ export function FormBuilderWorkspace({
           title: values.title.trim(),
           status: values.status,
           fields: reorderFormFields(values.fields),
-          templateLink: currentTemplateLink,
+          ...(currentTemplateLink ? { templateLink: currentTemplateLink } : {}),
         }),
       });
 
-      const payload = (await response.json()) as {
-        error?: string;
+      const rawPayload = await response.text();
+      const payload = (rawPayload ? JSON.parse(rawPayload) : {}) as {
+        error?:
+          | string
+          | {
+              formErrors?: string[];
+              fieldErrors?: Record<string, string[]>;
+            };
         formId?: string;
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Failed to save the form");
+        const readableError =
+          typeof payload.error === "string"
+            ? payload.error
+            : payload.error?.formErrors?.[0] ||
+              Object.values(payload.error?.fieldErrors ?? {})
+                .flat()
+                .filter(Boolean)[0] ||
+              "Failed to save the form";
+
+        throw new Error(readableError);
       }
 
       if (payload.formId) {
@@ -463,7 +478,10 @@ export function FormBuilderWorkspace({
     } catch (error) {
       console.error(error);
       toast.error("Unable to save the form", {
-        description: "Please try again in a moment.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Please try again in a moment.",
       });
     }
   }
@@ -480,7 +498,10 @@ export function FormBuilderWorkspace({
         method: "POST",
       });
 
-      const payload = (await response.json()) as { error?: string };
+      const rawPayload = await response.text();
+      const payload = (rawPayload ? JSON.parse(rawPayload) : {}) as {
+        error?: string;
+      };
 
       if (!response.ok) {
         throw new Error(payload.error ?? "Failed to detach the form");
