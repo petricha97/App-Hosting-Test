@@ -59,3 +59,63 @@ export async function getAdminFormForEvent(input: {
 
   return parseStoredForm(linkedForm, input);
 }
+
+export async function getAdminPublishedFormForEvent(input: {
+  eventId: string;
+  eventName: string;
+  organizationId: string;
+  formPath?: string;
+}) {
+  const form = await getAdminFormForEvent(input);
+
+  if (!form || form.status !== "published") {
+    return null;
+  }
+
+  return form;
+}
+
+export async function getAdminPublishedFormForPublicEvent(input: {
+  eventId: string;
+  eventName: string;
+  organizationId?: string | null;
+  formPath?: string;
+}) {
+  const directMatches = await findAdminFormsByField("eventId", input.eventId);
+
+  for (const candidate of directMatches) {
+    const parsed = normalizeStoredFormDocument(candidate, {
+      eventId: input.eventId,
+      eventName: input.eventName,
+      organizationId: input.organizationId ?? candidate.organizationId ?? "",
+    });
+
+    if (parsed && parsed.status === "published") {
+      return parsed;
+    }
+  }
+
+  const linkedFormId = extractFormIdFromPath(input.formPath);
+
+  if (!linkedFormId) {
+    return null;
+  }
+
+  const linkedForm = await getAdminFormById(linkedFormId);
+
+  if (!linkedForm) {
+    return null;
+  }
+
+  const parsed = normalizeStoredFormDocument(linkedForm, {
+    eventId: input.eventId,
+    eventName: input.eventName,
+    organizationId: input.organizationId ?? linkedForm.organizationId ?? "",
+  });
+
+  if (!parsed || parsed.status !== "published") {
+    return null;
+  }
+
+  return parsed;
+}

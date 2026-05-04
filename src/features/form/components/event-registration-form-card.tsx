@@ -72,12 +72,24 @@ interface EventRegistrationFormCardProps {
   eventId: string;
   eventName: string;
   form: SerializedForm | null;
+  submitEndpoint?: string;
+  heading?: string;
+  description?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  submitLabel?: string;
 }
 
 export function EventRegistrationFormCard({
   eventId,
   eventName,
   form,
+  submitEndpoint = `/api/dashboard/events/${eventId}/form/submit`,
+  heading,
+  description,
+  emptyTitle = "No custom form saved yet",
+  emptyDescription = "Open the form builder first, save a draft, then come back here to test the participant flow and write a real response into `FormData`.",
+  submitLabel = "Submit registration",
 }: EventRegistrationFormCardProps) {
   const submissionSchema = useMemo(
     () => buildFormSubmissionSchema((form?.fields ?? []) as FormFieldValues[]),
@@ -96,7 +108,7 @@ export function EventRegistrationFormCard({
 
   async function onSubmit(values: SubmissionValues) {
     try {
-      const response = await fetch(`/api/dashboard/events/${eventId}/form/submit`, {
+      const response = await fetch(submitEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -139,12 +151,11 @@ export function EventRegistrationFormCard({
             Registration form
           </CardDescription>
           <CardTitle className="text-2xl text-slate-950">
-            No custom form saved yet
+            {emptyTitle}
           </CardTitle>
         </CardHeader>
         <CardContent className="px-6 pb-6 pt-0 text-sm leading-7 text-slate-600">
-          Open the form builder first, save a draft, then come back here to test
-          the participant flow and write a real response into `FormData`.
+          {emptyDescription}
         </CardContent>
       </Card>
     );
@@ -164,11 +175,11 @@ export function EventRegistrationFormCard({
               Registration form
             </CardDescription>
             <CardTitle className="mt-2 text-2xl text-slate-950">
-              Test the participant flow for {eventName}
+              {heading ?? `Test the participant flow for ${eventName}`}
             </CardTitle>
             <CardDescription className="mt-2 text-sm leading-7 text-slate-600">
-              This uses the saved custom form and writes a real submission into
-              `FormData`.
+              {description ??
+                "This uses the saved custom form and writes a real submission into `FormData`."}
             </CardDescription>
           </div>
         </div>
@@ -220,7 +231,7 @@ export function EventRegistrationFormCard({
                   Saving response
                 </>
               ) : (
-                "Submit registration"
+                submitLabel
               )}
             </Button>
           </form>

@@ -15,6 +15,7 @@ import {
 } from "@/features/event/utils";
 import { EventRegistrationFormCard } from "@/features/form/components/event-registration-form-card";
 import type { SerializedForm } from "@/features/form/utils";
+import { EventStatusActions } from "@/features/dashboard/components/event-status-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,6 +63,7 @@ export function OrganizationEventDetail({
         description={event.description}
         actions={
           <>
+            <EventStatusActions eventId={event.id} status={event.status} />
             <Button asChild variant="outline">
               <Link href={`/dashboard/events/${event.id}/form`}>Open Form</Link>
             </Button>
