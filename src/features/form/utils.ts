@@ -158,13 +158,18 @@ export function ensureMandatoryFields(
     .map(normalizeField)
     .filter((field): field is FormFieldValues => field !== null);
 
+  const matchedMandatoryFieldIds = new Set<string>();
   const mandatoryFields = createMandatoryFormFields().map((field, index) => {
     const existing = normalizedCustomFields.find(
       (candidate) =>
         candidate.id === field.id ||
         candidate.key === field.key ||
-        (candidate.isMandatory && candidate.type === field.type),
+        candidate.sourceTemplateFieldId === field.id,
     );
+
+    if (existing) {
+      matchedMandatoryFieldIds.add(existing.id);
+    }
 
     return {
       ...field,
@@ -184,7 +189,14 @@ export function ensureMandatoryFields(
   });
 
   const customFields = normalizedCustomFields.filter(
-    (field) => !mandatoryFields.some((mandatory) => mandatory.id === field.id),
+    (field) =>
+      !matchedMandatoryFieldIds.has(field.id) &&
+      !mandatoryFields.some(
+        (mandatory) =>
+          mandatory.key === field.key ||
+          mandatory.id === field.id ||
+          field.sourceTemplateFieldId === mandatory.id,
+      ),
   );
 
   return reorderFormFields([...mandatoryFields, ...customFields]);
