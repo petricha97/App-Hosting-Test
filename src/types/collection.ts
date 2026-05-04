@@ -169,3 +169,11 @@ export interface FormDoc {
     createdAt: Timestamp | FieldValue;
     updatedAt: Timestamp | FieldValue;
 }
+
+export interface FormDataDoc {
+    formId: string;
+    eventId: string;
+    organizationId: string;
+    submission: Record<string, string>;
+    submittedAt: Timestamp | FieldValue;
+}

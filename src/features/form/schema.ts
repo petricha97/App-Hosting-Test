@@ -62,10 +62,52 @@ export const formDocumentSchema = storedFormDocumentSchema.extend({
   updatedAt: firestoreTimestampSchema,
 });
 
+export const formSubmissionDataSchema = z.record(z.string(), z.string());
+
+export const formDataDocumentSchema = z.object({
+  formId: z.string().trim().min(1, "Form id is required"),
+  eventId: z.string().trim().min(1, "Event id is required"),
+  organizationId: z.string().trim().min(1, "Organization id is required"),
+  submission: formSubmissionDataSchema,
+  submittedAt: firestoreTimestampSchema,
+});
+
+export function buildFormSubmissionSchema(fields: FormFieldValues[]) {
+  const shape: Record<string, z.ZodType<string>> = {};
+
+  for (const field of fields) {
+    if (field.type === "email") {
+      shape[field.key] = field.required
+        ? z
+            .string()
+            .trim()
+            .min(1, `${field.label} is required`)
+            .email("Enter a valid email address")
+        : z
+            .string()
+            .trim()
+            .refine(
+              (value) => value.length === 0 || /\S+@\S+\.\S+/.test(value),
+              "Enter a valid email address",
+            )
+            .default("");
+      continue;
+    }
+
+    shape[field.key] = field.required
+      ? z.string().trim().min(1, `${field.label} is required`)
+      : z.string().trim().default("");
+  }
+
+  return z.object(shape);
+}
+
 export type FormFieldValues = z.infer<typeof formFieldSchema>;
 export type FormBuilderValues = z.infer<typeof formBuilderSchema>;
 export type FormBuilderInput = z.input<typeof formBuilderSchema>;
 export type StoredFormDocumentValues = z.infer<typeof storedFormDocumentSchema>;
 export type FormDocumentValues = z.infer<typeof formDocumentSchema>;
+export type FormSubmissionValues = z.infer<ReturnType<typeof buildFormSubmissionSchema>>;
+export type FormDataDocumentValues = z.infer<typeof formDataDocumentSchema>;
 export type FormFieldTypeValues = z.infer<typeof formFieldTypeSchema>;
 export type FormStatusValues = z.infer<typeof formStatusSchema>;

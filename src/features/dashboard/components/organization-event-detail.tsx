@@ -13,6 +13,8 @@ import {
   getEventPrimaryDateLabel,
   type SerializedEvent,
 } from "@/features/event/utils";
+import { EventRegistrationFormCard } from "@/features/form/components/event-registration-form-card";
+import type { SerializedForm } from "@/features/form/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,9 +27,13 @@ import {
 
 interface OrganizationEventDetailProps {
   event: SerializedEvent | null;
+  form: SerializedForm | null;
 }
 
-export function OrganizationEventDetail({ event }: OrganizationEventDetailProps) {
+export function OrganizationEventDetail({
+  event,
+  form,
+}: OrganizationEventDetailProps) {
   if (!event) {
     return (
       <DashboardEmptyState
@@ -206,6 +212,12 @@ export function OrganizationEventDetail({ event }: OrganizationEventDetailProps)
           ))}
         </CardContent>
       </Card>
+
+      <EventRegistrationFormCard
+        eventId={event.id}
+        eventName={event.name}
+        form={form}
+      />
     </div>
   );
 }
