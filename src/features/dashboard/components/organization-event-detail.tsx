@@ -65,6 +65,14 @@ export function OrganizationEventDetail({
           <>
             <EventStatusActions eventId={event.id} status={event.status} />
             <Button asChild variant="outline">
+              <Link href={`/dashboard/events/${event.id}/edit`}>Edit Event</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={`/dashboard/events/${event.id}/page-builder`}>
+                Open Page Builder
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
               <Link href={`/dashboard/events/${event.id}/form`}>Open Form</Link>
             </Button>
             <Button asChild>
@@ -186,8 +194,13 @@ export function OrganizationEventDetail({
             },
             {
               icon: LayoutTemplate,
-              title: "Invoice path",
-              body: event.invoicePath,
+              title: "Page mode",
+              body:
+                event.pageMode === "redirect"
+                  ? `Redirect to ${event.redirectUrl || "missing URL"}`
+                  : event.pageMode === "custom"
+                    ? "Custom event page builder is enabled."
+                    : "Default public event page is enabled.",
             },
             {
               icon: Eye,

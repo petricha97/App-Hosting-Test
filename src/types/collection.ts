@@ -133,10 +133,14 @@ export interface EventDoc {
     createdAt: Timestamp | FieldValue;
     description: string;
     expectedGuests: number;
+    eventPagePath?: string;
     formPath: string;
     invoicePath: string;
     name: string;
     organizationPath: string;
+    pageMode: "default" | "custom" | "redirect";
+    redirectUrl: string;
+    registrationPeriod?: Record<string, string>;
     periods: Array<Record<string, string>>;
     status: "Draft" | "Published";
     timezone: string;
@@ -199,4 +203,16 @@ export interface FormDataDoc {
     organizationId: string;
     submission: Record<string, string>;
     submittedAt: Timestamp | FieldValue;
+}
+
+export interface EventPageDoc {
+    eventId: string;
+    organizationId: string;
+    title: string;
+    status: "draft" | "published";
+    storagePrefix: string;
+    draftContent: Record<string, unknown>;
+    publishedContent: Record<string, unknown> | null;
+    createdAt: Timestamp | FieldValue;
+    updatedAt: Timestamp | FieldValue;
 }

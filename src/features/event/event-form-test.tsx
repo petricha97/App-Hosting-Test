@@ -32,12 +32,15 @@ const eventFormSchema = z.object({
     timezone: z.string().min(1, "Timezone is required"),
     allowOverlap: z.boolean(),
     status: z.enum(["Draft", "Published"]),
+    pageMode: z.enum(["default", "custom", "redirect"]).default("default"),
+    redirectUrl: z.string().default(""),
 });
 
 type EventFormValues = z.infer<typeof eventFormSchema>;
+type EventFormInput = z.input<typeof eventFormSchema>;
 
 export default function EventFormTest() {
-    const form = useForm<EventFormValues>({
+    const form = useForm<EventFormInput, undefined, EventFormValues>({
         resolver: zodResolver(eventFormSchema),
         defaultValues: {
             name: "",
@@ -50,6 +53,8 @@ export default function EventFormTest() {
             timezone: "Asia/Singapore",
             allowOverlap: false,
             status: "Draft",
+            pageMode: "default",
+            redirectUrl: "",
         },
     });
 

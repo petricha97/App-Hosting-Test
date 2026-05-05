@@ -23,6 +23,7 @@ import { DashboardPageHeader } from "@/features/dashboard/components/page-header
 import {
   eventFormSchema,
   type EventFormInput,
+  type EventRegistrationPeriodValues,
   type EventScheduleRangeValues,
   type EventFormValues,
 } from "@/features/event/schema";
@@ -56,37 +57,120 @@ const EMPTY_SCHEDULE_RANGE: EventScheduleRangeValues = {
   endDate: "",
   endTime: "",
 };
+const buildEmptyRegistrationPeriod = (
+  todayDate: string,
+): EventRegistrationPeriodValues => ({
+  startDate: todayDate,
+  startTime: "",
+  endDate: todayDate,
+  endTime: "",
+});
 
 const PENDING_FORM_PATH = "Form/pending";
+
+type EventWorkspaceMode = "create" | "edit";
+
+interface EventWorkspaceInitialValues {
+  name?: string;
+  description?: string;
+  capacity?: number;
+  expectedGuests?: number;
+  formPath?: string;
+  invoicePath?: string;
+  organizationPath?: string;
+  timezone?: string;
+  allowOverlap?: boolean;
+  status?: "Draft" | "Published";
+  pageMode?: "default" | "custom" | "redirect";
+  redirectUrl?: string;
+  registrationPeriod?: Partial<EventRegistrationPeriodValues>;
+  periods?: Array<Partial<EventScheduleRangeValues>>;
+}
+
+interface CreateEventWorkspaceProps {
+  mode?: EventWorkspaceMode;
+  eventId?: string;
+  initialValues?: EventWorkspaceInitialValues;
+}
 
 function buildOrganizationPath(organizationId: string | null) {
   return organizationId ? buildOrganizationEventPath(organizationId) : "";
 }
 
-export function CreateEventWorkspace() {
+function normalizeScheduleRange(
+  value: Partial<EventScheduleRangeValues> | Record<string, string> | undefined,
+): EventScheduleRangeValues {
+  const recordValue = value as Record<string, string> | undefined;
+
+  return {
+    startDate: value?.startDate ?? recordValue?.date ?? "",
+    startTime: value?.startTime ?? recordValue?.start_time ?? "",
+    endDate: value?.endDate ?? recordValue?.date ?? "",
+    endTime: value?.endTime ?? recordValue?.end_time ?? "",
+  };
+}
+
+function buildWorkspaceDefaults(
+  organizationPathDefault: string,
+  todayDateString: string,
+  initialValues?: EventWorkspaceInitialValues,
+): EventFormInput {
+  const registrationPeriod = initialValues?.registrationPeriod;
+
+  return {
+    name: initialValues?.name ?? "",
+    description: initialValues?.description ?? "",
+    capacity: initialValues?.capacity ?? 1,
+    expectedGuests: initialValues?.expectedGuests ?? 0,
+    formPath: initialValues?.formPath ?? PENDING_FORM_PATH,
+    invoicePath: initialValues?.invoicePath ?? "",
+    organizationPath:
+      initialValues?.organizationPath ?? organizationPathDefault,
+    timezone: initialValues?.timezone ?? "Asia/Singapore",
+    allowOverlap: initialValues?.allowOverlap ?? false,
+    status: initialValues?.status ?? "Draft",
+    pageMode: initialValues?.pageMode ?? "default",
+    redirectUrl: initialValues?.redirectUrl ?? "",
+    registrationPeriod: {
+      startDate: registrationPeriod?.startDate ?? todayDateString,
+      startTime: registrationPeriod?.startTime ?? "",
+      endDate: registrationPeriod?.endDate ?? todayDateString,
+      endTime: registrationPeriod?.endTime ?? "",
+    },
+    periods:
+      initialValues?.periods && initialValues.periods.length > 0
+        ? initialValues.periods.map((period) => normalizeScheduleRange(period))
+        : [{ ...EMPTY_SCHEDULE_RANGE }],
+  };
+}
+
+export function CreateEventWorkspace({
+  mode = "create",
+  eventId,
+  initialValues,
+}: CreateEventWorkspaceProps) {
   const router = useRouter();
   const { organization, organizationId, initializing } = useAuth();
+  const todayDateString = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const organizationPathDefault = useMemo(
     () => buildOrganizationPath(organizationId),
     [organizationId],
   );
 
+  const defaultValues = useMemo(
+    () =>
+      buildWorkspaceDefaults(
+        organizationPathDefault,
+        todayDateString,
+        initialValues,
+      ),
+    [initialValues, organizationPathDefault, todayDateString],
+  );
+
   const form = useForm<EventFormInput, undefined, EventFormValues>({
     resolver: zodResolver(eventFormSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-      capacity: 1,
-      expectedGuests: 0,
-      formPath: PENDING_FORM_PATH,
-      invoicePath: "",
-      organizationPath: organizationPathDefault,
-      timezone: "Asia/Singapore",
-      allowOverlap: false,
-      status: "Draft",
-      periods: [{ ...EMPTY_SCHEDULE_RANGE }],
-    },
+    defaultValues,
   });
   const scheduleRanges = useFieldArray({
     control: form.control,
@@ -109,82 +193,151 @@ export function CreateEventWorkspace() {
   useEffect(() => {
     const currentFormPath = form.getValues("formPath");
 
-    if (currentFormPath !== PENDING_FORM_PATH) {
+    if (mode === "create" && currentFormPath !== PENDING_FORM_PATH) {
       form.setValue("formPath", PENDING_FORM_PATH, {
         shouldDirty: false,
         shouldTouch: false,
         shouldValidate: false,
       });
     }
-  }, [form]);
+  }, [form, mode]);
 
   async function onSubmit(values: EventFormValues) {
     try {
-      const id = await createEvent({
-        ...values,
-        createdAt: serverTimestamp() as never,
-        updatedAt: serverTimestamp() as never,
-        periods: values.periods,
-      });
+      if (mode === "edit" && eventId) {
+        const response = await fetch(`/api/dashboard/events/${eventId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(values),
+        });
 
-      toast.success(
-        values.status === "Published" ? "Event published" : "Draft event created",
-        {
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(
+            typeof payload?.error === "string"
+              ? payload.error
+              : "Unable to update the event.",
+          );
+        }
+
+        toast.success("Event updated", {
           description:
-            values.status === "Published"
-              ? "The event has been saved and can now appear in the public events list."
-              : "The event has been saved. Opening the event workspace now.",
-        },
-      );
+            values.pageMode === "redirect"
+              ? "The public page settings were updated for this event."
+              : "The event details have been saved.",
+        });
 
-      router.push(`/dashboard/events/${id}`);
-      router.refresh();
+        router.push(`/dashboard/events/${eventId}`);
+        router.refresh();
+      } else {
+        const id = await createEvent({
+          ...values,
+          createdAt: serverTimestamp() as never,
+          updatedAt: serverTimestamp() as never,
+          periods: values.periods,
+        });
+
+        toast.success(
+          values.status === "Published" ? "Event published" : "Draft event created",
+          {
+            description:
+              values.status === "Published"
+                ? "The event has been saved and can now appear in the public events list."
+                : "The event has been saved. Opening the event workspace now.",
+          },
+        );
+
+        router.push(`/dashboard/events/${id}`);
+        router.refresh();
+      }
     } catch (error) {
       console.error(error);
-      toast.error("Failed to create event", {
-        description: "Please review the fields and try again.",
-      });
+      toast.error(
+        mode === "edit" ? "Failed to update event" : "Failed to create event",
+        {
+          description:
+            error instanceof Error
+              ? error.message
+              : "Please review the fields and try again.",
+        },
+      );
     }
   }
 
   const isSubmitting = form.formState.isSubmitting;
   const selectedStatus = form.watch("status");
-  const primaryActionLabel =
-    selectedStatus === "Published" ? "Publish event" : "Save draft";
+  const isEditing = mode === "edit";
+
+  const submitHeading =
+    isEditing && selectedStatus === "Published"
+      ? "Update published event"
+      : isEditing
+        ? "Save event changes"
+        : selectedStatus === "Published"
+          ? "Publish event"
+          : "Save draft";
   const secondarySubmitLabel =
-    selectedStatus === "Published"
-      ? "Create published event"
-      : "Create event now";
+    isEditing && selectedStatus === "Published"
+      ? "Update published event"
+      : isEditing
+        ? "Save changes"
+        : selectedStatus === "Published"
+          ? "Create published event"
+          : "Create event now";
+
+  const headerTitle = isEditing
+    ? `Update ${form.watch("name") || "this event"} from the dashboard workspace.`
+    : selectedStatus === "Published"
+      ? "Create and publish an event from the dashboard workspace."
+      : "Create a real draft event from the new dashboard workspace.";
+  const headerDescription = isEditing
+    ? "Adjust the public page mode, redirect behavior, registration window, and other event details without leaving the dashboard."
+    : selectedStatus === "Published"
+      ? "Published events can appear in the public events directory as soon as they are saved."
+      : "This route now saves to Firestore using the existing event helper, while keeping the calmer dashboard-first layout we already scaffolded.";
+
+  const topButtonLabel = isSubmitting
+    ? isEditing
+      ? "Saving changes"
+      : selectedStatus === "Published"
+        ? "Publishing event"
+        : "Saving draft"
+    : submitHeading;
+
+  const sideButtonLabel = isSubmitting
+    ? isEditing
+      ? "Saving..."
+      : selectedStatus === "Published"
+        ? "Publishing..."
+        : "Saving..."
+    : secondarySubmitLabel;
+
+  const backHref = isEditing && eventId ? `/dashboard/events/${eventId}` : "/dashboard/events";
 
   return (
     <div className="space-y-6">
       <DashboardPageHeader
-        eyebrow="Create event"
-        title={
-          selectedStatus === "Published"
-            ? "Create and publish an event from the dashboard workspace."
-            : "Create a real draft event from the new dashboard workspace."
-        }
-        description={
-          selectedStatus === "Published"
-            ? "Published events can appear in the public events directory as soon as they are saved."
-            : "This route now saves to Firestore using the existing event helper, while keeping the calmer dashboard-first layout we already scaffolded."
-        }
+        eyebrow={isEditing ? "Edit event" : "Create event"}
+        title={headerTitle}
+        description={headerDescription}
         actions={
           <>
             <Button asChild variant="outline">
-              <Link href="/dashboard/events">Back to Events</Link>
+              <Link href={backHref}>
+                {isEditing ? "Back to Event" : "Back to Events"}
+              </Link>
             </Button>
             <Button type="submit" form={FORM_ID} disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {selectedStatus === "Published"
-                    ? "Publishing event"
-                    : "Saving draft"}
+                  {topButtonLabel}
                 </>
               ) : (
-                primaryActionLabel
+                submitHeading
               )}
             </Button>
           </>
@@ -303,6 +456,56 @@ export function CreateEventWorkspace() {
                     )}
                   />
                 </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="pageMode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Public page mode</FormLabel>
+                        <FormControl>
+                          <select
+                            className="flex h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm shadow-sm outline-none transition focus:border-orange-300"
+                            value={field.value}
+                            onChange={field.onChange}
+                          >
+                            <option value="default">Use default event page</option>
+                            <option value="custom">Design a custom page later</option>
+                            <option value="redirect">Redirect to my own page</option>
+                          </select>
+                        </FormControl>
+                        <FormDescription>
+                          Choose whether this event should use the default public
+                          page, a future custom page, or an external redirect.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="redirectUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Redirect URL</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="https://example.com/my-event-page"
+                            className="h-12 rounded-2xl border-slate-200 bg-slate-50"
+                            disabled={form.watch("pageMode") !== "redirect"}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Required only when page mode is set to redirect.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </CardContent>
             </Card>
 
@@ -325,6 +528,99 @@ export function CreateEventWorkspace() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-5 px-6 pb-6 pt-0">
+                <div className="space-y-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-950">
+                      Registration period
+                    </h3>
+                    <p className="text-sm leading-6 text-slate-600">
+                      Registration must open and close within a valid range, and
+                      it cannot start before today.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="registrationPeriod.startDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Registration start date</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              min={todayDateString}
+                              className="h-12 rounded-2xl border-slate-200 bg-white"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="registrationPeriod.startTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Registration start time</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="time"
+                              className="h-12 rounded-2xl border-slate-200 bg-white"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="registrationPeriod.endDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Registration end date</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              min={
+                                form.watch("registrationPeriod.startDate") ||
+                                todayDateString
+                              }
+                              className="h-12 rounded-2xl border-slate-200 bg-white"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="registrationPeriod.endTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Registration end time</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="time"
+                              className="h-12 rounded-2xl border-slate-200 bg-white"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -467,11 +763,11 @@ export function CreateEventWorkspace() {
                             {...field}
                           />
                         </FormControl>
-                      <FormDescription>
-                        Example: Asia/Singapore
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
+                        <FormDescription>
+                          Example: Asia/Singapore
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
                     )}
                   />
 
@@ -631,8 +927,9 @@ export function CreateEventWorkspace() {
               </div>
 
               <p>
-                The event is saved with empty periods and timestamp fields, then
-                routed into its dedicated event workspace for the next setup step.
+                {isEditing
+                  ? "Saving here updates the real event document, including the public page mode and registration window."
+                  : "The event is saved with timestamp fields, then routed into its dedicated event workspace for the next setup step."}
               </p>
             </CardContent>
           </Card>
@@ -643,8 +940,9 @@ export function CreateEventWorkspace() {
             </CardHeader>
             <CardContent className="space-y-4 px-6 pb-6 pt-0 text-sm leading-7 text-slate-200">
               <p>
-                After save, we take the user straight into the event overview so
-                the next steps can become form design, responses, or publishing.
+                {isEditing
+                  ? "Once saved, the event overview will reflect the updated page settings, registration period, and scheduling rules."
+                  : "After save, we take the user straight into the event overview so the next steps can become form design, responses, or publishing."}
               </p>
               <Button
                 type="submit"
@@ -652,11 +950,7 @@ export function CreateEventWorkspace() {
                 disabled={isSubmitting}
                 className="rounded-full bg-white text-slate-950 hover:bg-orange-50"
               >
-                {isSubmitting
-                  ? selectedStatus === "Published"
-                    ? "Publishing..."
-                    : "Saving..."
-                  : secondarySubmitLabel}
+                {sideButtonLabel}
               </Button>
             </CardContent>
           </Card>
