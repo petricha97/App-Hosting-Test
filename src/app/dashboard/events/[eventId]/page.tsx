@@ -4,6 +4,8 @@ import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
 import { serializeEvent } from "@/features/event/utils";
 import { serializeForm } from "@/features/form/utils";
 import { getAdminFormForEvent } from "@/lib/db/adminForm";
+import { getAdminEventPageForEvent } from "@/lib/db/adminEventPage";
+import { serializeEventPage } from "@/features/event-pages/utils";
 
 interface EventDetailPageProps {
   params: Promise<{ eventId: string }>;
@@ -23,11 +25,19 @@ export default async function DashboardEventDetailPage({
         formPath: event.formPath,
       })
     : null;
+  const eventPage = event
+    ? await getAdminEventPageForEvent({
+        eventId,
+        organizationId: scope.organizationId,
+        eventPagePath: event.eventPagePath,
+      })
+    : null;
 
   return (
     <OrganizationEventDetail
       event={event ? serializeEvent(event) : null}
       form={form ? serializeForm(form) : null}
+      eventPage={eventPage ? serializeEventPage(eventPage) : null}
     />
   );
 }

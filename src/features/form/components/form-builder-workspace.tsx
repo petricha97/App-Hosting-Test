@@ -340,6 +340,11 @@ export function FormBuilderWorkspace({
     () => (watchedFieldsValue ?? []) as FormFieldValues[],
     [watchedFieldsValue],
   );
+  const watchedStatus = useWatch({
+    control: form.control,
+    name: "status",
+    defaultValue: form.getValues("status"),
+  });
 
   const selectedFieldIndex = watchedFields.findIndex(
     (field) => field.id === selectedFieldId,
@@ -469,24 +474,37 @@ export function FormBuilderWorkspace({
         setCurrentFormId(payload.formId);
       }
 
-      toast.success("Registration form saved", {
-        description:
-          "The organizer-facing draft is now stored in Firestore for this event.",
-      });
+      const isPublished = values.status === "published";
+
+      toast.success(
+        isPublished ? "Registration form published" : "Registration form saved",
+        {
+          description: isPublished
+            ? "The published registration form is now available for event pages that use registration."
+            : "The organizer-facing draft is now stored in Firestore for this event.",
+        },
+      );
 
       router.refresh();
     } catch (error) {
       console.error(error);
-      toast.error("Unable to save the form", {
-        description:
-          error instanceof Error
-            ? error.message
-            : "Please try again in a moment.",
-      });
+      toast.error(
+        values.status === "published"
+          ? "Unable to publish the form"
+          : "Unable to save the form",
+        {
+          description:
+            error instanceof Error
+              ? error.message
+              : "Please try again in a moment.",
+        },
+      );
     }
   }
 
   const isSubmitting = form.formState.isSubmitting;
+  const submitLabel = watchedStatus === "published" ? "Publish form" : "Save draft";
+  const submittingLabel = watchedStatus === "published" ? "Publishing..." : "Saving...";
 
   async function handleDetachTemplate() {
     if (!currentFormId || !currentTemplateLink || currentTemplateLink.detached) {
@@ -553,11 +571,11 @@ export function FormBuilderWorkspace({
             </Button>
             <Button type="submit" form={FORM_ID} disabled={isSubmitting}>
               {isSubmitting ? (
-                "Saving..."
+                submittingLabel
               ) : (
                 <>
                   <Save className="mr-2 h-4 w-4" />
-                  Save draft
+                  {submitLabel}
                 </>
               )}
             </Button>

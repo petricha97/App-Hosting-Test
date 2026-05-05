@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { DashboardPageHeader } from "@/features/dashboard/components/page-header";
 import {
   blankCustomData,
+  createDashboardRegistrationRenderer,
   createEventPagePuckConfig,
   ensurePuckDataIds,
   starterTemplates,
@@ -29,6 +30,7 @@ import {
 } from "@/features/event-pages/puck";
 import type { EventPageAsset } from "@/features/event-pages/assets";
 import type { SerializedEventPage } from "@/features/event-pages/utils";
+import type { SerializedForm } from "@/features/form/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +50,7 @@ interface EventPageEditorWorkspaceProps {
   pageMode: PageMode;
   redirectUrl: string;
   initialEventPage: SerializedEventPage | null;
+  form: SerializedForm | null;
 }
 
 interface WorkspaceState {
@@ -115,6 +118,7 @@ export function EventPageEditorWorkspace({
   pageMode,
   redirectUrl,
   initialEventPage,
+  form,
 }: EventPageEditorWorkspaceProps) {
   const [isReady, setIsReady] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -224,8 +228,16 @@ export function EventPageEditorWorkspace({
   }, [cacheKey, isReady, state]);
 
   const puckConfig = useMemo(
-    () => createEventPagePuckConfig({ assets }),
-    [assets],
+    () =>
+      createEventPagePuckConfig({
+        assets,
+        registrationRender: createDashboardRegistrationRenderer({
+          eventId,
+          eventName,
+          form,
+        }),
+      }),
+    [assets, eventId, eventName, form],
   );
 
   function updateState(patch: Partial<WorkspaceState>) {

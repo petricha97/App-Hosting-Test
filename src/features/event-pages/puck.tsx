@@ -658,3 +658,32 @@ export function createPublicRegistrationRenderer({
     </div>
   );
 }
+
+export function createDashboardRegistrationRenderer({
+  eventId,
+  eventName,
+  form,
+}: {
+  eventId: string;
+  eventName: string;
+  form: SerializedForm | null;
+}) {
+  return ({ title, body }: RegistrationRenderOptions) => (
+    <div className="space-y-4">
+      <Badge className="rounded-full bg-orange-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-orange-900 shadow-none">
+        Registration embed
+      </Badge>
+      <EventRegistrationFormCard
+        eventId={eventId}
+        eventName={eventName}
+        form={form}
+        submitEndpoint={`/api/dashboard/events/${eventId}/form/submit`}
+        heading={title}
+        description={body}
+        emptyTitle="No event form saved yet"
+        emptyDescription="Open the form builder, save the event form, then this page block will render that same Firestore-backed registration form here."
+        submitLabel="Test form submission"
+      />
+    </div>
+  );
+}
