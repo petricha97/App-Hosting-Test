@@ -140,6 +140,14 @@ function getPageMeta(pathname: string) {
     };
   }
 
+  if (pathname === "/dashboard/iam") {
+    return {
+      title: "Users & Access",
+      subtitle: "Invite teammates, shape roles, and keep organization access understandable.",
+      breadcrumbs: ["Dashboard", "Users & Access"],
+    };
+  }
+
   return {
     title: "Settings",
     subtitle: "Manage the active workspace profile and prepare for future team features.",

@@ -3,6 +3,7 @@ import {
   Inbox,
   LayoutDashboard,
   Settings,
+  ShieldCheck,
   Ticket,
 } from "lucide-react";
 
@@ -33,6 +34,12 @@ export const dashboardNavItems: DashboardNavItem[] = [
     href: "/dashboard/responses",
     icon: Inbox,
     description: "Review attendee submissions and updates.",
+  },
+  {
+    title: "Users & Access",
+    href: "/dashboard/iam",
+    icon: ShieldCheck,
+    description: "Invite members and shape workspace access.",
   },
   {
     title: "Settings",
