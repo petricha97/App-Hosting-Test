@@ -10,6 +10,7 @@ import {
   Sparkles,
   Ticket,
   Users,
+  CheckCircle2
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -252,16 +253,26 @@ function HeroSection() {
                     </div>
                     <div className="mt-4 space-y-3">
                       {[
-                        ["Venue details", "Done"],
-                        ["Guest reminders", "Today"],
-                        ["Speaker updates", "Queued"],
-                      ].map(([label, value]) => (
+                        ["Venue details", "Done", "0s"],
+                        ["Guest reminders", "Today", "1.2s"],
+                        ["Speaker updates", "Queued", "2.4s"],
+                      ].map(([label, value, delay]) => (
                         <div
                           key={label}
-                          className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700"
+                          className="group flex animate-[taskPulse_4.2s_ease-in-out_infinite] items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700"
+                          style={{ animationDelay: delay }}
                         >
-                          <span>{label}</span>
-                          <span>{value}</span>
+                          <div className="flex items-center gap-3">
+                            <span
+                              className="flex h-6 w-6 animate-[checkPop_4.2s_ease-in-out_infinite] items-center justify-center rounded-full bg-orange-100 text-orange-700"
+                              style={{ animationDelay: delay }}
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </span>
+                            <span>{label}</span>
+                          </div>
+
+                          <span className="text-slate-500">{value}</span>
                         </div>
                       ))}
                     </div>

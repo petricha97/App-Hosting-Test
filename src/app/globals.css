@@ -1,5 +1,29 @@
 @import "tailwindcss";
 
+@keyframes taskPulse {
+  0%, 20%, 100% {
+    transform: translateX(0);
+    background: rgb(248 250 252);
+  }
+
+  8% {
+    transform: translateX(4px);
+    background: rgb(255 237 213);
+  }
+}
+
+@keyframes checkPop {
+  0%, 20%, 100% {
+    transform: scale(0.9);
+    opacity: 0.5;
+  }
+
+  8% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
