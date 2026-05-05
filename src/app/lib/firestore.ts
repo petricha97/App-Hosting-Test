@@ -19,6 +19,7 @@ import {
 // getFirestore: Returns the Firestore database instance so you can read/write data.
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { getStorage } from "firebase-admin/storage";
 
 
 function hasAllCertEnv() {
@@ -30,10 +31,16 @@ function hasAllCertEnv() {
 }
 
 if (!getApps().length) {
+  const storageBucket =
+    process.env.FIREBASE_STORAGE_BUCKET ??
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
   // If running on Firebase App Hosting / Cloud Run, prefer Application Default Credentials
   // (no FIREBASE_* env vars needed).
   if (process.env.K_SERVICE || process.env.FIREBASE_APP_HOSTING) {
-    initializeApp({ credential: applicationDefault() });
+    initializeApp({
+      credential: applicationDefault(),
+      ...(storageBucket ? { storageBucket } : {}),
+    });
   } else if (hasAllCertEnv()) {
     initializeApp({
       credential: cert({
@@ -41,10 +48,14 @@ if (!getApps().length) {
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
         privateKey: process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, "\n"),
       }),
+      ...(storageBucket ? { storageBucket } : {}),
     });
   } else {
     // Last-resort: still try ADC (works if you've done `gcloud auth application-default login` locally)
-    initializeApp({ credential: applicationDefault() });
+    initializeApp({
+      credential: applicationDefault(),
+      ...(storageBucket ? { storageBucket } : {}),
+    });
   }
 }
 
@@ -52,6 +63,7 @@ if (!getApps().length) {
 export const adminDb = getFirestore();
 // adminDb.settings({ preferRest: true });
 export const adminAuth = getAuth();
+export const adminStorage = getStorage();
 
 
 // Why this check? In development, Next.js hot-reloads your code frequently.
