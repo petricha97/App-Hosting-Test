@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Settings,
   ShieldCheck,
+  Tag,
   Ticket,
 } from "lucide-react";
 
@@ -34,6 +35,12 @@ export const dashboardNavItems: DashboardNavItem[] = [
     href: "/dashboard/responses",
     icon: Inbox,
     description: "Review attendee submissions and updates.",
+  },
+  {
+    title: "Promotions",
+    href: "/dashboard/promotions",
+    icon: Tag,
+    description: "Discount templates and active promotion codes.",
   },
   {
     title: "Users & Access",
