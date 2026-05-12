@@ -29,7 +29,9 @@ export default function DashboardPromotionsPage() {
 
       <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">
         <CardHeader className="px-6 pt-6">
-          <CardTitle className="text-2xl text-slate-950">No active promotions</CardTitle>
+          <CardTitle className="text-2xl text-slate-950">
+            No active promotions
+          </CardTitle>
           <CardDescription>
             There are no active promotion templates now. Start by creating
             promotion templates.
