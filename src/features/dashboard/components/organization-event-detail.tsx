@@ -20,6 +20,9 @@ import { EventRegistrationFormCard } from "@/features/form/components/event-regi
 import type { SerializedForm } from "@/features/form/utils";
 import type { SerializedEventPage } from "@/features/event-pages/utils";
 import { EventStatusActions } from "@/features/dashboard/components/event-status-actions";
+import { EventPromotionManager } from "@/features/event-promotions/components/event-promotion-manager";
+import type { SerializedEventPromotion } from "@/features/event-promotions/types";
+import type { SerializedPromotionTemplate } from "@/features/promotion-templates/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,12 +37,21 @@ interface OrganizationEventDetailProps {
   event: SerializedEvent | null;
   form: SerializedForm | null;
   eventPage: SerializedEventPage | null;
+  // The event's Firestore document ID — needed by EventPromotionManager for API calls.
+  eventId: string;
+  // Event-level promotion copies fetched from the EventPromotion subcollection.
+  promotions: SerializedEventPromotion[];
+  // Org-scoped templates for the attach dialog.
+  availableTemplates: SerializedPromotionTemplate[];
 }
 
 export function OrganizationEventDetail({
   event,
   form,
   eventPage,
+  eventId,
+  promotions,
+  availableTemplates,
 }: OrganizationEventDetailProps) {
   if (!event) {
     return (
@@ -156,7 +168,9 @@ export function OrganizationEventDetail({
           <>
             <EventStatusActions eventId={event.id} status={event.status} />
             <Button asChild variant="outline">
-              <Link href={`/dashboard/events/${event.id}/edit`}>Edit Event</Link>
+              <Link href={`/dashboard/events/${event.id}/edit`}>
+                Edit Event
+              </Link>
             </Button>
             <Button asChild variant="outline">
               <Link href={`/dashboard/events/${event.id}/page-builder`}>
@@ -295,7 +309,10 @@ export function OrganizationEventDetail({
         <CardContent className="grid gap-4 px-6 pb-6 pt-0 md:grid-cols-2 xl:grid-cols-4">
           {[
             ["Schedule", getEventPrimaryDateLabel(event)],
-            ["Capacity", `${event.expectedGuests} expected / ${event.capacity} max`],
+            [
+              "Capacity",
+              `${event.expectedGuests} expected / ${event.capacity} max`,
+            ],
             ["Timezone", event.timezone],
             [
               "Visibility",
@@ -316,6 +333,13 @@ export function OrganizationEventDetail({
           ))}
         </CardContent>
       </Card>
+
+      {/* Promotions section — shows event-level promotion copies with attach/edit/detach. */}
+      <EventPromotionManager
+        eventId={eventId}
+        promotions={promotions}
+        availableTemplates={availableTemplates}
+      />
 
       <section className="grid gap-6 xl:grid-cols-3">
         {[

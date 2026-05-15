@@ -75,11 +75,16 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
+  // Update the template fields. promoCode is cleared when enablePromoCode is turned off.
   await updateAdminPromotionTemplate(templateId, {
     description: parsed.data.description ?? null,
     discountType: parsed.data.discountType ?? null,
     discountValue: parsed.data.discountValue ?? null,
     conditions: parsed.data.conditions,
+    enablePromoCode: parsed.data.enablePromoCode,
+    promoCode: parsed.data.enablePromoCode
+      ? (parsed.data.promoCode ?? null)
+      : null,
     updatedAt: FieldValue.serverTimestamp(),
   });
 

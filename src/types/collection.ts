@@ -128,7 +128,26 @@ export interface PromotionTemplateDoc {
   discountType?: string | null;
   discountValue?: number | null;
   conditions: ConditionRule[];
+  // When true, attendees must enter promoCode to claim the discount.
+  // When false, the discount auto-applies if all conditions are met.
+  enablePromoCode: boolean;
+  promoCode?: string | null;
   isArchived?: boolean;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+export interface EventPromotionDoc {
+  organizationId: string;
+  templateId: string;
+  inheritFromParent: boolean;
+  name: string;
+  description?: string | null;
+  discountType?: string | null;
+  discountValue?: number | null;
+  conditions: ConditionRule[];
+  enablePromoCode: boolean;
+  promoCode?: string | null;
   createdAt: Timestamp | FieldValue;
   updatedAt: Timestamp | FieldValue;
 }

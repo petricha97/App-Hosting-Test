@@ -2,7 +2,7 @@
 // to Client Components. Firestore Timestamps are converted to ISO strings so the
 // data is safe to cross the server/client boundary without serialization errors.
 
-// A single condition rule after serialization.
+// A single condition rule after serialization (e.g. age >= 18).
 export interface SerializedConditionRule {
   field: string;
   operator: string;
@@ -10,6 +10,8 @@ export interface SerializedConditionRule {
 }
 
 // A promotion template doc with all Timestamps converted to ISO strings.
+// enablePromoCode: true  → attendee must enter promoCode to claim the discount.
+// enablePromoCode: false → discount auto-applies when all conditions are met.
 export interface SerializedPromotionTemplate {
   id: string;
   organizationId: string;
@@ -18,6 +20,8 @@ export interface SerializedPromotionTemplate {
   discountType: string;
   discountValue: number;
   conditions: SerializedConditionRule[];
+  enablePromoCode: boolean;
+  promoCode: string | null;
   isArchived: boolean;
   createdAt: string | null;
   updatedAt: string | null;

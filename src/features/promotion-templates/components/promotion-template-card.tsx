@@ -1,6 +1,9 @@
-// Displays a single promotion template as a card with Edit and Delete actions.
-// Delete calls the API route (DELETE /api/dashboard/promotions/templates/[id])
-// so ownership is verified server-side before the doc is removed from Firestore.
+// Displays a single promotion template as a card with Edit, Delete, and Apply actions.
+// - Edit: opens the form dialog (managed by the parent PromotionTemplatesBrowser).
+// - Delete: calls DELETE /api/dashboard/promotions/templates/[id] — verifies ownership server-side.
+// - Apply to events: calls POST /api/dashboard/promotions/templates/[id]/apply which cascades
+//   the template's current field values to all EventPromotion subcollection docs across events
+//   where inheritFromParent = true. Events that opted out are not affected.
 "use client";
 
 import { useState } from "react";
@@ -23,6 +26,7 @@ export function PromotionTemplateCard({
   onDeleted,
 }: PromotionTemplateCardProps) {
   const [deleting, setDeleting] = useState(false);
+  const [applying, setApplying] = useState(false);
 
   // Calls the DELETE API route after a confirmation prompt.
   // onDeleted triggers router.refresh() in the parent to re-fetch the list.
@@ -47,6 +51,38 @@ export function PromotionTemplateCard({
     }
   };
 
+  // Pushes the template's current field values to all inheriting EventPromotion docs.
+  // Only events with inheritFromParent = true are updated — custom event overrides are preserved.
+  const handleApply = async () => {
+    if (
+      !confirm(
+        `Push "${template.name}" changes to all events inheriting from this template?`,
+      )
+    )
+      return;
+
+    setApplying(true);
+    try {
+      const res = await fetch(
+        `/api/dashboard/promotions/templates/${template.id}/apply`,
+        { method: "POST" },
+      );
+      if (!res.ok) throw new Error(await res.text());
+      const { updatedCount } = await res.json();
+      toast.success(
+        updatedCount > 0
+          ? `Applied to ${updatedCount} event${updatedCount !== 1 ? "s" : ""}`
+          : "No inheriting events found",
+      );
+    } catch {
+      toast.error("Failed to apply template", {
+        description: "Please try again.",
+      });
+    } finally {
+      setApplying(false);
+    }
+  };
+
   return (
     <motion.div
       layout
@@ -60,7 +96,7 @@ export function PromotionTemplateCard({
           <CardTitle className="text-xl text-slate-950">
             {template.name}
           </CardTitle>
-          <div className="flex gap-2 pt-1">
+          <div className="flex flex-wrap gap-2 pt-1">
             <Button
               variant="outline"
               size="sm"
@@ -68,6 +104,15 @@ export function PromotionTemplateCard({
               onClick={() => onEdit(template)}
             >
               Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              onClick={handleApply}
+              disabled={applying}
+            >
+              {applying ? "Applying…" : "Apply to events"}
             </Button>
             <Button
               variant="destructive"

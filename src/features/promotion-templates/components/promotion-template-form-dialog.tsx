@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   promotionTemplateSchema,
@@ -40,11 +41,14 @@ interface PromotionTemplateFormDialogProps {
   onSaved: () => void;
 }
 
+// Default blank state for creating a new template.
 const emptyForm: PromotionTemplateFormValues = {
   name: "",
   description: "",
   discountType: "",
   conditions: [],
+  enablePromoCode: false,
+  promoCode: "",
 };
 
 export function PromotionTemplateFormDialog({
@@ -59,12 +63,15 @@ export function PromotionTemplateFormDialog({
   useEffect(() => {
     if (!open) return;
     if (editData) {
+      // Pre-fill the form with the existing template values when editing.
       setForm({
         name: editData.name,
         description: editData.description,
         discountType: editData.discountType,
         discountValue: editData.discountValue || undefined,
         conditions: editData.conditions,
+        enablePromoCode: editData.enablePromoCode,
+        promoCode: editData.promoCode ?? "",
       });
     } else {
       setForm(emptyForm);
@@ -163,6 +170,43 @@ export function PromotionTemplateFormDialog({
               </div>
             ),
           )}
+
+          {/* Promo code section — toggle on to require attendees to enter a code.
+               Toggle off for auto-apply mode (discount applies when conditions pass). */}
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">
+                  Enable promo code
+                </p>
+                <p className="text-xs text-slate-500">
+                  {form.enablePromoCode
+                    ? "Attendees must enter the code below to claim the discount."
+                    : "Discount will auto-apply when conditions are met."}
+                </p>
+              </div>
+              <Switch
+                id="enablePromoCode"
+                checked={form.enablePromoCode}
+                onCheckedChange={(checked) =>
+                  handleChange("enablePromoCode", checked)
+                }
+              />
+            </div>
+
+            {/* Only show the code input when promo code mode is on. */}
+            {form.enablePromoCode && (
+              <div className="space-y-1.5">
+                <Label htmlFor="promoCode">Promo Code</Label>
+                <Input
+                  id="promoCode"
+                  placeholder="e.g. SG60"
+                  value={form.promoCode ?? ""}
+                  onChange={(e) => handleChange("promoCode", e.target.value)}
+                />
+              </div>
+            )}
+          </div>
 
           <div className="space-y-3 pt-2">
             <p className="text-sm font-semibold text-slate-950">Conditions</p>

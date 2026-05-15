@@ -53,6 +53,7 @@ export async function POST(request: Request) {
     );
   }
 
+  // Write the new template doc. promoCode is only stored when enablePromoCode is on.
   const templateId = await createAdminPromotionTemplate({
     organizationId: userDoc.organizationId,
     name: parsed.data.name,
@@ -60,6 +61,10 @@ export async function POST(request: Request) {
     discountType: parsed.data.discountType ?? null,
     discountValue: parsed.data.discountValue ?? null,
     conditions: parsed.data.conditions,
+    enablePromoCode: parsed.data.enablePromoCode,
+    promoCode: parsed.data.enablePromoCode
+      ? (parsed.data.promoCode ?? null)
+      : null,
     isArchived: false,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),

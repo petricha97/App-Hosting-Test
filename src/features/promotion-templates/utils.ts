@@ -15,8 +15,10 @@ function serializeTimestamp(value: unknown): string | null {
   return null;
 }
 
-// Converts a raw Firestore doc (with Timestamps) into a serializable object
-// with string dates and normalized defaults for optional fields.
+// Converts a raw Firestore PromotionTemplate doc (with Timestamps) into a plain
+// serializable object with string dates and normalized defaults for optional fields.
+// The enablePromoCode and promoCode fields default to false/null for older docs
+// that were created before these fields were added.
 export function serializePromotionTemplate(
   doc: WithId<PromotionTemplateDoc>,
 ): SerializedPromotionTemplate {
@@ -28,6 +30,8 @@ export function serializePromotionTemplate(
     discountType: doc.discountType ?? "",
     discountValue: doc.discountValue ?? 0,
     conditions: doc.conditions ?? [],
+    enablePromoCode: doc.enablePromoCode ?? false,
+    promoCode: doc.promoCode ?? null,
     isArchived: doc.isArchived ?? false,
     createdAt: serializeTimestamp(doc.createdAt),
     updatedAt: serializeTimestamp(doc.updatedAt),
