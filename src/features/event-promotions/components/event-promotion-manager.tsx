@@ -89,7 +89,9 @@ export function EventPromotionManager({
       name: p.name,
       discountType: p.discountType,
       discountValue: p.discountValue !== null ? String(p.discountValue) : "",
-      inheritFromParent: p.inheritFromParent,
+      // Opening edit mode signals intent to customize — disable inheritance by default.
+      // The user can still re-enable the toggle before saving if they choose.
+      inheritFromParent: false,
       enablePromoCode: p.enablePromoCode,
       promoCode: p.promoCode ?? "",
       conditions: p.conditions,
@@ -345,32 +347,23 @@ export function EventPromotionManager({
                       )}
                     </div>
 
-                    {/* Conditions section — editable only when not inheriting from parent.
-                        When inheriting, conditions are managed by the template owner. */}
+                    {/* Conditions section — always editable regardless of inheritance state. */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-slate-950">
                           Conditions
                         </p>
-                        {!editing.inheritFromParent && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-full text-xs"
-                            onClick={addCondition}
-                          >
-                            + Add condition
-                          </Button>
-                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full text-xs"
+                          onClick={addCondition}
+                        >
+                          + Add condition
+                        </Button>
                       </div>
 
-                      {editing.inheritFromParent ? (
-                        // When inheriting, show a read-only note instead of the editor.
-                        <p className="text-xs text-slate-400">
-                          Conditions are managed by the parent template while
-                          &quot;Inherit from parent&quot; is on.
-                        </p>
-                      ) : editing.conditions.length === 0 ? (
+                      {editing.conditions.length === 0 ? (
                         <p className="text-xs text-slate-400">
                           No conditions — discount applies to all attendees.
                         </p>
@@ -458,25 +451,31 @@ export function EventPromotionManager({
                       )}
                     </div>
 
-                    {/* Toggle controls whether the parent template can push updates here. */}
-                    <div className="flex items-center gap-3">
-                      <Switch
-                        id={`inherit-${promotion.id}`}
-                        checked={editing.inheritFromParent}
-                        onCheckedChange={(checked) =>
-                          setEditing((prev) =>
-                            prev
-                              ? { ...prev, inheritFromParent: checked }
-                              : prev,
-                          )
-                        }
-                      />
-                      <Label
-                        htmlFor={`inherit-${promotion.id}`}
-                        className="text-sm text-slate-700"
-                      >
-                        Inherit from parent template
-                      </Label>
+                    {/* Toggle to re-enable parent template control after customizing. */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          id={`inherit-${promotion.id}`}
+                          checked={editing.inheritFromParent}
+                          onCheckedChange={(checked) =>
+                            setEditing((prev) =>
+                              prev
+                                ? { ...prev, inheritFromParent: checked }
+                                : prev,
+                            )
+                          }
+                        />
+                        <Label
+                          htmlFor={`inherit-${promotion.id}`}
+                          className="text-sm text-slate-700"
+                        >
+                          Inherit from parent template
+                        </Label>
+                      </div>
+                      <p className="pl-11 text-xs text-slate-400">
+                        Turning this on lets the template owner push future
+                        updates to this event&apos;s promotion.
+                      </p>
                     </div>
 
                     <div className="flex gap-2">
@@ -548,11 +547,18 @@ export function EventPromotionManager({
                         </div>
                       )}
 
-                      <p className="text-xs text-slate-400">
-                        {promotion.inheritFromParent
-                          ? "Inherits from parent — template updates will apply here"
-                          : "Custom — parent updates will not apply here"}
-                      </p>
+                      {promotion.inheritFromParent ? (
+                        <p className="text-xs text-slate-400">
+                          Inherits from parent — template updates apply here
+                        </p>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-200 bg-amber-50 text-amber-700"
+                        >
+                          Custom — not inheriting from template
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <Button

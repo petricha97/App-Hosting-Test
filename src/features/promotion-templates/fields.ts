@@ -16,7 +16,6 @@ export const promotionTemplateFields: TemplateField[] = [
     key: "name",
     label: "Template Name",
     placeholder: "e.g. SG60",
-    disabledOnEdit: true,
   },
   {
     key: "discountType",

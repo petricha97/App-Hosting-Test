@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ApplyToEventsDialog } from "@/features/promotion-templates/components/apply-to-events-dialog";
 import type { SerializedPromotionTemplate } from "@/features/promotion-templates/types";
 
 interface PromotionTemplateCardProps {
@@ -26,7 +27,7 @@ export function PromotionTemplateCard({
   onDeleted,
 }: PromotionTemplateCardProps) {
   const [deleting, setDeleting] = useState(false);
-  const [applying, setApplying] = useState(false);
+  const [applyDialogOpen, setApplyDialogOpen] = useState(false);
 
   // Calls the DELETE API route after a confirmation prompt.
   // onDeleted triggers router.refresh() in the parent to re-fetch the list.
@@ -51,37 +52,6 @@ export function PromotionTemplateCard({
     }
   };
 
-  // Pushes the template's current field values to all inheriting EventPromotion docs.
-  // Only events with inheritFromParent = true are updated — custom event overrides are preserved.
-  const handleApply = async () => {
-    if (
-      !confirm(
-        `Push "${template.name}" changes to all events inheriting from this template?`,
-      )
-    )
-      return;
-
-    setApplying(true);
-    try {
-      const res = await fetch(
-        `/api/dashboard/promotions/templates/${template.id}/apply`,
-        { method: "POST" },
-      );
-      if (!res.ok) throw new Error(await res.text());
-      const { updatedCount } = await res.json();
-      toast.success(
-        updatedCount > 0
-          ? `Applied to ${updatedCount} event${updatedCount !== 1 ? "s" : ""}`
-          : "No inheriting events found",
-      );
-    } catch {
-      toast.error("Failed to apply template", {
-        description: "Please try again.",
-      });
-    } finally {
-      setApplying(false);
-    }
-  };
 
   return (
     <motion.div
@@ -109,10 +79,9 @@ export function PromotionTemplateCard({
               variant="outline"
               size="sm"
               className="rounded-full"
-              onClick={handleApply}
-              disabled={applying}
+              onClick={() => setApplyDialogOpen(true)}
             >
-              {applying ? "Applying…" : "Apply to events"}
+              Apply to events
             </Button>
             <Button
               variant="destructive"
@@ -147,6 +116,13 @@ export function PromotionTemplateCard({
           ) : null}
         </CardContent>
       </Card>
+
+      <ApplyToEventsDialog
+        open={applyDialogOpen}
+        templateId={template.id}
+        templateName={template.name}
+        onOpenChange={setApplyDialogOpen}
+      />
     </motion.div>
   );
 }

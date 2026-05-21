@@ -1,5 +1,34 @@
 import type { EventDoc, WithId } from "@/types/collection";
 
+// Returns true if the event has at least one period or registration window that
+// has not yet ended (i.e. ongoing or in the future).
+// If no end dates can be found, the event is treated as eligible — we cannot
+// prove it ended.
+export function isEventOngoingOrFuture(
+  event: Pick<EventDoc, "periods" | "registrationPeriod">,
+  now: Date = new Date(),
+): boolean {
+  const endDates: Date[] = [];
+
+  for (const period of event.periods) {
+    const endDate = period.endDate;
+    const endTime = period.endTime ?? "23:59";
+    if (endDate) {
+      const d = new Date(`${endDate}T${endTime}`);
+      if (!isNaN(d.getTime())) endDates.push(d);
+    }
+  }
+
+  if (event.registrationPeriod?.endDate) {
+    const endTime = event.registrationPeriod.endTime ?? "23:59";
+    const d = new Date(`${event.registrationPeriod.endDate}T${endTime}`);
+    if (!isNaN(d.getTime())) endDates.push(d);
+  }
+
+  if (endDates.length === 0) return true;
+  return endDates.some((d) => d >= now);
+}
+
 export interface SerializedTimestamp {
   seconds: number | null;
   nanoseconds: number | null;

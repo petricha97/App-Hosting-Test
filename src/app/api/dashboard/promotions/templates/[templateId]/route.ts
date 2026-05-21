@@ -13,6 +13,7 @@ import {
   getAdminPromotionTemplateForOrganization,
   updateAdminPromotionTemplate,
   deleteAdminPromotionTemplate,
+  applyTemplateToInheritingEvents,
 } from "@/lib/db/adminPromotionTemplate";
 import { promotionTemplateSchema } from "@/features/promotion-templates/schema";
 
@@ -75,8 +76,8 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  // Update the template fields. promoCode is cleared when enablePromoCode is turned off.
-  await updateAdminPromotionTemplate(templateId, {
+  const templateFields = {
+    name: parsed.data.name,
     description: parsed.data.description ?? null,
     discountType: parsed.data.discountType ?? null,
     discountValue: parsed.data.discountValue ?? null,
@@ -85,10 +86,22 @@ export async function POST(request: Request, context: RouteContext) {
     promoCode: parsed.data.enablePromoCode
       ? (parsed.data.promoCode ?? null)
       : null,
+  };
+
+  // Update the template. promoCode is cleared when enablePromoCode is turned off.
+  await updateAdminPromotionTemplate(templateId, {
+    ...templateFields,
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  return NextResponse.json({ templateId });
+  // Cascade all field changes (including name) to inheriting EventPromotion docs.
+  const cascaded = await applyTemplateToInheritingEvents(
+    templateId,
+    scope.organizationId,
+    templateFields,
+  );
+
+  return NextResponse.json({ templateId, cascaded });
 }
 
 // Deletes a template after confirming org ownership.
