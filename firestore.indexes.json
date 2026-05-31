@@ -5,6 +5,14 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "templateId", "order": "ASCENDING" },
+        { "fieldPath": "organizationId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "EventPromotion",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "templateId", "order": "ASCENDING" },
         { "fieldPath": "organizationId", "order": "ASCENDING" },
         { "fieldPath": "inheritFromParent", "order": "ASCENDING" }
       ]
@@ -15,6 +23,8 @@
       "collectionGroup": "EventPromotion",
       "fieldPath": "organizationId",
       "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
         { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
         { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
       ]

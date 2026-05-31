@@ -14,18 +14,11 @@ import {
   X,
 } from "lucide-react";
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Building2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { dashboardNavItems } from "@/features/dashboard/nav";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,7 +45,8 @@ function getPageMeta(pathname: string) {
   if (pathname === "/dashboard/events") {
     return {
       title: "Events",
-      subtitle: "Create events, track status, and keep every setup task moving.",
+      subtitle:
+        "Create events, track status, and keep every setup task moving.",
       breadcrumbs: ["Dashboard", "Events"],
     };
   }
@@ -60,7 +54,8 @@ function getPageMeta(pathname: string) {
   if (pathname === "/dashboard/events/new") {
     return {
       title: "Create Event",
-      subtitle: "Shape the event workspace before real data and validation rules are finalized.",
+      subtitle:
+        "Shape the event workspace before real data and validation rules are finalized.",
       breadcrumbs: ["Dashboard", "Events", "Create Event"],
     };
   }
@@ -99,7 +94,8 @@ function getPageMeta(pathname: string) {
   if (pathname === "/dashboard/forms") {
     return {
       title: "Forms",
-      subtitle: "Browse event-owned forms and reusable templates across your active workspace.",
+      subtitle:
+        "Browse event-owned forms and reusable templates across your active workspace.",
       breadcrumbs: ["Dashboard", "Forms"],
     };
   }
@@ -107,7 +103,8 @@ function getPageMeta(pathname: string) {
   if (pathname === "/dashboard/forms/templates") {
     return {
       title: "Templates",
-      subtitle: "Manage reusable registration templates for future event forms.",
+      subtitle:
+        "Manage reusable registration templates for future event forms.",
       breadcrumbs: ["Dashboard", "Forms", "Templates"],
     };
   }
@@ -120,14 +117,17 @@ function getPageMeta(pathname: string) {
     };
   }
 
-  const templateMatch = pathname.match(/^\/dashboard\/forms\/templates\/([^/]+)$/);
+  const templateMatch = pathname.match(
+    /^\/dashboard\/forms\/templates\/([^/]+)$/,
+  );
 
   if (templateMatch) {
     const templateId = decodeURIComponent(templateMatch[1]);
 
     return {
       title: "Template Editor",
-      subtitle: "Update template fields and apply new versions to linked event forms.",
+      subtitle:
+        "Update template fields and apply new versions to linked event forms.",
       breadcrumbs: ["Dashboard", "Forms", "Templates", templateId],
     };
   }
@@ -143,14 +143,16 @@ function getPageMeta(pathname: string) {
   if (pathname === "/dashboard/iam") {
     return {
       title: "Users & Access",
-      subtitle: "Invite teammates, shape roles, and keep organization access understandable.",
+      subtitle:
+        "Invite teammates, shape roles, and keep organization access understandable.",
       breadcrumbs: ["Dashboard", "Users & Access"],
     };
   }
 
   return {
     title: "Settings",
-    subtitle: "Manage the active workspace profile and prepare for future team features.",
+    subtitle:
+      "Manage the active workspace profile and prepare for future team features.",
     breadcrumbs: ["Dashboard", "Settings"],
   };
 }
@@ -171,11 +173,15 @@ function SidebarContent({
   onNavigate,
   collapsed = false,
   onToggleCollapse,
+  orgName,
+  orgLogoUrl,
 }: {
   pathname: string;
   onNavigate?: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  orgName?: string;
+  orgLogoUrl?: string | null;
 }) {
   return (
     <div className="flex h-full flex-col bg-white/95">
@@ -186,11 +192,24 @@ function SidebarContent({
             collapsed ? "justify-center" : "gap-3",
           )}
         >
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ffb082,#ff7a59)] text-sm font-semibold text-white shadow-sm">
-            E
-          </span>
+          <Avatar className="h-11 w-11 rounded-full">
+            <AvatarImage
+              src={orgLogoUrl ?? undefined}
+              alt={orgName ?? "Eventa"}
+              className="object-cover"
+            />
+            <AvatarFallback className="rounded-full bg-[linear-gradient(135deg,#ffb082,#ff7a59)] text-sm font-semibold text-white">
+              {orgName ? (
+                orgName[0]?.toUpperCase()
+              ) : (
+                <Building2 className="h-5 w-5" />
+              )}
+            </AvatarFallback>
+          </Avatar>
           <div className={cn("space-y-1", collapsed && "hidden")}>
-            <p className="text-base font-semibold text-slate-950">Eventa</p>
+            <p className="text-base font-semibold text-slate-950">
+              {orgName ?? "Eventa"}
+            </p>
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
               Dashboard
             </p>
@@ -276,7 +295,9 @@ function SidebarContent({
                 <item.icon className="h-4 w-4" />
               </span>
               <span className={cn("space-y-1", collapsed && "hidden")}>
-                <span className="block text-sm font-semibold">{item.title}</span>
+                <span className="block text-sm font-semibold">
+                  {item.title}
+                </span>
                 <span className="block text-xs leading-5 text-slate-500">
                   {item.description}
                 </span>
@@ -299,7 +320,12 @@ function SidebarContent({
               v1 dashboard scaffold
             </p>
           </div>
-          <p className={cn("mt-2 text-xs leading-6 text-slate-600", collapsed && "hidden")}>
+          <p
+            className={cn(
+              "mt-2 text-xs leading-6 text-slate-600",
+              collapsed && "hidden",
+            )}
+          >
             This shell is built to support events, event-owned forms, and
             response workflows before the Firestore schema is fully finalized.
           </p>
@@ -309,22 +335,13 @@ function SidebarContent({
   );
 }
 
-export function DashboardShell({
-  children,
-  serverUser,
-}: DashboardShellProps) {
+export function DashboardShell({ children, serverUser }: DashboardShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const {
-    user,
-    userDoc,
-    organization,
-    signOut,
-    initializing,
-  } = useAuth();
+  const { user, userDoc, organization, signOut, initializing } = useAuth();
 
   const pageMeta = useMemo(() => getPageMeta(pathname), [pathname]);
   const userName =
@@ -332,6 +349,8 @@ export function DashboardShell({
   const userEmail = userDoc?.email ?? user?.email ?? serverUser.email;
   const userAvatar =
     userDoc?.avatarUrl ?? user?.photoURL ?? serverUser.picture ?? "";
+  const orgName = organization?.name ?? undefined;
+  const orgLogoUrl = organization?.logoUrl ?? null;
   const workspaceLabel =
     organization?.name ??
     (initializing
@@ -355,10 +374,7 @@ export function DashboardShell({
   function toggleDesktopSidebar() {
     setDesktopSidebarCollapsed((currentValue) => {
       const nextValue = !currentValue;
-      window.localStorage.setItem(
-        SIDEBAR_STORAGE_KEY,
-        String(nextValue),
-      );
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(nextValue));
       return nextValue;
     });
   }
@@ -375,6 +391,8 @@ export function DashboardShell({
           pathname={pathname}
           collapsed={desktopSidebarCollapsed}
           onToggleCollapse={toggleDesktopSidebar}
+          orgName={orgName}
+          orgLogoUrl={orgLogoUrl}
         />
       </aside>
 
@@ -395,8 +413,13 @@ export function DashboardShell({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
                 {pageMeta.breadcrumbs.map((crumb, index) => (
-                  <span key={`${crumb}-${index}`} className="flex items-center gap-2">
-                    {index > 0 ? <ChevronRight className="h-3.5 w-3.5" /> : null}
+                  <span
+                    key={`${crumb}-${index}`}
+                    className="flex items-center gap-2"
+                  >
+                    {index > 0 ? (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    ) : null}
                     <span>{crumb}</span>
                   </span>
                 ))}
@@ -432,7 +455,9 @@ export function DashboardShell({
               className="relative hidden lg:block"
               open={userMenuOpen}
               onToggle={(event) =>
-                setUserMenuOpen((event.currentTarget as HTMLDetailsElement).open)
+                setUserMenuOpen(
+                  (event.currentTarget as HTMLDetailsElement).open,
+                )
               }
             >
               <summary className="flex cursor-pointer list-none items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm transition hover:border-slate-300">
@@ -441,13 +466,17 @@ export function DashboardShell({
                   <AvatarFallback>{getInitials(userName)}</AvatarFallback>
                 </Avatar>
                 <div className="text-left">
-                  <p className="text-sm font-semibold text-slate-950">{userName}</p>
+                  <p className="text-sm font-semibold text-slate-950">
+                    {userName}
+                  </p>
                   <p className="text-xs text-slate-500">{userEmail}</p>
                 </div>
               </summary>
               <div className="absolute right-0 top-[calc(100%+0.75rem)] w-72 rounded-3xl border border-slate-200 bg-white p-4 shadow-xl">
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-slate-950">{userName}</p>
+                  <p className="text-sm font-semibold text-slate-950">
+                    {userName}
+                  </p>
                   <p className="text-sm text-slate-500">{userEmail}</p>
                 </div>
                 <Separator className="my-4" />
@@ -499,6 +528,8 @@ export function DashboardShell({
             <SidebarContent
               pathname={pathname}
               onNavigate={() => setMobileNavOpen(false)}
+              orgName={orgName}
+              orgLogoUrl={orgLogoUrl}
             />
           </div>
         </DialogContent>

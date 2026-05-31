@@ -5,6 +5,7 @@ export type WithId<T> = T & { id: string };
 export interface OrganizationDoc {
   name: string;
   description?: string;
+  logoUrl?: string;
   slug: string;
   type: "organization" | "workspace";
   status: "pending" | "verified" | "suspended";

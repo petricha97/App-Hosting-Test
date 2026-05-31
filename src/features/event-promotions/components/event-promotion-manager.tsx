@@ -83,19 +83,23 @@ export function EventPromotionManager({
   const refresh = () => router.refresh();
 
   // Opens the inline edit form pre-filled with the selected promotion's current values.
+  // Disables inheritance by default — editing signals intent to customize.
   const startEdit = (p: SerializedEventPromotion) => {
     setEditing({
       id: p.id,
       name: p.name,
       discountType: p.discountType,
       discountValue: p.discountValue !== null ? String(p.discountValue) : "",
-      // Opening edit mode signals intent to customize — disable inheritance by default.
-      // The user can still re-enable the toggle before saving if they choose.
       inheritFromParent: false,
       enablePromoCode: p.enablePromoCode,
       promoCode: p.promoCode ?? "",
       conditions: p.conditions,
     });
+    if (p.inheritFromParent) {
+      toast.info(
+        "Editing will turn off inheritance from the parent template. Re-enable the toggle before saving to keep it on.",
+      );
+    }
   };
 
   // Cancels the inline edit without saving.
@@ -532,10 +536,10 @@ export function EventPromotionManager({
                         </Badge>
                       )}
 
-                      {/* Human-readable conditions — shown as individual badges instead of a count. */}
-                      {promotion.conditions.length > 0 && (
-                        <div className="flex flex-wrap gap-1 pt-1">
-                          {promotion.conditions.map((rule, idx) => (
+                      {/* Conditions — always visible so the state is transparent at a glance. */}
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {promotion.conditions.length > 0 ? (
+                          promotion.conditions.map((rule, idx) => (
                             <Badge
                               key={idx}
                               variant="secondary"
@@ -543,9 +547,13 @@ export function EventPromotionManager({
                             >
                               {formatConditionRule(rule)}
                             </Badge>
-                          ))}
-                        </div>
-                      )}
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-400">
+                            No conditions — applies to all attendees
+                          </span>
+                        )}
+                      </div>
 
                       {promotion.inheritFromParent ? (
                         <p className="text-xs text-slate-400">
