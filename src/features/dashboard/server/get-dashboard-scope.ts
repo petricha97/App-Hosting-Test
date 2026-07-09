@@ -1,31 +1,17 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 
-import decodeUser from "@/lib/auth-utils";
+import { requireSessionUser } from "@/lib/session";
 import { getAdminOrganizationById } from "@/lib/db/adminOrganization";
 import { getAdminUserByEmail } from "@/lib/db/adminUser";
 
-const COOKIE_NAME = "session";
-
-export async function getDashboardScope() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
-
-  if (!token) {
-    redirect("/login");
-  }
-
-  const decodedUser = await decodeUser(token);
-
-  if ("error" in decodedUser) {
-    if (decodedUser.error === "USER_DISABLED") {
-      redirect("/disabled");
-    }
-
-    redirect("/login");
-  }
+// Memoized per request: layouts and pages both call this, so cache() avoids
+// repeating the user/org Firestore lookups. Token verification and the
+// disabled-user/login policy live in requireSessionUser (itself memoized).
+export const getDashboardScope = cache(async () => {
+  const decodedUser = await requireSessionUser();
 
   const userDoc = await getAdminUserByEmail(decodedUser.email.toLowerCase());
 
@@ -41,4 +27,4 @@ export async function getDashboardScope() {
     organization,
     organizationId: userDoc.organizationId,
   };
-}
+});

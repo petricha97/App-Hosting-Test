@@ -1,0 +1,149 @@
+import {
+  BarChart3,
+  CircleDollarSign,
+  ClipboardList,
+  Inbox,
+  LayoutDashboard,
+  LayoutTemplate,
+  Mail,
+  QrCode,
+  Route,
+  Tags,
+  Ticket,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+
+export interface EventNavItem {
+  title: string;
+  /** Route segment under /dashboard/events/[eventId]/ — "" for Overview. */
+  segment: string;
+  icon: LucideIcon;
+  /** Match the pathname exactly instead of by prefix. */
+  exact?: boolean;
+  /** Renders the shared ComingSoon placeholder until its milestone lands. */
+  comingSoon?: boolean;
+  /** Milestone tag shown on the placeholder page (e.g. "M1"). */
+  milestone?: string;
+  /** One-line description used by the ComingSoon placeholder. */
+  description?: string;
+}
+
+export interface EventNavGroup {
+  label: string;
+  items: EventNavItem[];
+}
+
+export const eventNavGroups: EventNavGroup[] = [
+  {
+    label: "Event",
+    items: [
+      { title: "Overview", segment: "", icon: LayoutDashboard, exact: true },
+    ],
+  },
+  {
+    label: "Build",
+    items: [
+      { title: "Website / Pages", segment: "page-builder", icon: LayoutTemplate },
+      { title: "Registration Form", segment: "form", icon: ClipboardList },
+    ],
+  },
+  {
+    label: "Registration",
+    items: [
+      {
+        title: "Ticket Types",
+        segment: "tickets",
+        icon: Ticket,
+        comingSoon: true,
+        milestone: "M1",
+        description:
+          "Create admission items with capacity and sales windows.",
+      },
+      {
+        title: "Pricing",
+        segment: "pricing",
+        icon: CircleDollarSign,
+        comingSoon: true,
+        milestone: "M2",
+        description:
+          "Set fees per ticket, registration type, and currency — plus discounts and taxes.",
+      },
+      {
+        title: "Registration Types",
+        segment: "registration-types",
+        icon: Tags,
+        comingSoon: true,
+        milestone: "M1",
+        description:
+          "Classify who attends — delegates, guests, press, and crew.",
+      },
+      {
+        title: "Registration Paths",
+        segment: "registration-paths",
+        icon: Route,
+        comingSoon: true,
+        milestone: "M3",
+        description:
+          "Design audience-specific registration journeys with their own steps and payment methods.",
+      },
+    ],
+  },
+  {
+    label: "Engage & Manage",
+    items: [
+      {
+        title: "Emails",
+        segment: "emails",
+        icon: Mail,
+        comingSoon: true,
+        milestone: "M6",
+        description:
+          "Configure lifecycle emails, triggers, and audience segments.",
+      },
+      {
+        title: "Attendees",
+        segment: "attendees",
+        icon: Users,
+        comingSoon: true,
+        milestone: "M5",
+        description:
+          "Track the confirmed roster and follow up on abandoned registrations.",
+      },
+      {
+        title: "Check-in",
+        segment: "checkin",
+        icon: QrCode,
+        comingSoon: true,
+        milestone: "M5",
+        description:
+          "Configure on-site badges, QR scanning, and check-in staff.",
+      },
+      {
+        title: "Reports",
+        segment: "reports",
+        icon: BarChart3,
+        comingSoon: true,
+        milestone: "M7",
+        description:
+          "Run registration and finance reports for this event.",
+      },
+      { title: "Responses", segment: "responses", icon: Inbox },
+    ],
+  },
+];
+
+export function buildEventNavHref(eventId: string, segment: string) {
+  const base = `/dashboard/events/${encodeURIComponent(eventId)}`;
+  return segment ? `${base}/${segment}` : base;
+}
+
+export function getEventNavItem(segment: string): EventNavItem | undefined {
+  for (const group of eventNavGroups) {
+    const item = group.items.find((candidate) => candidate.segment === segment);
+    if (item) {
+      return item;
+    }
+  }
+  return undefined;
+}
