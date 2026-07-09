@@ -75,6 +75,20 @@ export function eventBelongsToOrganization(
   );
 }
 
+type EventPeriod = EventDoc["periods"][number];
+
+// Legacy event docs stored the first period's schedule under several key
+// spellings (`date`/`start`/`startDate`, camelCase vs snake_case times).
+// Every date-label helper resolves through this single function so the events
+// list and the event bar can never disagree on which keys win.
+function resolvePeriodSchedule(period: EventPeriod) {
+  return {
+    date: period.date ?? period.start ?? period.startDate ?? null,
+    startTime: period.startTime ?? period.start_time ?? null,
+    endTime: period.endTime ?? period.end_time ?? null,
+  };
+}
+
 export function getEventPrimaryDateLabel(event: Pick<EventDoc, "periods">) {
   const firstPeriod = event.periods[0];
 
@@ -82,9 +96,7 @@ export function getEventPrimaryDateLabel(event: Pick<EventDoc, "periods">) {
     return "Choose dates and schedule blocks";
   }
 
-  const date = firstPeriod.date ?? firstPeriod.start ?? firstPeriod.startDate;
-  const startTime = firstPeriod.startTime ?? firstPeriod.start_time;
-  const endTime = firstPeriod.endTime ?? firstPeriod.end_time;
+  const { date, startTime, endTime } = resolvePeriodSchedule(firstPeriod);
 
   if (date && startTime && endTime) {
     return `${date} - ${startTime} to ${endTime}`;
@@ -99,6 +111,37 @@ export function getEventPrimaryDateLabel(event: Pick<EventDoc, "periods">) {
   }
 
   return "Schedule details not finalized";
+}
+
+// Builds the event-bar meta label: "date, start – end · timezone".
+// Returns null when the first period has no usable date so the bar can omit
+// the segment (and its separator) entirely.
+export function getEventBarDateLabel(
+  event: Pick<EventDoc, "periods" | "timezone">,
+): string | null {
+  const firstPeriod = event.periods[0];
+
+  if (!firstPeriod) {
+    return null;
+  }
+
+  const { date, startTime, endTime } = resolvePeriodSchedule(firstPeriod);
+
+  if (!date) {
+    return null;
+  }
+
+  let label = date;
+
+  if (startTime && endTime) {
+    label += `, ${startTime} – ${endTime}`;
+  } else if (startTime) {
+    label += `, ${startTime}`;
+  }
+
+  const timezone = event.timezone?.trim();
+
+  return timezone ? `${label} · ${timezone}` : label;
 }
 
 export function sortEventsByUpdatedAt(events: WithId<EventDoc>[]) {

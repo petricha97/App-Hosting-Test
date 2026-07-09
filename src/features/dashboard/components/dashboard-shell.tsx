@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { dashboardNavItems } from "@/features/dashboard/nav";
 import { useAuth } from "@/contexts/AuthContext";
-import { cn } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 
 interface DashboardShellProps {
   children: React.ReactNode;
@@ -60,36 +60,8 @@ function getPageMeta(pathname: string) {
     };
   }
 
-  const eventMatch = pathname.match(
-    /^\/dashboard\/events\/([^/]+)(?:\/(form|responses))?$/,
-  );
-
-  if (eventMatch) {
-    const eventId = decodeURIComponent(eventMatch[1]);
-    const childRoute = eventMatch[2];
-
-    if (childRoute === "form") {
-      return {
-        title: "Form Builder",
-        subtitle: "Event-owned registration form design lives here.",
-        breadcrumbs: ["Dashboard", "Events", eventId, "Form Builder"],
-      };
-    }
-
-    if (childRoute === "responses") {
-      return {
-        title: "Responses",
-        subtitle: "Review submissions and response details for this event.",
-        breadcrumbs: ["Dashboard", "Events", eventId, "Responses"],
-      };
-    }
-
-    return {
-      title: "Event Overview",
-      subtitle: "Use this hub to manage the event, form, and response flows.",
-      breadcrumbs: ["Dashboard", "Events", eventId],
-    };
-  }
+  // Event detail routes (/dashboard/events/[eventId]/…) render inside the
+  // (event) route group's EventShell, so no event branches are needed here.
 
   if (pathname === "/dashboard/forms") {
     return {
@@ -158,15 +130,6 @@ function getPageMeta(pathname: string) {
 }
 
 const SIDEBAR_STORAGE_KEY = "eventa-dashboard-sidebar-collapsed";
-
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 function SidebarContent({
   pathname,

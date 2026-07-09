@@ -153,13 +153,6 @@ export interface EventPromotionDoc {
   updatedAt: Timestamp | FieldValue;
 }
 
-export interface TodoDoc {
-  uid: string;
-  title: string;
-  completed: boolean;
-  createdAt: Timestamp | FieldValue;
-}
-
 export interface EventDoc {
   allowOverlap: boolean;
   capacity: number;

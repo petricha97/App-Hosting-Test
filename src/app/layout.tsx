@@ -4,7 +4,6 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Toaster } from "@/components/ui/sonner";
-import ChatSupport from "@/components/chat/ChatSupport";
 
 export const metadata: Metadata = {
   title: "Eventa | Event management made simple",
@@ -28,7 +27,6 @@ export default function RootLayout({
           <SiteHeader />
           {children}
           <Toaster />
-          <ChatSupport />
         </AuthProvider>
       </body>
     </html>

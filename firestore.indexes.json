@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "EventPage",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventId", "order": "ASCENDING" },
+        { "fieldPath": "organizationId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "EventPromotion",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
@@ -15,6 +23,46 @@
         { "fieldPath": "templateId", "order": "ASCENDING" },
         { "fieldPath": "organizationId", "order": "ASCENDING" },
         { "fieldPath": "inheritFromParent", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "Form",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventId", "order": "ASCENDING" },
+        { "fieldPath": "organizationId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "Form",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "templateLink.templateId", "order": "ASCENDING" },
+        { "fieldPath": "organizationId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "FormData",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "Organization",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "domain", "order": "ASCENDING" },
+        { "fieldPath": "allowDomainAutoJoin", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "Organization",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "inviteCode", "order": "ASCENDING" },
+        { "fieldPath": "inviteCodeEnabled", "order": "ASCENDING" }
       ]
     }
   ],
