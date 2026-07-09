@@ -16,8 +16,8 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M0-T2 | Starter-cruft cleanup | M0 | Done | — | S1 |
 | M0-T3 | Firestore index & query audit | M0 | Done | — | S1 |
 | M0-T4 | Test harness baseline | M0 | Done | — | S1 |
-| M1-T1 | Registration Types | M1 | Todo | — | S1 |
-| M1-T2 | Ticket Types (admission items) | M1 | Todo | — | S1 |
+| M1-T1 | Registration Types | M1 | Done | — | S1 |
+| M1-T2 | Ticket Types (admission items) | M1 | Done | — | S1 |
 | M2-T1 | Fees + Pricing screen shell | M2 | Todo | — | — |
 | M2-T2 | Discounts tab (promotions integration) | M2 | Todo | — | — |
 | M2-T3 | Taxes & service fees | M2 | Todo | — | — |

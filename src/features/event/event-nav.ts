@@ -51,15 +51,7 @@ export const eventNavGroups: EventNavGroup[] = [
   {
     label: "Registration",
     items: [
-      {
-        title: "Ticket Types",
-        segment: "tickets",
-        icon: Ticket,
-        comingSoon: true,
-        milestone: "M1",
-        description:
-          "Create admission items with capacity and sales windows.",
-      },
+      { title: "Ticket Types", segment: "tickets", icon: Ticket },
       {
         title: "Pricing",
         segment: "pricing",
@@ -73,10 +65,6 @@ export const eventNavGroups: EventNavGroup[] = [
         title: "Registration Types",
         segment: "registration-types",
         icon: Tags,
-        comingSoon: true,
-        milestone: "M1",
-        description:
-          "Classify who attends — delegates, guests, press, and crew.",
       },
       {
         title: "Registration Paths",

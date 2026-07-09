@@ -231,6 +231,53 @@ export interface FormDataDoc {
   submittedAt: Timestamp | FieldValue;
 }
 
+// M1 — Registration data spine (spec: agents/docs/specs/m1-registration-spine.md).
+// Both collections are root collections keyed by canonical organizationId + eventId
+// (no legacy organizationPath). `registeredCount` is a server-owned denormalized
+// counter: it defaults to 0 at create and is only ever incremented/decremented
+// inside the transaction that finalizes or cancels an order/registration
+// (M2-T4 / M3-T3). Create/update APIs must strip or reject client-supplied values.
+
+export interface RegistrationTypeDoc {
+  organizationId: string;
+  eventId: string;
+  name: string;
+  // Stored uppercase; format ^[A-Z0-9][A-Z0-9/-]{1,11}$ (see src/lib/db/registrationCode.ts).
+  // Unique per event within RegistrationType, case-insensitive.
+  code: string;
+  // null = unlimited; otherwise integer >= 1 (0 is invalid).
+  capacity: number | null;
+  // Server-owned counter — see block comment above.
+  registeredCount: number;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+export interface TicketTypeDoc {
+  organizationId: string;
+  eventId: string;
+  name: string;
+  // Same format + per-event uniqueness rules as RegistrationTypeDoc.code, but
+  // scoped to TicketType — a ticket code may collide with a reg-type code.
+  code: string;
+  // null = unlimited; otherwise integer >= 1 (0 is invalid).
+  capacity: number | null;
+  // Server-owned counter — see block comment above.
+  registeredCount: number;
+  // Sales window, stored as UTC Timestamps derived from event-local calendar
+  // dates (start 00:00:00.000 / end 23:59:59.999 in EventDoc.timezone). null = no bound.
+  salesStart: Timestamp | null;
+  salesEnd: Timestamp | null;
+  // Organizer's manual master switch. Displayed "Open" state is derived:
+  // isOpen && within [salesStart, salesEnd] (inclusive) — never stored.
+  isOpen: boolean;
+  // Eligible RegistrationType ids in the same event. Empty array = unrestricted
+  // (ticket is available to every registration type).
+  registrationTypeIds: string[];
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
 export interface EventPageDoc {
   eventId: string;
   organizationId: string;
