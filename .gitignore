@@ -27,6 +27,8 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env*
+!.env.example
 
 # typescript
 *.tsbuildinfo
@@ -37,3 +39,10 @@ apphosting.emulator.yaml
 
 /AI-Driven-Project
 *.md
+
+# agent loop docs and prototype reference mockups (exempt from *.md ignore)
+!/agents/**
+!/prototype/prototype/**
+
+# video stills (172MB) - never commit
+/prototype/keyframes/

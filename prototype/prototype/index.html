@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eventa · Overview</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">E</div><b>Eventa</b></div>
+    <div class="ws-switch"><div>Petri Test<small>Workspace</small></div><span>⌄</span></div>
+    <nav class="nav">
+      <div class="nav-label">Workspace</div>
+      <a href="index.html" class="active"><span class="ic">🏠</span> Overview</a>
+      <a href="events.html"><span class="ic">📅</span> Events</a>
+      <a href="forms.html"><span class="ic">📝</span> Forms &amp; Templates</a>
+      <a href="responses.html"><span class="ic">📥</span> Responses</a>
+      <a href="promotions.html"><span class="ic">🏷️</span> Promotions</a>
+      <a href="users.html"><span class="ic">👥</span> Users &amp; Access</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="me"><div class="av">P</div><div>Petri<small>petricha98@gmail.com</small></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumbs">Petri Test</div>
+      <div class="actionbar">
+        <a class="btn" href="forms.html">Browse forms</a>
+        <a class="btn primary" href="events.html">+ Create Event</a>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>Overview</h1>
+          <p>What this workspace knows about your events, at a glance.</p>
+        </div>
+      </div>
+
+      <div class="grid c4" style="margin-bottom:16px">
+        <div class="card stat"><div class="k">📝 Draft Events</div><div class="v">1</div></div>
+        <div class="card stat"><div class="k">🚀 Published Events</div><div class="v">1</div><div class="d">▲ live now</div></div>
+        <div class="card stat"><div class="k">🎟️ Registrations</div><div class="v">148</div><div class="d">▲ 12 this week</div></div>
+        <div class="card stat"><div class="k">💳 Revenue (paid)</div><div class="v">$74,250</div><div class="d">▲ vs early-bird</div></div>
+      </div>
+
+      <div class="grid c3">
+        <div class="card pad" style="grid-column:span 2">
+          <h3>Quick actions</h3>
+          <p class="sub" style="margin:2px 0 14px">Shape the core event workflow.</p>
+          <div class="actionbar">
+            <a class="btn" href="event-overview.html">Open “General Counsel Summit”</a>
+            <a class="btn" href="event-tickets.html">Add ticket types</a>
+            <a class="btn" href="event-pricing.html">Set pricing &amp; discounts</a>
+            <a class="btn" href="event-emails.html">Configure emails</a>
+            <a class="btn" href="event-checkin.html">Set up check-in</a>
+          </div>
+          <div class="note" style="margin-top:16px">
+            <b>New in this build (Cvent-inspired):</b> events now support typed
+            <b>ticket types</b>, <b>pricing &amp; discount codes</b>,
+            <b>registration types &amp; paths</b>, a <b>lifecycle email</b> engine,
+            <b>on-site check-in / QR</b>, and <b>reports</b> — on top of the page &amp;
+            form builders you already had.
+          </div>
+        </div>
+        <div class="card pad">
+          <h3>Setup notes</h3>
+          <p class="sub" style="margin:2px 0 12px">What this workspace now handles.</p>
+          <ul class="checklist">
+            <li><span class="tick">✓</span> Single active workspace (Petri Test)</li>
+            <li><span class="tick">✓</span> Reads org from auth context</li>
+            <li><span class="tick">✓</span> Page &amp; form builders</li>
+            <li><span class="tick">✓</span> Promotions with promo codes</li>
+            <li><span class="tick">✓</span> Ticketing &amp; payments <span class="badge violet" style="margin-left:auto">new</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

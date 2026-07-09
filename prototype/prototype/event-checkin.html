@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GC Summit · Check-in</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">E</div><b>Eventa</b></div>
+    <nav class="nav">
+      <a href="events.html"><span class="ic">←</span> All events</a>
+      <div class="nav-label">Event</div>
+      <a href="event-overview.html"><span class="ic">🏠</span> Overview</a>
+      <div class="nav-label">Build</div>
+      <a href="event-page-builder.html"><span class="ic">🎨</span> Website / Pages</a>
+      <a href="event-form.html"><span class="ic">📝</span> Registration Form</a>
+      <div class="nav-label">Registration</div>
+      <a href="event-tickets.html"><span class="ic">🎟️</span> Ticket Types</a>
+      <a href="event-pricing.html"><span class="ic">💲</span> Pricing</a>
+      <a href="event-registration-types.html"><span class="ic">🏷️</span> Registration Types</a>
+      <a href="event-registration-paths.html"><span class="ic">🧭</span> Registration Paths</a>
+      <div class="nav-label">Engage &amp; Manage</div>
+      <a href="event-emails.html"><span class="ic">✉️</span> Emails</a>
+      <a href="event-attendees.html"><span class="ic">👤</span> Attendees</a>
+      <a href="event-checkin.html" class="active"><span class="ic">📱</span> Check-in</a>
+      <a href="event-reports.html"><span class="ic">📊</span> Reports</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="me"><div class="av">P</div><div>Petri<small>petricha98@gmail.com</small></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumbs"><a href="events.html">Events</a> / GC Summit US 2026 / Check-in</div>
+      <button class="btn primary">Add team member</button>
+    </div>
+
+    <div class="event-bar">
+      <div class="elogo">ECON<br>ENT</div>
+      <div><h2>On-site Check-in</h2>
+      <div class="meta">Scan the same QR minted at registration. Reuses the attendee identity from email → wallet → door.</div></div>
+    </div>
+
+    <div class="content">
+      <div class="grid c3" style="margin-bottom:18px">
+        <div class="card stat"><div class="k">✅ Checked in</div><div class="v">0</div><div class="d" style="color:var(--ink-faint)">event not started</div></div>
+        <div class="card stat"><div class="k">🎟️ Expected</div><div class="v">148</div></div>
+        <div class="card stat"><div class="k">🖨️ Badges ready</div><div class="v">148</div></div>
+      </div>
+
+      <div class="grid c2">
+        <div class="card pad">
+          <h3>Badge &amp; pass design</h3>
+          <div style="display:flex;gap:16px;margin-top:14px">
+            <div style="border:1px solid var(--line);border-radius:8px;padding:16px;text-align:center;flex:1">
+              <div class="qr" style="margin:0 auto 10px"></div>
+              <div class="t-strong">Kenneth Alexander</div>
+              <small>SVP General Counsel · US Pharmacopeia</small>
+              <div class="pill-row" style="justify-content:center"><span class="badge violet">Delegate</span></div>
+            </div>
+          </div>
+          <p class="sub" style="margin-top:12px">Merge fields: <span class="mono">{full_name}</span>, <span class="mono">{job_title}</span>, <span class="mono">{company}</span> + QR. Stock: 6"×4" double-sided.</p>
+        </div>
+
+        <div class="card pad">
+          <h3>Check-in settings</h3>
+          <div style="margin-top:12px">
+            <div class="kv"><span>Signature collection</span><span class="badge">Off</span></div>
+            <div class="kv"><span>Photo capture</span><span class="badge">Off</span></div>
+            <div class="kv"><span>Photo ID verification</span><span class="badge green">On</span></div>
+            <div class="kv"><span>Self-print badges</span><span class="badge green">On</span></div>
+            <div class="kv"><span>Apple / Google Wallet passes</span><span class="badge green">Enabled</span></div>
+          </div>
+          <h3 style="margin-top:20px">Team members (iOS scanners)</h3>
+          <div class="empty" style="padding:22px">No team members yet — add staff devices to scan at the door.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

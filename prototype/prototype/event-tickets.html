@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GC Summit · Ticket Types</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">E</div><b>Eventa</b></div>
+    <nav class="nav">
+      <a href="events.html"><span class="ic">←</span> All events</a>
+      <div class="nav-label">Event</div>
+      <a href="event-overview.html"><span class="ic">🏠</span> Overview</a>
+      <div class="nav-label">Build</div>
+      <a href="event-page-builder.html"><span class="ic">🎨</span> Website / Pages</a>
+      <a href="event-form.html"><span class="ic">📝</span> Registration Form</a>
+      <div class="nav-label">Registration</div>
+      <a href="event-tickets.html" class="active"><span class="ic">🎟️</span> Ticket Types</a>
+      <a href="event-pricing.html"><span class="ic">💲</span> Pricing</a>
+      <a href="event-registration-types.html"><span class="ic">🏷️</span> Registration Types</a>
+      <a href="event-registration-paths.html"><span class="ic">🧭</span> Registration Paths</a>
+      <div class="nav-label">Engage &amp; Manage</div>
+      <a href="event-emails.html"><span class="ic">✉️</span> Emails</a>
+      <a href="event-attendees.html"><span class="ic">👤</span> Attendees</a>
+      <a href="event-checkin.html"><span class="ic">📱</span> Check-in</a>
+      <a href="event-reports.html"><span class="ic">📊</span> Reports</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="me"><div class="av">P</div><div>Petri<small>petricha98@gmail.com</small></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumbs"><a href="events.html">Events</a> / GC Summit US 2026 / Ticket Types</div>
+      <button class="btn primary">+ Create ticket type</button>
+    </div>
+
+    <div class="event-bar">
+      <div class="elogo">ECON<br>ENT</div>
+      <div><h2>Ticket Types <span class="sub" style="font-weight:400">(Admission Items)</span></h2>
+      <div class="meta">What an attendee registers as. Each ticket has its own code, capacity and open window; price lives in <a href="event-pricing.html" style="color:var(--brand)">Pricing</a>.</div></div>
+    </div>
+
+    <div class="content">
+      <div class="note" style="margin-bottom:16px">
+        <b>New concept vs your current single-form model:</b> instead of one form,
+        an event now sells many <b>typed tickets</b>. This is Cvent’s “Admission Item”.
+        Fields shown to the buyer are still driven by your form/template.
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-tools">
+          <input type="search" placeholder="Search tickets…" data-filter="#tk">
+          <select><option>All registration types</option><option>Delegate</option><option>Sponsor</option><option>Press</option></select>
+          <span class="grow"></span>
+          <span class="badge">16 tickets</span>
+        </div>
+        <table id="tk">
+          <thead><tr><th>Ticket</th><th>Code</th><th>Price</th><th>Registered</th><th>Capacity</th><th>Sales window</th><th>Open</th></tr></thead>
+          <tbody>
+            <tr><td class="t-strong">General Counsel — super early bird</td><td class="mono">GC-SEB</td><td>$750</td><td>13</td><td>Unlimited</td><td>Closed</td><td><span class="badge">No</span></td></tr>
+            <tr><td class="t-strong">General Counsel — early bird</td><td class="mono">GC-EB</td><td>$950</td><td>3</td><td>Unlimited</td><td>until Jul 31</td><td><span class="badge green">Yes</span></td></tr>
+            <tr><td class="t-strong">General Counsel — standard rate</td><td class="mono">GC-ST</td><td>$1,250</td><td>0</td><td>Unlimited</td><td>from Aug 1</td><td><span class="badge">No</span></td></tr>
+            <tr><td class="t-strong">Non-GC — early bird</td><td class="mono">NGC-EB</td><td>$1,450</td><td>1</td><td>Unlimited</td><td>until Jul 31</td><td><span class="badge green">Yes</span></td></tr>
+            <tr><td class="t-strong">Non-GC — standard</td><td class="mono">NGC-ST</td><td>$1,850</td><td>0</td><td>Unlimited</td><td>from Aug 1</td><td><span class="badge">No</span></td></tr>
+            <tr><td class="t-strong">Sponsor speaker (In-person)</td><td class="mono">SPK-IP</td><td>Comp</td><td>3</td><td>50</td><td>Open</td><td><span class="badge green">Yes</span></td></tr>
+            <tr><td class="t-strong">Complimentary delegate</td><td class="mono">DEL-COMP</td><td>$0</td><td>97</td><td>Unlimited</td><td>Open</td><td><span class="badge green">Yes</span></td></tr>
+            <tr><td class="t-strong">Press — full access</td><td class="mono">PRESS</td><td>$0</td><td>0</td><td>30</td><td>Open</td><td><span class="badge green">Yes</span></td></tr>
+            <tr><td class="t-strong">Crew</td><td class="mono">CREW</td><td>$0</td><td>1</td><td>20</td><td>Open</td><td><span class="badge green">Yes</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="sub" style="margin-top:10px">Showing 9 of 16 · early-bird tiers close automatically by date, standard opens next.</p>
+    </div>
+  </div>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

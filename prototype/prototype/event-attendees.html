@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GC Summit · Attendees</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">E</div><b>Eventa</b></div>
+    <nav class="nav">
+      <a href="events.html"><span class="ic">←</span> All events</a>
+      <div class="nav-label">Event</div>
+      <a href="event-overview.html"><span class="ic">🏠</span> Overview</a>
+      <div class="nav-label">Build</div>
+      <a href="event-page-builder.html"><span class="ic">🎨</span> Website / Pages</a>
+      <a href="event-form.html"><span class="ic">📝</span> Registration Form</a>
+      <div class="nav-label">Registration</div>
+      <a href="event-tickets.html"><span class="ic">🎟️</span> Ticket Types</a>
+      <a href="event-pricing.html"><span class="ic">💲</span> Pricing</a>
+      <a href="event-registration-types.html"><span class="ic">🏷️</span> Registration Types</a>
+      <a href="event-registration-paths.html"><span class="ic">🧭</span> Registration Paths</a>
+      <div class="nav-label">Engage &amp; Manage</div>
+      <a href="event-emails.html"><span class="ic">✉️</span> Emails</a>
+      <a href="event-attendees.html" class="active"><span class="ic">👤</span> Attendees</a>
+      <a href="event-checkin.html"><span class="ic">📱</span> Check-in</a>
+      <a href="event-reports.html"><span class="ic">📊</span> Reports</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="me"><div class="av">P</div><div>Petri<small>petricha98@gmail.com</small></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumbs"><a href="events.html">Events</a> / GC Summit US 2026 / Attendees</div>
+      <div class="actionbar"><button class="btn">Export CSV</button><button class="btn primary">+ Register attendee</button></div>
+    </div>
+
+    <div class="content" data-tabs>
+      <div class="tabs">
+        <button data-tab="att" class="active">Attendee list</button>
+        <button data-tab="aband">Abandoned</button>
+      </div>
+
+      <div id="att" class="tab-panel active">
+        <div class="table-wrap">
+          <div class="table-tools">
+            <input type="search" placeholder="Search name / email…" data-filter="#att-t">
+            <select><option>All statuses</option><option>Accepted</option><option>Pending</option></select>
+            <span class="grow"></span><span class="badge">148 attendees</span>
+          </div>
+          <table id="att-t">
+            <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Ticket</th><th>Status</th><th>Check-in</th></tr></thead>
+            <tbody>
+              <tr><td class="t-strong">Kenneth Alexander</td><td>ka@usp.org</td><td>US Pharmacopeia</td><td>Complimentary delegate</td><td><span class="badge green">Accepted</span></td><td><span class="badge">Not arrived</span></td></tr>
+              <tr><td class="t-strong">Anushree Bagrodia</td><td>a.bagrodia@mastercard.com</td><td>Mastercard</td><td>GC early bird</td><td><span class="badge green">Accepted</span></td><td><span class="badge">Not arrived</span></td></tr>
+              <tr><td class="t-strong">Jason Bartlett</td><td>jason@maschoffbrennan.com</td><td>Maschoff Brennan</td><td>Sponsor speaker IP</td><td><span class="badge amber">Pending</span></td><td><span class="badge">Not arrived</span></td></tr>
+              <tr><td class="t-strong">Adam Becker</td><td>adam@cockroachlabs.com</td><td>Cockroach Labs</td><td>GC standard</td><td><span class="badge green">Accepted</span></td><td><span class="badge">Not arrived</span></td></tr>
+              <tr><td class="t-strong">Paolo Berard</td><td>p.berard@nrg.com</td><td>NRG Energy</td><td>GC early bird</td><td><span class="badge green">Accepted</span></td><td><span class="badge">Not arrived</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="aband" class="tab-panel">
+        <div class="table-wrap">
+          <div class="table-tools"><span class="grow"></span><span class="badge amber">31 abandoned</span><button class="btn sm">Email all</button></div>
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Last page reached</th><th>Date</th></tr></thead>
+            <tbody>
+              <tr><td class="t-strong">Michael Grazio</td><td>@mastercard.com</td><td><span class="badge amber">Payment</span></td><td>Apr 6, 2026</td></tr>
+              <tr><td class="t-strong">Susan Zoch</td><td>@dentsu.com</td><td><span class="badge">Personal Information</span></td><td>Jun 10, 2026</td></tr>
+              <tr><td class="t-strong">Steven Troyer</td><td>@mufg.com</td><td><span class="badge amber">Registration Summary</span></td><td>Jun 12, 2026</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="sub" style="margin-top:10px">Knowing the last page reached tells you whether to nudge on info, ticket choice, or payment.</p>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

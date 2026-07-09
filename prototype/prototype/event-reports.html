@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GC Summit · Reports</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">E</div><b>Eventa</b></div>
+    <nav class="nav">
+      <a href="events.html"><span class="ic">←</span> All events</a>
+      <div class="nav-label">Event</div>
+      <a href="event-overview.html"><span class="ic">🏠</span> Overview</a>
+      <div class="nav-label">Build</div>
+      <a href="event-page-builder.html"><span class="ic">🎨</span> Website / Pages</a>
+      <a href="event-form.html"><span class="ic">📝</span> Registration Form</a>
+      <div class="nav-label">Registration</div>
+      <a href="event-tickets.html"><span class="ic">🎟️</span> Ticket Types</a>
+      <a href="event-pricing.html"><span class="ic">💲</span> Pricing</a>
+      <a href="event-registration-types.html"><span class="ic">🏷️</span> Registration Types</a>
+      <a href="event-registration-paths.html"><span class="ic">🧭</span> Registration Paths</a>
+      <div class="nav-label">Engage &amp; Manage</div>
+      <a href="event-emails.html"><span class="ic">✉️</span> Emails</a>
+      <a href="event-attendees.html"><span class="ic">👤</span> Attendees</a>
+      <a href="event-checkin.html"><span class="ic">📱</span> Check-in</a>
+      <a href="event-reports.html" class="active"><span class="ic">📊</span> Reports</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="me"><div class="av">P</div><div>Petri<small>petricha98@gmail.com</small></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumbs"><a href="events.html">Events</a> / GC Summit US 2026 / Reports</div>
+      <div class="actionbar"><button class="btn">Schedule</button><button class="btn primary">Export table</button></div>
+    </div>
+
+    <div class="event-bar">
+      <div class="elogo">ECON<br>ENT</div>
+      <div><h2>Reports</h2>
+      <div class="meta">Built-in templates: filter → chart → table. Every report exports to CSV.</div></div>
+    </div>
+
+    <div class="content">
+      <div class="grid c2" style="margin-bottom:18px">
+        <div class="card pad">
+          <h3>Registrations by ticket type</h3>
+          <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">
+            <div><div style="display:flex;justify-content:space-between"><span>Complimentary delegate</span><b>97</b></div><div style="height:8px;background:var(--brand-soft);border-radius:6px"><div style="width:65%;height:100%;background:var(--brand);border-radius:6px"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between"><span>GC super early bird</span><b>13</b></div><div style="height:8px;background:var(--brand-soft);border-radius:6px"><div style="width:20%;height:100%;background:var(--brand);border-radius:6px"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between"><span>Sponsor speaker IP</span><b>3</b></div><div style="height:8px;background:var(--brand-soft);border-radius:6px"><div style="width:8%;height:100%;background:var(--brand);border-radius:6px"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between"><span>Non-GC early bird</span><b>1</b></div><div style="height:8px;background:var(--brand-soft);border-radius:6px"><div style="width:4%;height:100%;background:var(--brand);border-radius:6px"></div></div></div>
+          </div>
+        </div>
+        <div class="card pad">
+          <h3>Finance — orders overview</h3>
+          <div style="margin-top:12px">
+            <div class="kv"><span>Paid (card)</span><span class="t-strong">$74,250</span></div>
+            <div class="kv"><span>Outstanding (invoice)</span><span class="t-strong" style="color:var(--amber)">$18,900</span></div>
+            <div class="kv"><span>Comped value</span><span>$121,000</span></div>
+            <div class="kv"><span>Discount codes used</span><span>6</span></div>
+          </div>
+        </div>
+      </div>
+
+      <h3 style="margin-bottom:10px">Report templates</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Report</th><th>Category</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="t-strong">Registration overview</td><td><span class="badge">Attendee</span></td><td><button class="btn sm">Run</button></td></tr>
+            <tr><td class="t-strong">Order &amp; transaction details</td><td><span class="badge">Finance</span></td><td><button class="btn sm">Run</button></td></tr>
+            <tr><td class="t-strong">Abandoned registration details</td><td><span class="badge">Attendee</span></td><td><button class="btn sm">Run</button></td></tr>
+            <tr><td class="t-strong">Badges printed (check-in history)</td><td><span class="badge">Onsite</span></td><td><button class="btn sm">Run</button></td></tr>
+            <tr><td class="t-strong">Email overview</td><td><span class="badge">Email</span></td><td><button class="btn sm">Run</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>
