@@ -10,6 +10,7 @@ import { cookies } from "next/headers";
 import decodeUser from "@/lib/auth-utils";
 import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
 import { getAdminUserByEmail } from "@/lib/db/adminUser";
+import { resolveActiveOrganizationId } from "@/lib/org-membership";
 import type { EventDoc, WithId } from "@/types/collection";
 
 const COOKIE_NAME = "session";
@@ -33,7 +34,12 @@ export async function resolveRegistrationRouteScope(
   }
 
   const userDoc = await getAdminUserByEmail(decodedUser.email.toLowerCase());
-  if (!userDoc?.organizationId) {
+  // SEC M2 Finding 1: userDoc.organizationId (the active org) is
+  // client-writable via the org switcher — it is only a valid tenant key when
+  // the server-locked organizations[] roster confirms membership. A mismatch
+  // (spoofed active org) resolves to null and gets 403 here.
+  const organizationId = resolveActiveOrganizationId(userDoc);
+  if (!organizationId) {
     return { ok: false, error: "Missing organization scope", status: 403 };
   }
 
@@ -42,7 +48,10 @@ export async function resolveRegistrationRouteScope(
   // the same split the promotions routes use. Mirror the sibling mutating
   // event routes (promotions, status, page, publish): members without
   // write:events are view-only and get 403.
-  if (!userDoc.permissions.includes("write:events")) {
+  // userDoc.permissions is safe to gate on ONLY because firestore.rules deny
+  // client writes to it (field-diff lock on the User doc) — it is stamped by
+  // the server-side membership flows (adminUserOrganization.ts).
+  if (!userDoc?.permissions.includes("write:events")) {
     return {
       ok: false,
       error: "Missing write:events permission",
@@ -50,13 +59,10 @@ export async function resolveRegistrationRouteScope(
     };
   }
 
-  const event = await getAdminEventForOrganization(
-    eventId,
-    userDoc.organizationId,
-  );
+  const event = await getAdminEventForOrganization(eventId, organizationId);
   if (!event) {
     return { ok: false, error: "Event not found", status: 404 };
   }
 
-  return { ok: true, organizationId: userDoc.organizationId, event };
+  return { ok: true, organizationId, event };
 }

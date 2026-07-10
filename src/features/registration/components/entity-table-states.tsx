@@ -81,7 +81,9 @@ export function EntityTableError({
 }
 
 // True-empty state (no rows at all). The note banner renders above it, so
-// this shell only carries the icon, copy, and the create CTA.
+// this shell only carries the icon, copy, and the create CTA. The action is
+// optional (M2 design §4): CTA-less empty states (e.g. Service Fees) omit
+// both actionLabel and onAction and render no button.
 export function EntityEmptyState({
   icon: Icon,
   title,
@@ -92,8 +94,8 @@ export function EntityEmptyState({
   icon: LucideIcon;
   title: string;
   description: string;
-  actionLabel: string;
-  onAction: () => void;
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-10 text-center">
@@ -106,7 +108,9 @@ export function EntityEmptyState({
           {description}
         </p>
       </div>
-      <Button onClick={onAction}>{actionLabel}</Button>
+      {actionLabel && onAction ? (
+        <Button onClick={onAction}>{actionLabel}</Button>
+      ) : null}
     </div>
   );
 }

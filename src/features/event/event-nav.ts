@@ -52,15 +52,7 @@ export const eventNavGroups: EventNavGroup[] = [
     label: "Registration",
     items: [
       { title: "Ticket Types", segment: "tickets", icon: Ticket },
-      {
-        title: "Pricing",
-        segment: "pricing",
-        icon: CircleDollarSign,
-        comingSoon: true,
-        milestone: "M2",
-        description:
-          "Set fees per ticket, registration type, and currency — plus discounts and taxes.",
-      },
+      { title: "Pricing", segment: "pricing", icon: CircleDollarSign },
       {
         title: "Registration Types",
         segment: "registration-types",

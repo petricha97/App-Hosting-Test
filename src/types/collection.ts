@@ -138,6 +138,15 @@ export interface PromotionTemplateDoc {
   updatedAt: Timestamp | FieldValue;
 }
 
+// M2-T2 additive fields on EventPromotion (spec: agents/docs/specs/m2-pricing-commerce.md).
+// All six are OPTIONAL for migration safety: pre-M2 docs and template-inherited
+// docs parse unchanged with read defaults (level "event", no validity window,
+// uncapped, usedCount 0, isActive true) applied by
+// src/lib/db/eventPromotionDefaults.ts — never backfilled, never rewritten on load.
+// They are event-local: the template cascade ("Apply to all" / inheritFromParent)
+// must never overwrite them.
+export type EventPromotionLevel = "event" | "partner";
+
 export interface EventPromotionDoc {
   organizationId: string;
   templateId: string;
@@ -149,6 +158,21 @@ export interface EventPromotionDoc {
   conditions: ConditionRule[];
   enablePromoCode: boolean;
   promoCode?: string | null;
+  // --- M2-T2 additive fields (all optional; defaults applied on read) ---
+  level?: EventPromotionLevel;
+  // Event-timezone day bounds stored as UTC Timestamps (same storage rule as
+  // M1 sales windows). null/absent = no bound.
+  validityStart?: Timestamp | null;
+  validityEnd?: Timestamp | null;
+  // null/absent = uncapped; otherwise integer >= 1.
+  usageCap?: number | null;
+  // SERVER-OWNED counter: only ever mutated inside the M2-T4 order-finalize
+  // transaction (increment) / cancellation (decrement). Every client/admin
+  // edit payload must strip or reject it (adminEventPromotion.ts enforces).
+  usedCount?: number;
+  // Manual toggle. Displayed "Active" badge is DERIVED:
+  // isActive && withinValidity(now) && !capExhausted — never stored.
+  isActive?: boolean;
   createdAt: Timestamp | FieldValue;
   updatedAt: Timestamp | FieldValue;
 }
@@ -274,6 +298,139 @@ export interface TicketTypeDoc {
   // Eligible RegistrationType ids in the same event. Empty array = unrestricted
   // (ticket is available to every registration type).
   registrationTypeIds: string[];
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+// ============================================================================
+// M2 — Pricing & Commerce (spec: agents/docs/specs/m2-pricing-commerce.md)
+//
+// Money is INTEGER MINOR UNITS everywhere — no floats in stored amounts or
+// math. All supported currencies currently use 2 minor digits; 0-decimal
+// currencies (e.g. JPY) are out of scope until added to CURRENCY_MINOR_DIGITS
+// in src/lib/orders/pricing-math.ts. There is NO currency conversion anywhere.
+// ============================================================================
+
+export const SUPPORTED_CURRENCIES = ["USD", "GBP", "EUR", "SGD"] as const;
+export type Currency = (typeof SUPPORTED_CURRENCIES)[number];
+
+export type FeeStatus = "active" | "archived";
+
+// A Fee attaches a price to a ticket, per registration type and currency.
+// Root collection `Fee`, auto IDs.
+export interface FeeDoc {
+  organizationId: string;
+  eventId: string;
+  // 1–80 chars (route Zod).
+  name: string;
+  // Must belong to the same event (server-checked by the route).
+  ticketTypeId: string;
+  // null = applies to ALL registration types. Stored explicitly as null (never
+  // absent) so the uniqueness equality query works. Resolution rule (fixed):
+  // a specific-regType fee WINS over the "All types" fee for the same
+  // ticket + currency.
+  registrationTypeId: string | null;
+  currency: Currency;
+  // Integer >= 0 in minor units. 0 renders "Comp" (never "$0.00").
+  basePriceMinor: number;
+  // Uniqueness: at most one ACTIVE fee per
+  // (eventId, ticketTypeId, registrationTypeId-or-null, currency).
+  // Archived fees never block uniqueness and are never selectable by order
+  // finalize.
+  status: FeeStatus;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+export type TaxType = "percentage" | "fixed";
+
+// Root collection `Tax`, auto IDs. Exactly one of the type-specific field
+// groups is set (percentage: rateMilliPercent; fixed: fixedAmountMinor +
+// fixedCurrency) — the other group is stored as null.
+export interface TaxDoc {
+  organizationId: string;
+  eventId: string;
+  // 1–80 chars.
+  name: string;
+  // UPPERCASE, M1 code regex, unique per event WITHIN Tax (e.g. VAT-UK, TAX-NY).
+  code: string;
+  type: TaxType;
+  // Percentage only. Integer milli-percent >= 0: 20.00% -> 20000, 8.875% -> 8875.
+  // Exact integer storage, no floats.
+  rateMilliPercent: number | null;
+  // Fixed only. Integer minor units >= 0; applies only to orders whose
+  // currency === fixedCurrency (percentage taxes are currency-agnostic).
+  fixedAmountMinor: number | null;
+  fixedCurrency: Currency | null;
+  // Inactive taxes never apply to any order.
+  isActive: boolean;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+export type PaymentMethod = "card" | "invoice" | "comp" | "none";
+export type PaymentStatus =
+  | "pending"
+  | "paid"
+  | "outstanding"
+  | "comped"
+  | "failed";
+
+// Server-computed integer amounts, all in OrderDoc.currency minor units.
+export interface OrderAmounts {
+  subtotalMinor: number;
+  discountMinor: number;
+  taxMinor: number;
+  totalMinor: number;
+}
+
+// One applied tax line, frozen at purchase time. Exactly one of
+// rateMilliPercent / fixedAmountMinor is non-null, matching the tax's type.
+export interface OrderTaxLineSnapshot {
+  taxId: string;
+  code: string;
+  rateMilliPercent: number | null;
+  fixedAmountMinor: number | null;
+  amountMinor: number;
+}
+
+// Audit trail frozen at purchase: later fee/tax/promotion edits never rewrite
+// an existing order's history.
+export interface OrderSnapshot {
+  feeName: string;
+  basePriceMinor: number;
+  promoCode: string | null;
+  // As applied at purchase; null when no discount was applied.
+  discountType: "percentage" | "fixed" | null;
+  discountValue: number | null;
+  taxLines: OrderTaxLineSnapshot[];
+}
+
+// Root collection `Order`. Doc ID is a deterministic hash of
+// (organizationId, eventId, idempotencyKey) — see src/lib/orders/order-id.ts —
+// so create-if-absent inside the finalize transaction is atomic and repeat
+// submissions are idempotent. Orders are SERVER-ONLY: no client repo exists,
+// firestore.rules denies all client access, and the finalize route ignores
+// any client-supplied prices/totals (recomputed inside the transaction).
+export interface OrderDoc {
+  organizationId: string;
+  eventId: string;
+  // null until M3-T3 wires public registration submissions.
+  submissionId: string | null;
+  ticketTypeId: string;
+  registrationTypeId: string;
+  feeId: string;
+  promotionId: string | null;
+  // Ids of the taxes that produced snapshot.taxLines (delete-protection lookups).
+  taxIds: string[];
+  currency: Currency;
+  amounts: OrderAmounts;
+  snapshot: OrderSnapshot;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  paymentProvider: "simulated";
+  providerPaymentId: string | null;
+  idempotencyKey: string;
   createdAt: Timestamp | FieldValue;
   updatedAt: Timestamp | FieldValue;
 }

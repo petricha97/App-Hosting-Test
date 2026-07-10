@@ -1,7 +1,8 @@
 // API routes for a specific RegistrationType (M1-T1):
 //   PATCH  — update name/code/capacity (server-owned fields unreachable)
-//   DELETE — hard delete, BLOCKED (409) when tickets reference the type or
-//            registeredCount > 0 (block, never cascade)
+//   DELETE — hard delete, BLOCKED (409) when tickets reference the type,
+//            when fees pin this type (M2-T1 AC-6), or registeredCount > 0
+//            (block, never cascade)
 //
 // Route-owned validations (spec: agents/docs/specs/m1-registration-spine.md):
 // - 404 for cross-org events AND for type ids belonging to another
@@ -18,6 +19,7 @@ import {
   isAdminRegistrationTypeCodeTaken,
   updateAdminRegistrationType,
 } from "@/lib/db/adminRegistrationType";
+import { getAdminFeesReferencingRegistrationType } from "@/lib/db/adminFee";
 import { getAdminTicketTypesReferencingRegistrationType } from "@/lib/db/adminTicketType";
 
 interface RouteContext {
@@ -120,6 +122,26 @@ export async function DELETE(_request: Request, context: RouteContext) {
           names.length === 1 ? "" : "s"
         }: ${names.join(", ")}. Reassign or delete those tickets first.`,
         blockingTicketNames: names,
+      },
+      { status: 409 },
+    );
+  }
+
+  // M2-T1 AC-6: BLOCK when fees pin this registration type ("All types" fees
+  // never block — deleting a type does not affect them).
+  const blockingFees = await getAdminFeesReferencingRegistrationType({
+    eventId,
+    organizationId: scope.organizationId,
+    registrationTypeId,
+  });
+  if (blockingFees.length > 0) {
+    const names = blockingFees.map((fee) => fee.name);
+    return NextResponse.json(
+      {
+        error: `"${existing.name}" is priced by ${names.length} fee${
+          names.length === 1 ? "" : "s"
+        }: ${names.join(", ")}. Delete or archive those fees first.`,
+        blockingFeeNames: names,
       },
       { status: 409 },
     );

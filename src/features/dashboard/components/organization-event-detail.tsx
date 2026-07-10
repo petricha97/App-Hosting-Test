@@ -334,12 +334,16 @@ export function OrganizationEventDetail({
         </CardContent>
       </Card>
 
-      {/* Promotions section — shows event-level promotion copies with attach/edit/detach. */}
-      <EventPromotionManager
-        eventId={eventId}
-        promotions={promotions}
-        availableTemplates={availableTemplates}
-      />
+      {/* Promotions section — shows event-level promotion copies with attach/edit/detach.
+          The id anchors deep links from the Pricing screen's Discounts tab
+          ("Manage in Promotions" -> /dashboard/events/{id}#promotions). */}
+      <section id="promotions" className="scroll-mt-24">
+        <EventPromotionManager
+          eventId={eventId}
+          promotions={promotions}
+          availableTemplates={availableTemplates}
+        />
+      </section>
 
       <section className="grid gap-6 xl:grid-cols-3">
         {[

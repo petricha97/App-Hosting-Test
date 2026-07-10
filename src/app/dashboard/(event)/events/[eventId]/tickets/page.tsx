@@ -6,6 +6,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getDashboardScope } from "@/features/dashboard/server/get-dashboard-scope";
+import {
+  serializeFee,
+  type SerializedFee,
+} from "@/features/pricing/types";
 import { TicketTypesWorkspace } from "@/features/registration/components/ticket-types-workspace";
 import {
   serializeRegistrationType,
@@ -15,6 +19,7 @@ import {
 } from "@/features/registration/types";
 import { resolveEventTimeZone } from "@/features/registration/utils";
 import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
+import { getAdminFeesForEvent } from "@/lib/db/adminFee";
 import { getAdminRegistrationTypesForEvent } from "@/lib/db/adminRegistrationType";
 import { getAdminTicketTypesForEvent } from "@/lib/db/adminTicketType";
 
@@ -40,9 +45,10 @@ export default async function EventTicketTypesPage({ params }: PageProps) {
 
   let tickets: SerializedTicketType[] = [];
   let registrationTypes: SerializedRegistrationType[] = [];
+  let fees: SerializedFee[] = [];
   let loadError = false;
   try {
-    const [ticketDocs, registrationTypeDocs] = await Promise.all([
+    const [ticketDocs, registrationTypeDocs, feeDocs] = await Promise.all([
       getAdminTicketTypesForEvent({
         eventId,
         organizationId: scope.organizationId,
@@ -51,9 +57,15 @@ export default async function EventTicketTypesPage({ params }: PageProps) {
         eventId,
         organizationId: scope.organizationId,
       }),
+      // Feeds the Price column (M2-T1 AC-12): fee-derived display instead of "—".
+      getAdminFeesForEvent({
+        eventId,
+        organizationId: scope.organizationId,
+      }),
     ]);
     tickets = ticketDocs.map(serializeTicketType);
     registrationTypes = registrationTypeDocs.map(serializeRegistrationType);
+    fees = feeDocs.map(serializeFee);
   } catch {
     // Shell stays interactive; the workspace shows a retryable error panel.
     loadError = true;
@@ -64,6 +76,7 @@ export default async function EventTicketTypesPage({ params }: PageProps) {
       eventId={eventId}
       tickets={tickets}
       registrationTypes={registrationTypes}
+      fees={fees}
       timeZone={resolveEventTimeZone(event.timezone)}
       loadError={loadError}
     />

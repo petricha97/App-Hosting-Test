@@ -26,6 +26,7 @@ const {
   isAdminRegistrationTypeCodeTaken,
   getAdminRegistrationTypesForEvent,
   getAdminTicketTypesReferencingRegistrationType,
+  getAdminFeesReferencingRegistrationType,
 } = vi.hoisted(() => ({
   cookies: vi.fn(),
   decodeUser: vi.fn(),
@@ -38,6 +39,7 @@ const {
   isAdminRegistrationTypeCodeTaken: vi.fn(),
   getAdminRegistrationTypesForEvent: vi.fn(),
   getAdminTicketTypesReferencingRegistrationType: vi.fn(),
+  getAdminFeesReferencingRegistrationType: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies }));
@@ -54,6 +56,9 @@ vi.mock("@/lib/db/adminRegistrationType", () => ({
 }));
 vi.mock("@/lib/db/adminTicketType", () => ({
   getAdminTicketTypesReferencingRegistrationType,
+}));
+vi.mock("@/lib/db/adminFee", () => ({
+  getAdminFeesReferencingRegistrationType,
 }));
 
 import { POST } from "@/app/api/dashboard/events/[eventId]/registration-types/route";
@@ -110,12 +115,14 @@ beforeEach(() => {
   });
   getAdminUserByEmail.mockResolvedValue({
     organizationId: ORG_ID,
+    organizations: [{ organizationId: ORG_ID, role: "owner" }],
     permissions: ["write:events"],
   });
   getAdminEventForOrganization.mockResolvedValue(event);
   isAdminRegistrationTypeCodeTaken.mockResolvedValue(false);
   getAdminRegistrationTypeForEvent.mockResolvedValue(existingType);
   getAdminTicketTypesReferencingRegistrationType.mockResolvedValue([]);
+  getAdminFeesReferencingRegistrationType.mockResolvedValue([]);
 });
 
 describe("POST /registration-types — auth and tenancy gates", () => {
@@ -134,6 +141,7 @@ describe("POST /registration-types — auth and tenancy gates", () => {
   it("returns 403 on POST for a viewer-permission member (no write:events)", async () => {
     getAdminUserByEmail.mockResolvedValue({
       organizationId: ORG_ID,
+      organizations: [{ organizationId: ORG_ID, role: "member" }],
       permissions: ["view:events"],
     });
 
@@ -232,6 +240,7 @@ describe("PATCH /registration-types/[id]", () => {
   it("returns 403 for a viewer-permission member (no write:events)", async () => {
     getAdminUserByEmail.mockResolvedValue({
       organizationId: ORG_ID,
+      organizations: [{ organizationId: ORG_ID, role: "member" }],
       permissions: ["view:events"],
     });
 
@@ -321,6 +330,7 @@ describe("DELETE /registration-types/[id] — BLOCK, never cascade", () => {
   it("returns 403 for a viewer-permission member (no write:events)", async () => {
     getAdminUserByEmail.mockResolvedValue({
       organizationId: ORG_ID,
+      organizations: [{ organizationId: ORG_ID, role: "member" }],
       permissions: ["view:events"],
     });
 
@@ -350,6 +360,27 @@ describe("DELETE /registration-types/[id] — BLOCK, never cascade", () => {
       "GC Early Bird",
       "GC Standard",
     ]);
+    expect(deleteAdminRegistrationType).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 naming the blocking fees when fees pin this type (M2-T1 AC-6)", async () => {
+    getAdminFeesReferencingRegistrationType.mockResolvedValue([
+      { id: "fee-1", name: "GC-EB Delegate USD" },
+    ]);
+
+    const response = await DELETE(deleteRequest(), itemContext());
+
+    expect(response.status).toBe(409);
+    const payload = await response.json();
+    expect(payload.error).toBe(
+      '"Delegate" is priced by 1 fee: GC-EB Delegate USD. Delete or archive those fees first.',
+    );
+    expect(payload.blockingFeeNames).toEqual(["GC-EB Delegate USD"]);
+    expect(getAdminFeesReferencingRegistrationType).toHaveBeenCalledWith({
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+      registrationTypeId: TYPE_ID,
+    });
     expect(deleteAdminRegistrationType).not.toHaveBeenCalled();
   });
 

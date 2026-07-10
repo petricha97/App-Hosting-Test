@@ -20,7 +20,6 @@ import { auth } from "@/lib/firebase";
 import {
     getUser,
     getOrganization,
-    updateUser,
     getOrganizationByDomain,
     subscribeToUser,
     subscribeToOrganization,
@@ -193,11 +192,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             throw new Error("You don't have access to this organization");
         }
 
-        const userEmail = user.email.toLowerCase();
-        await updateUser(userEmail, {
-            organizationId: orgId,
-            organizationRole: membership.role,
+        // Server-side switch: the roster is re-validated with the Admin SDK
+        // and the PERMISSIONS mirror is re-stamped for the target org — the
+        // client cannot write permissions under the M2 firestore.rules, so a
+        // client-only switch would leave a stale mirror. The Authorization
+        // header covers the case where the session cookie has expired but
+        // the Firebase session is still alive.
+        const idToken = await user.getIdToken();
+        const response = await fetch("/api/organizations/switch", {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ organizationId: orgId }),
         });
+        if (!response.ok) {
+            throw new Error("Failed to switch organization");
+        }
 
         const orgData = await getOrganization(orgId);
         if (orgData) {
