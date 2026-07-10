@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { auth } from "@/lib/firebase";
+// Joining is SERVER-SIDE (SEC M2): the invite code is validated and the
+// membership written by /api/organizations/* — the client never reads invite
+// secrets or writes roster/permissions/memberCount (firestore.rules denies it).
 import {
-    getOrganizationByInviteCode,
-    getUser,
-    createUser,
-    updateUser,
-    updateOrganizationMemberCount,
-    serverTimestamp,
-} from "@/lib/db";
+    joinOrganization,
+    lookupOrganizationByInviteCode,
+} from "@/lib/org-join-client";
+import type { OrganizationPreview } from "@/lib/org-preview";
 
 import {
     Dialog,
@@ -38,8 +38,6 @@ import { Loader2, Building2, Users, CheckCircle2 } from "lucide-react";
 
 import { joinByCodeSchema, type JoinByCodeValues } from "@/lib/validation";
 import { normalizeInviteCode } from "@/lib/invite-utils";
-import type { OrganizationDoc, UserDoc, OrganizationMembership } from "@/types/collection";
-import { MEMBER_PERMISSIONS } from "@/types/collection";
 
 interface JoinOrganizationDialogProps {
     children?: React.ReactNode;
@@ -53,7 +51,7 @@ export function JoinOrganizationDialog({ children, onSuccess }: JoinOrganization
     const [open, setOpen] = useState(false);
     const [state, setState] = useState<DialogState>("input");
     const [error, setError] = useState<string | null>(null);
-    const [foundOrg, setFoundOrg] = useState<{ org: OrganizationDoc; id: string } | null>(null);
+    const [foundOrg, setFoundOrg] = useState<OrganizationPreview | null>(null);
     const [validating, setValidating] = useState(false);
 
     const form = useForm<JoinByCodeValues>({
@@ -87,9 +85,10 @@ export function JoinOrganizationDialog({ children, onSuccess }: JoinOrganization
             setError(null);
 
             try {
-                const normalized = normalizeInviteCode(codeValue);
-                const found = await getOrganizationByInviteCode(normalized);
-                setFoundOrg(found ? { org: found, id: found.id } : null);
+                const found = await lookupOrganizationByInviteCode(
+                    normalizeInviteCode(codeValue),
+                );
+                setFoundOrg(found);
                 if (!found) setError("Invalid invite code");
             } catch {
                 setError("Error validating code");
@@ -117,59 +116,18 @@ export function JoinOrganizationDialog({ children, onSuccess }: JoinOrganization
         setError(null);
 
         try {
-            const userEmail = user.email.toLowerCase();
-            const userData = await getUser(userEmail);
+            const idToken = await user.getIdToken();
+            const result = await joinOrganization(idToken, {
+                joinMethod: "invite_code",
+                code: normalizeInviteCode(codeValue),
+                displayName: user.displayName ?? undefined,
+            });
 
-            if (userData) {
-                const isMember = userData.organizations.some(
-                    m => m.organizationId === foundOrg.id
-                );
-
-                if (isMember) {
-                    setError("You're already a member of this organization");
-                    setState("input");
-                    return;
-                }
-
-                const membership: OrganizationMembership = {
-                    organizationId: foundOrg.id,
-                    role: "member",
-                    joinedAt: serverTimestamp(),
-                    joinMethod: "invite_code",
-                };
-
-                await updateUser(userEmail, {
-                    organizationId: foundOrg.id,
-                    organizationRole: "member",
-                    organizations: [...userData.organizations, membership],
-                });
-            } else {
-                const membership: OrganizationMembership = {
-                    organizationId: foundOrg.id,
-                    role: "member",
-                    joinedAt: serverTimestamp(),
-                    joinMethod: "invite_code",
-                };
-
-                const newUserData: UserDoc = {
-                    uid: user.uid,
-                    name: user.displayName || "",
-                    email: userEmail,
-                    avatarUrl: user.photoURL || undefined,
-                    organizationId: foundOrg.id,
-                    organizationRole: "member",
-                    organizations: [membership],
-                    emailVerified: user.emailVerified,
-                    status: "active",
-                    permissions: MEMBER_PERMISSIONS,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                };
-
-                await createUser(userEmail, newUserData);
+            if (result.status === "already-member") {
+                setError("You're already a member of this organization");
+                setState("input");
+                return;
             }
-
-            await updateOrganizationMemberCount(foundOrg.id, 1);
 
             setState("success");
             onSuccess?.();
@@ -179,7 +137,7 @@ export function JoinOrganizationDialog({ children, onSuccess }: JoinOrganization
         }
     };
 
-    const Icon = foundOrg?.org.type === "organization" ? Building2 : Users;
+    const Icon = foundOrg?.type === "organization" ? Building2 : Users;
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -201,7 +159,7 @@ export function JoinOrganizationDialog({ children, onSuccess }: JoinOrganization
                             </div>
                             <DialogTitle>Welcome!</DialogTitle>
                             <DialogDescription>
-                                You&apos;ve successfully joined {foundOrg?.org.name}.
+                                You&apos;ve successfully joined {foundOrg?.name}.
                             </DialogDescription>
                         </DialogHeader>
                         <Button
@@ -267,13 +225,13 @@ export function JoinOrganizationDialog({ children, onSuccess }: JoinOrganization
                                                 <Icon className="h-5 w-5" />
                                             </div>
                                             <div>
-                                                <p className="font-medium">{foundOrg.org.name}</p>
+                                                <p className="font-medium">{foundOrg.name}</p>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <Badge variant="secondary">
-                                                        {foundOrg.org.type === "organization" ? "Organization" : "Workspace"}
+                                                        {foundOrg.type === "organization" ? "Organization" : "Workspace"}
                                                     </Badge>
                                                     <span className="text-xs text-muted-foreground">
-                                                        {foundOrg.org.memberCount} member{foundOrg.org.memberCount !== 1 ? "s" : ""}
+                                                        {foundOrg.memberCount} member{foundOrg.memberCount !== 1 ? "s" : ""}
                                                     </span>
                                                 </div>
                                             </div>
@@ -292,7 +250,7 @@ export function JoinOrganizationDialog({ children, onSuccess }: JoinOrganization
                                             Joining...
                                         </>
                                     ) : foundOrg ? (
-                                        `Join ${foundOrg.org.name}`
+                                        `Join ${foundOrg.name}`
                                     ) : (
                                         "Enter invite code"
                                     )}

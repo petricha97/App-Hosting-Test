@@ -30,7 +30,8 @@ export interface SerializedTicketType {
 
 // Tolerant Timestamp -> ms conversion (admin Timestamps expose toMillis; a
 // plain {seconds, nanoseconds} shape can appear after JSON round-trips).
-function timestampToMillis(value: unknown): number | null {
+// Exported for reuse by other serializers (e.g. src/features/pricing/types.ts).
+export function timestampToMillis(value: unknown): number | null {
   if (!value || typeof value !== "object") {
     return null;
   }

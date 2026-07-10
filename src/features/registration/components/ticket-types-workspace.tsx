@@ -31,6 +31,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { SerializedFee } from "@/features/pricing/types";
+import { getTicketPriceDisplay } from "@/features/pricing/utils";
 import { DeleteEntityDialog } from "@/features/registration/components/delete-entity-dialog";
 import {
   EntityEmptyState,
@@ -53,6 +55,9 @@ interface TicketTypesWorkspaceProps {
   eventId: string;
   tickets: SerializedTicketType[];
   registrationTypes: SerializedRegistrationType[];
+  // The event's fees — the Price column derives its display from them
+  // (M2-T1 AC-12): lowest active fee (+N more), "Comp" for 0, "—" when none.
+  fees: SerializedFee[];
   // Resolved event timezone for sales-window rendering.
   timeZone: string;
   loadError: boolean;
@@ -62,6 +67,7 @@ export function TicketTypesWorkspace({
   eventId,
   tickets,
   registrationTypes,
+  fees,
   timeZone,
   loadError,
 }: TicketTypesWorkspaceProps) {
@@ -291,6 +297,7 @@ export function TicketTypesWorkspace({
               <TableBody>
                 {filteredTickets.map((ticket) => {
                   const open = isTicketOpen(ticket, nowMs);
+                  const priceDisplay = getTicketPriceDisplay(ticket.id, fees);
                   return (
                     <TableRow key={ticket.id}>
                       <TableCell className="font-medium text-foreground">
@@ -299,16 +306,28 @@ export function TicketTypesWorkspace({
                       <TableCell className="font-mono text-xs text-muted-foreground">
                         {ticket.code}
                       </TableCell>
-                      <TableCell>
-                        {/* Fees land in M2 — no price is stored on the ticket. */}
-                        <Link
-                          href={pricingHref}
-                          title="Set in Pricing (coming in M2)"
-                          aria-label="Set in Pricing (coming in M2)"
-                          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                        >
-                          —
-                        </Link>
+                      <TableCell className="tabular-nums">
+                        {/* Fee-derived price (M2-T1 AC-12): the price lives on
+                            Fee rows, never on the ticket itself. */}
+                        {priceDisplay ? (
+                          <span title={priceDisplay.title}>
+                            {priceDisplay.label}
+                            {priceDisplay.extra ? (
+                              <span className="ml-1 text-xs text-muted-foreground">
+                                {priceDisplay.extra}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          <Link
+                            href={pricingHref}
+                            title="Set a price in Pricing"
+                            aria-label="Set a price in Pricing"
+                            className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                          >
+                            —
+                          </Link>
+                        )}
                       </TableCell>
                       <TableCell className="tabular-nums">
                         {ticket.registeredCount}

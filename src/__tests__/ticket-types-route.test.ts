@@ -25,6 +25,7 @@ const {
   updateAdminTicketType,
   deleteAdminTicketType,
   isAdminTicketTypeCodeTaken,
+  getAdminFeesReferencingTicketType,
 } = vi.hoisted(() => ({
   cookies: vi.fn(),
   decodeUser: vi.fn(),
@@ -36,6 +37,7 @@ const {
   updateAdminTicketType: vi.fn(),
   deleteAdminTicketType: vi.fn(),
   isAdminTicketTypeCodeTaken: vi.fn(),
+  getAdminFeesReferencingTicketType: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies }));
@@ -52,6 +54,7 @@ vi.mock("@/lib/db/adminTicketType", () => ({
   deleteAdminTicketType,
   isAdminTicketTypeCodeTaken,
 }));
+vi.mock("@/lib/db/adminFee", () => ({ getAdminFeesReferencingTicketType }));
 
 import { POST } from "@/app/api/dashboard/events/[eventId]/tickets/route";
 import {
@@ -129,6 +132,7 @@ beforeEach(() => {
   });
   getAdminUserByEmail.mockResolvedValue({
     organizationId: ORG_ID,
+    organizations: [{ organizationId: ORG_ID, role: "owner" }],
     permissions: ["write:events"],
   });
   getAdminEventForOrganization.mockResolvedValue(event);
@@ -147,6 +151,7 @@ beforeEach(() => {
   );
   isAdminTicketTypeCodeTaken.mockResolvedValue(false);
   getAdminTicketTypeForEvent.mockResolvedValue(existingTicket);
+  getAdminFeesReferencingTicketType.mockResolvedValue([]);
 });
 
 describe("POST /tickets — auth, tenancy, and validation gates", () => {
@@ -314,6 +319,7 @@ describe("write:events permission gate (H-1)", () => {
     // Default "member" role is view-only: view:events without write:events.
     getAdminUserByEmail.mockResolvedValue({
       organizationId: ORG_ID,
+      organizations: [{ organizationId: ORG_ID, role: "member" }],
       permissions: ["view:events"],
     });
   });
@@ -443,6 +449,31 @@ describe("DELETE /tickets/[id] — BLOCK when registered", () => {
     const response = await DELETE(deleteRequest(), itemContext());
 
     expect(response.status).toBe(404);
+    expect(deleteAdminTicketType).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 naming the blocking fees when fees price the ticket (M2-T1 AC-6)", async () => {
+    getAdminFeesReferencingTicketType.mockResolvedValue([
+      { id: "fee-1", name: "GC-EB Delegate USD" },
+      { id: "fee-2", name: "GC-EB Delegate GBP" },
+    ]);
+
+    const response = await DELETE(deleteRequest(), itemContext());
+
+    expect(response.status).toBe(409);
+    const payload = await response.json();
+    expect(payload.error).toBe(
+      '"GC Early Bird" is priced by 2 fees: GC-EB Delegate USD, GC-EB Delegate GBP. Delete or archive those fees first.',
+    );
+    expect(payload.blockingFeeNames).toEqual([
+      "GC-EB Delegate USD",
+      "GC-EB Delegate GBP",
+    ]);
+    expect(getAdminFeesReferencingTicketType).toHaveBeenCalledWith({
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+      ticketTypeId: TICKET_ID,
+    });
     expect(deleteAdminTicketType).not.toHaveBeenCalled();
   });
 

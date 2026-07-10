@@ -1,7 +1,7 @@
 // API routes for a specific TicketType (M1-T2):
 //   PATCH  — update the allow-listed fields (server-owned fields unreachable)
-//   DELETE — hard delete, BLOCKED (409) when registeredCount > 0
-//            (M2 must extend the block to tickets referenced by fees)
+//   DELETE — hard delete, BLOCKED (409) when registeredCount > 0 or when any
+//            Fee prices this ticket (M2-T1 AC-6 — delete/archive fees first)
 //
 // Route-owned validations (spec: agents/docs/specs/m1-registration-spine.md):
 // - 404 for cross-org events AND ticket ids of another event/org (IDOR-safe).
@@ -17,6 +17,7 @@ import {
   eventLocalDateToUtcMs,
   resolveEventTimeZone,
 } from "@/features/registration/utils";
+import { getAdminFeesReferencingTicketType } from "@/lib/db/adminFee";
 import {
   deleteAdminTicketType,
   getAdminTicketTypeForEvent,
@@ -143,6 +144,26 @@ export async function DELETE(_request: Request, context: RouteContext) {
         error: `${existing.registeredCount} ${
           existing.registeredCount === 1 ? "person is" : "people are"
         } registered with this ticket. Ticket types with registrations cannot be deleted.`,
+      },
+      { status: 409 },
+    );
+  }
+
+  // M2-T1 AC-6: BLOCK when fees price this ticket — deleting the ticket would
+  // orphan its fee rows. Name the blocking fees so the fix is obvious.
+  const blockingFees = await getAdminFeesReferencingTicketType({
+    eventId,
+    organizationId: scope.organizationId,
+    ticketTypeId,
+  });
+  if (blockingFees.length > 0) {
+    const names = blockingFees.map((fee) => fee.name);
+    return NextResponse.json(
+      {
+        error: `"${existing.name}" is priced by ${names.length} fee${
+          names.length === 1 ? "" : "s"
+        }: ${names.join(", ")}. Delete or archive those fees first.`,
+        blockingFeeNames: names,
       },
       { status: 409 },
     );
