@@ -32,6 +32,8 @@ import {
   Plus,
   Save,
   Settings2,
+  Ticket,
+  TicketPercent,
   Trash2,
   Type,
 } from "lucide-react";
@@ -41,6 +43,8 @@ import { toast } from "sonner";
 import { DashboardPageHeader } from "@/features/dashboard/components/page-header";
 import {
   formBuilderSchema,
+  isCommerceFieldType,
+  type CommerceFieldType,
   type FormBuilderInput,
   type FormBuilderValues,
   type FormFieldTypeValues,
@@ -77,6 +81,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const FORM_ID = "event-form-builder";
 
@@ -100,6 +109,41 @@ const fieldPalette = [
     icon: AlignLeft,
   },
 ];
+
+// M3-T2 — Commerce palette (event forms only; the template builder omits this
+// section entirely). At most one of each per form; entries disable with a
+// tooltip once placed.
+const commercePalette: Array<{
+  type: CommerceFieldType;
+  title: string;
+  description: string;
+  subtitle: string;
+  icon: typeof Ticket;
+  disabledTooltip: string;
+}> = [
+  {
+    type: "ticket-selector",
+    title: "Ticket selector",
+    description: "Options come automatically from this event's Ticket Types.",
+    subtitle: "ticket · from Ticket Types",
+    icon: Ticket,
+    disabledTooltip: "Only one ticket selector per form",
+  },
+  {
+    type: "promo-code",
+    title: "Promo code",
+    description: "Optional code input, validated at checkout.",
+    subtitle: "promo_code · from Promotions",
+    icon: TicketPercent,
+    disabledTooltip: "Only one promo code per form",
+  },
+];
+
+// Canvas-row subtitle for commerce fields (design §2: "ticket · from Ticket
+// Types" / "promo_code · from Promotions").
+function getCommerceFieldSubtitle(type: FormFieldTypeValues): string | null {
+  return commercePalette.find((entry) => entry.type === type)?.subtitle ?? null;
+}
 
 function buildBuilderDefaults(
   eventName: string,
@@ -127,6 +171,10 @@ function getFieldTypeLabel(type: FormFieldTypeValues) {
       return "Email";
     case "textarea":
       return "Long answer";
+    case "ticket-selector":
+      return "Ticket selector";
+    case "promo-code":
+      return "Promo code";
     default:
       return type;
   }
@@ -147,7 +195,24 @@ function PreviewField({ field }: { field: FormFieldValues }) {
         <p className="text-sm leading-6 text-slate-500">{field.helpText}</p>
       ) : null}
 
-      {field.type === "textarea" ? (
+      {field.type === "ticket-selector" ? (
+        // Live options come from Ticket Types + Fees at render time — the
+        // preview shows a disabled radio-card placeholder (design §2).
+        <div className="rounded-[1.25rem] border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+          Options appear on the live form
+        </div>
+      ) : field.type === "promo-code" ? (
+        <div className="flex gap-2">
+          <Input
+            disabled
+            placeholder={field.placeholder || "Enter a promo code"}
+            className="h-12 rounded-2xl border-slate-200 bg-slate-50 text-slate-700 disabled:opacity-100"
+          />
+          <Button type="button" variant="outline" disabled>
+            Apply
+          </Button>
+        </div>
+      ) : field.type === "textarea" ? (
         <Textarea
           disabled
           rows={field.rows ?? 4}
@@ -236,12 +301,26 @@ function SortableFieldRow({
                   Locked
                 </Badge>
               ) : null}
+              {isCommerceFieldType(field.type) ? (
+                <Badge
+                  variant="secondary"
+                  className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary shadow-none"
+                >
+                  event field
+                </Badge>
+              ) : null}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-              <span>Key: {field.key}</span>
-              {field.required ? <span>Required</span> : <span>Optional</span>}
-            </div>
+            {isCommerceFieldType(field.type) ? (
+              <p className="font-mono text-xs text-muted-foreground">
+                {getCommerceFieldSubtitle(field.type)}
+              </p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+                <span>Key: {field.key}</span>
+                {field.required ? <span>Required</span> : <span>Optional</span>}
+              </div>
+            )}
 
             {field.helpText ? (
               <p className="text-sm leading-6 text-slate-600">{field.helpText}</p>
@@ -287,6 +366,9 @@ interface FormBuilderWorkspaceProps {
   organizationName: string;
   initialForm: SerializedForm | null;
   initialTemplate?: SerializedFormTemplate | null;
+  // Number of TicketType docs on this event — drives the non-blocking
+  // zero-tickets warning when saving a form with a ticket selector (T2 AC-9).
+  ticketTypeCount?: number;
 }
 
 export function FormBuilderWorkspace({
@@ -296,6 +378,7 @@ export function FormBuilderWorkspace({
   organizationName,
   initialForm,
   initialTemplate = null,
+  ticketTypeCount = 0,
 }: FormBuilderWorkspaceProps) {
   const router = useRouter();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -387,6 +470,15 @@ export function FormBuilderWorkspace({
     (linkedTemplateSummary?.version ?? 0) > (currentTemplateLink?.templateVersion ?? 0);
 
   function handleAddField(type: FormFieldTypeValues) {
+    // Builder guard (T2 AC-2): at most one field of each commerce type. The
+    // palette entry is disabled too — this backstops keyboard/race paths.
+    if (
+      isCommerceFieldType(type) &&
+      watchedFields.some((field) => field.type === type)
+    ) {
+      return;
+    }
+
     const nextField = createCustomFormField(type, watchedFields.length);
     fieldArray.append(nextField);
     setSelectedFieldId(nextField.id);
@@ -475,15 +567,28 @@ export function FormBuilderWorkspace({
       }
 
       const isPublished = values.status === "published";
-
-      toast.success(
-        isPublished ? "Registration form published" : "Registration form saved",
-        {
-          description: isPublished
-            ? "The published registration form is now available for event pages that use registration."
-            : "The organizer-facing draft is now stored in Firestore for this event.",
-        },
+      const hasTicketSelector = values.fields.some(
+        (field) => field.type === "ticket-selector",
       );
+
+      // T2 AC-9: a ticket selector on an event with zero TicketTypes warns but
+      // saves — tickets may be configured later; the public flow renders its
+      // designed "no tickets available" state until then.
+      if (hasTicketSelector && ticketTypeCount === 0) {
+        toast.warning("Saved. This event has no ticket types yet", {
+          description:
+            "Add ticket types (and pricing) before publishing registration — the ticket selector has nothing to offer until then.",
+        });
+      } else {
+        toast.success(
+          isPublished ? "Registration form published" : "Registration form saved",
+          {
+            description: isPublished
+              ? "The published registration form is now available for event pages that use registration."
+              : "The organizer-facing draft is now stored in Firestore for this event.",
+          },
+        );
+      }
 
       router.refresh();
     } catch (error) {
@@ -642,6 +747,67 @@ export function FormBuilderWorkspace({
                   </button>
                 );
               })}
+
+              {/* M3-T2 Commerce section — event forms only; the template
+                  builder workspace omits it entirely (spec T2). */}
+              <div className="space-y-3 pt-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Commerce
+                </p>
+                {commercePalette.map((entry) => {
+                  const Icon = entry.icon;
+                  const alreadyPlaced = watchedFields.some(
+                    (field) => field.type === entry.type,
+                  );
+
+                  const paletteButton = (
+                    <button
+                      type="button"
+                      onClick={() => handleAddField(entry.type)}
+                      disabled={alreadyPlaced}
+                      aria-disabled={alreadyPlaced}
+                      className={cn(
+                        "w-full rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4 text-left transition",
+                        alreadyPlaced
+                          ? "cursor-not-allowed opacity-50"
+                          : "hover:border-orange-300 hover:bg-orange-50/70",
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-orange-900 shadow-sm">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-slate-950">
+                              {entry.title}
+                            </p>
+                            <Badge className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary shadow-none">
+                              New
+                            </Badge>
+                          </div>
+                          <p className="text-sm leading-6 text-slate-600">
+                            {entry.description}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+
+                  return alreadyPlaced ? (
+                    <Tooltip key={entry.type}>
+                      <TooltipTrigger asChild>
+                        {/* Disabled buttons swallow pointer events — the span
+                            keeps the tooltip reachable. */}
+                        <span className="block w-full">{paletteButton}</span>
+                      </TooltipTrigger>
+                      <TooltipContent>{entry.disabledTooltip}</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <div key={entry.type}>{paletteButton}</div>
+                  );
+                })}
+              </div>
 
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4 text-sm leading-7 text-slate-600">
                 <p className="font-semibold text-slate-950">Workspace scope</p>
@@ -837,7 +1003,13 @@ export function FormBuilderWorkspace({
                     <p className="mt-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
                       Key
                     </p>
-                    <p className="mt-1 break-all text-sm text-slate-700">
+                    <p className="mt-1 flex items-center gap-1.5 break-all font-mono text-sm text-slate-700">
+                      {isCommerceFieldType(selectedField.type) ? (
+                        <LockKeyhole
+                          className="h-3.5 w-3.5 shrink-0 text-slate-400"
+                          aria-label="Key is locked"
+                        />
+                      ) : null}
                       {selectedField.key}
                     </p>
                   </div>
@@ -860,71 +1032,90 @@ export function FormBuilderWorkspace({
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name={`fields.${selectedFieldIndex}.placeholder`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Placeholder</FormLabel>
-                        <FormControl>
-                          <Input
-                            className="h-12 rounded-2xl border-slate-200 bg-slate-50"
-                            disabled={isTemplateManagedField(selectedField, currentTemplateLink)}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {selectedField.type !== "ticket-selector" ? (
+                    <FormField
+                      control={form.control}
+                      name={`fields.${selectedFieldIndex}.placeholder`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Placeholder</FormLabel>
+                          <FormControl>
+                            <Input
+                              className="h-12 rounded-2xl border-slate-200 bg-slate-50"
+                              disabled={isTemplateManagedField(selectedField, currentTemplateLink)}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : null}
 
-                  <FormField
-                    control={form.control}
-                    name={`fields.${selectedFieldIndex}.helpText`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Helper text</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            rows={3}
-                            className="min-h-24 rounded-[1.5rem] border-slate-200 bg-slate-50"
-                            disabled={isTemplateManagedField(selectedField, currentTemplateLink)}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Optional guidance shown below the field label.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name={`fields.${selectedFieldIndex}.required`}
-                    render={({ field }) => (
-                      <FormItem className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4">
-                        <div className="space-y-1">
-                          <FormLabel>Required field</FormLabel>
+                  {selectedField.type !== "promo-code" ? (
+                    <FormField
+                      control={form.control}
+                      name={`fields.${selectedFieldIndex}.helpText`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Helper text</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              rows={3}
+                              className="min-h-24 rounded-[1.5rem] border-slate-200 bg-slate-50"
+                              disabled={isTemplateManagedField(selectedField, currentTemplateLink)}
+                              {...field}
+                            />
+                          </FormControl>
                           <FormDescription>
-                            Mandatory fields always stay required. Custom fields can
-                            be optional.
+                            Optional guidance shown below the field label.
                           </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            disabled={
-                              selectedField.isMandatory ||
-                              isTemplateManagedField(selectedField, currentTemplateLink)
-                            }
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : null}
+
+                  {selectedField.type === "promo-code" ? (
+                    <p className="text-xs text-muted-foreground">
+                      Always optional. Codes are validated at checkout.
+                    </p>
+                  ) : null}
+
+                  {selectedField.type === "ticket-selector" ? (
+                    <p className="text-xs text-muted-foreground">
+                      Options come automatically from this event&apos;s Ticket
+                      Types and Pricing.
+                    </p>
+                  ) : null}
+
+                  {selectedField.type !== "promo-code" ? (
+                    <FormField
+                      control={form.control}
+                      name={`fields.${selectedFieldIndex}.required`}
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4">
+                          <div className="space-y-1">
+                            <FormLabel>Required field</FormLabel>
+                            <FormDescription>
+                              Mandatory fields always stay required. Custom fields can
+                              be optional.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              disabled={
+                                selectedField.isMandatory ||
+                                isTemplateManagedField(selectedField, currentTemplateLink)
+                              }
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  ) : null}
 
                   {selectedField.type === "textarea" ? (
                     <FormField

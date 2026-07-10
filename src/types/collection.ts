@@ -158,6 +158,12 @@ export interface EventPromotionDoc {
   conditions: ConditionRule[];
   enablePromoCode: boolean;
   promoCode?: string | null;
+  // Normalized (trim + uppercase) copy of promoCode, stamped by the DAL on
+  // every write path so the public promo lookup is a Firestore EQUALITY
+  // query (M3 review S4). OPTIONAL: legacy docs written before M3 lack it
+  // and are found via a bounded in-memory fallback scan — never backfilled
+  // on read. null when promoCode is null/empty.
+  promoCodeUpper?: string | null;
   // --- M2-T2 additive fields (all optional; defaults applied on read) ---
   level?: EventPromotionLevel;
   // Event-timezone day bounds stored as UTC Timestamps (same storage rule as
@@ -197,7 +203,16 @@ export interface EventDoc {
   updatedAt: Timestamp | FieldValue;
 }
 
-export type FormFieldType = "text" | "email" | "textarea";
+// M3-T2: "ticket-selector" and "promo-code" are EVENT-ONLY commerce field
+// types (never allowed in FormTemplates — they bind to event-scoped
+// TicketTypes/EventPromotions). At most one of each per form; fixed keys
+// "ticket" / "promo_code". See src/features/form/schema.ts.
+export type FormFieldType =
+  | "text"
+  | "email"
+  | "textarea"
+  | "ticket-selector"
+  | "promo-code";
 export type FormFieldOrigin = "mandatory" | "template" | "event";
 
 export type FormStatus = "draft" | "published";
@@ -247,12 +262,36 @@ export interface FormTemplateDoc {
   updatedAt: Timestamp | FieldValue;
 }
 
+// M3-T4 — response approval workflow (spec: agents/docs/specs/m3-registration-paths.md).
+// Forward-only status machine: new < pending < reviewed < accepted (skipping
+// forward allowed, backward rejected, accepted terminal in M3 — no "rejected"
+// until M5). See src/lib/db/formDataStatus.ts for the pure transition rules.
+export type FormDataStatus = "new" | "pending" | "reviewed" | "accepted";
+
 export interface FormDataDoc {
   formId: string;
   eventId: string;
   organizationId: string;
   submission: Record<string, string>;
   submittedAt: Timestamp | FieldValue;
+  // --- M3-T4 additive fields (ALL optional for migration safety: legacy docs
+  // read as status "new" with null order/path/ticket via the read-time
+  // defaults in src/lib/db/formDataStatus.ts — no backfill, never rewritten
+  // on load). Finalized M3-T3 submissions carry them populated. ---
+  status?: FormDataStatus;
+  // Order created by the finalize transaction; null for flat legacy submits.
+  orderId?: string | null;
+  // Registration path the registrant walked; null for flat legacy submits.
+  pathId?: string | null;
+  // Denormalized at finalize from the order's fee/ticket snapshot so the
+  // responses tables render the Ticket column without an Order join.
+  ticketLabel?: string | null;
+  // Bumped on every status transition (transitionAdminFormDataStatus).
+  statusUpdatedAt?: Timestamp | FieldValue | null;
+  // Stamped exactly once, on the transition into "accepted" (terminal).
+  acceptedAt?: Timestamp | FieldValue | null;
+  // false until M5-T1's attendee-creation hook flips it.
+  attendeeCreated?: boolean;
 }
 
 // M1 — Registration data spine (spec: agents/docs/specs/m1-registration-spine.md).
@@ -431,6 +470,102 @@ export interface OrderDoc {
   paymentProvider: "simulated";
   providerPaymentId: string | null;
   idempotencyKey: string;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+// ============================================================================
+// M3 — Registration Paths & Public Flow
+// (spec: agents/docs/specs/m3-registration-paths.md)
+//
+// Both are ROOT collections (PascalCase singular) keyed by canonical
+// organizationId + eventId. Both are SERVER-ONLY: no client repo pair exists
+// and firestore.rules denies all client access (RegistrationDraft especially —
+// it carries registrant PII and draft-token hashes).
+// ============================================================================
+
+// A RegistrationPath is the flow configuration a registrant walks through —
+// one per audience × payment method. It pins the checkout currency (fee
+// resolution needs (ticket, regType, currency); the path is the flow config).
+// Root collection `RegistrationPath`, auto IDs.
+export interface RegistrationPathDoc {
+  organizationId: string;
+  eventId: string;
+  // 1–120 chars, free text (organizers include the "2." / "2.1" numbering
+  // convention in the name per the prototype).
+  name: string;
+  // M1 code rules (normalizeRegistrationCode / REGISTRATION_CODE_PATTERN),
+  // stored uppercase, unique per event WITHIN RegistrationPath.
+  code: string;
+  // null = "Any" audience. Otherwise a RegistrationType id belonging to the
+  // same event (route-validated). Audience resolution rule (T1, used by T3):
+  // set -> the order's registrationTypeId IS the audience; Any -> derived
+  // from the selected ticket's registrationTypeIds (exactly one -> that one;
+  // multiple/empty -> the registrant picks in step 2).
+  audienceRegistrationTypeId: string | null;
+  // Same union as OrderDoc. Step 4 (Payment) is skipped for comp/none paths.
+  // At finalize, paymentMethod and currency are read from THIS doc — never
+  // from the client.
+  paymentMethod: PaymentMethod;
+  currency: Currency;
+  // Inactive paths never appear on the public picker but remain listed in
+  // the admin table. Default true.
+  isActive: boolean;
+  // Integer >= 0; drives the admin table AND the public picker order.
+  // Default max+1 within the event.
+  sortOrder: number;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+// Last step the registrant COMPLETED (public flow, fixed 5-step M3 flow).
+// Display mapping (prototype badges): personal_info -> "Personal Information",
+// ticket_options -> "Ticket & Options", summary -> "Registration Summary",
+// payment -> "Payment".
+export type RegistrationDraftStep =
+  | "personal_info"
+  | "ticket_options"
+  | "summary"
+  | "payment";
+
+// An in-progress public registration. Doubles as the abandoned-registration
+// record (M3-T5): completed drafts are DELETED at finalize (only after Order
+// AND FormData both exist), so existence = incomplete. A draft older than
+// ABANDONED_AFTER_MS (src/lib/db/adminRegistrationDraft.ts) counts as
+// abandoned — derived at read time, never stored.
+//
+// PII minimization (Q3 locked): stores ONLY what completion requires.
+// NEVER stored: payment details of any kind, promo code TEXT (only the
+// resolved promotionId), IP / user-agent.
+// Root collection `RegistrationDraft`, doc IDs minted server-side by
+// generateDraftId() (src/lib/draft-token.ts).
+export interface RegistrationDraftDoc {
+  organizationId: string;
+  eventId: string;
+  pathId: string;
+  formId: string;
+  // SHA-256 hex of the signed draft token — the RAW token is never stored.
+  // Possession of a bare draftId grants no access: every read/update goes
+  // through getAdminRegistrationDraftByIdAndTokenHash.
+  draftTokenHash: string;
+  lastStepReached: RegistrationDraftStep;
+  // Validated step-1 answers (non-commerce form fields) — needed for resume
+  // and for building the final FormData submission at finalize.
+  stepAnswers: Record<string, string>;
+  // Step-2 selections; null until chosen.
+  ticketTypeId: string | null;
+  registrationTypeId: string | null;
+  // Resolved EventPromotion id only — the promo code TEXT is never stored.
+  promotionId: string | null;
+  // Finalize attempt counter (T3): starts at 1, incremented ONLY after
+  // PAYMENT_FAILED so double-clicks collapse onto one idempotency key but
+  // declined-card retries get a fresh key (M2 provider contract).
+  attempt: number;
+  // Denormalized from stepAnswers for the abandoned surface (M5-T3);
+  // "" until entered. Admin lists mask the email (domain only).
+  firstName: string;
+  lastName: string;
+  email: string;
   createdAt: Timestamp | FieldValue;
   updatedAt: Timestamp | FieldValue;
 }

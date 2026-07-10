@@ -266,6 +266,29 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------
+    // M3 — registration paths & public flow. BOTH server-only (spec:
+    // agents/docs/specs/m3-registration-paths.md).
+    //
+    // RegistrationPath: flow config read by the admin table and the PUBLIC
+    // path picker — both render server-side through Admin-SDK routes, so no
+    // client-SDK access exists (and the picker must serve signed-out
+    // visitors, which the client SDK could not scope safely anyway).
+    //
+    // RegistrationDraft: in-progress registrations — registrant PII and
+    // draft-token HASHES. Access is capability-based (the signed draft
+    // token, verified server-side per src/lib/draft-token.ts), which rules
+    // cannot express; every read/write goes through the public register
+    // routes or write:events-gated admin routes. DENY ALL.
+    // ------------------------------------------------------------------
+    match /RegistrationPath/{pathId} {
+      allow read, write: if false;
+    }
+
+    match /RegistrationDraft/{draftId} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------
     // Server-only collections (no production client-SDK access exists):
     // Form authoring, registration submissions (PII), form templates, Puck
     // pages and promotion templates are all read AND written through admin

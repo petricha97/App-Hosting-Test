@@ -1,4 +1,5 @@
-import type { FormDataDoc, WithId } from "@/types/collection";
+import { readFormDataStatus } from "@/lib/db/formDataStatus";
+import type { FormDataDoc, FormDataStatus, WithId } from "@/types/collection";
 
 export interface SerializedResponseTimestamp {
   seconds: number | null;
@@ -17,6 +18,11 @@ export interface SerializedResponse {
   attendeeEmail: string;
   eventName: string;
   submissionPreview: string[];
+  // M3-T4: read-time defaults — legacy docs surface as "new" with null
+  // ticket/order, never rewritten (src/lib/db/formDataStatus.ts).
+  status: FormDataStatus;
+  ticketLabel: string | null;
+  orderId: string | null;
 }
 
 function serializeTimestamp(value: FormDataDoc["submittedAt"]): SerializedResponseTimestamp | null {
@@ -62,6 +68,9 @@ function buildSubmissionPreview(submission: Record<string, string>) {
 export function serializeResponses(
   responses: WithId<FormDataDoc>[],
   eventNamesById: Map<string, string>,
+  // Server-resolved ticket-label fallbacks (T4 AC-8): responses whose
+  // ticketLabel is null but whose order exists get the order-snapshot label.
+  ticketLabelsById?: Map<string, string | null>,
 ): SerializedResponse[] {
   return responses.map((response) => ({
     id: response.id,
@@ -74,6 +83,10 @@ export function serializeResponses(
     attendeeEmail: response.submission.email?.trim() || "No email provided",
     eventName: eventNamesById.get(response.eventId) ?? "Unknown event",
     submissionPreview: buildSubmissionPreview(response.submission),
+    status: readFormDataStatus(response),
+    ticketLabel:
+      response.ticketLabel ?? ticketLabelsById?.get(response.id) ?? null,
+    orderId: response.orderId ?? null,
   }));
 }
 

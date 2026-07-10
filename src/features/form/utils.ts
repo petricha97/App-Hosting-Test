@@ -12,7 +12,9 @@ import type {
   FormFieldValues,
 } from "@/features/form/schema";
 import {
+  COMMERCE_FIELD_KEYS,
   formTemplateDocumentSchema,
+  isCommerceFieldType,
   storedFormDocumentSchema,
   storedFormTemplateDocumentSchema,
 } from "@/features/form/schema";
@@ -65,6 +67,15 @@ const fieldTypeDefaults: Record<
     placeholder: "Type more details",
     rows: 4,
   },
+  // M3-T2 commerce fields (event-only): fixed keys, defaults per design §2.
+  "ticket-selector": {
+    label: "Select your ticket",
+    placeholder: "",
+  },
+  "promo-code": {
+    label: "Promo code",
+    placeholder: "Enter a promo code",
+  },
 };
 
 export function createCustomFormField(
@@ -74,18 +85,26 @@ export function createCustomFormField(
 ): FormFieldValues {
   const id = nanoid(10);
   const defaults = fieldTypeDefaults[type];
+  const commerce = isCommerceFieldType(type);
+  // Commerce fields carry FIXED keys (ticket / promo_code) — the public flow
+  // addresses them by key. Commerce fields are always event-origin.
+  const key = isCommerceFieldType(type)
+    ? COMMERCE_FIELD_KEYS[type]
+    : `field_${id}`;
 
   return {
     id: `field-${id}`,
-    key: `field_${id}`,
+    key,
     label: defaults.label,
     type,
     placeholder: defaults.placeholder,
     helpText: "",
-    required: false,
+    // Ticket selector defaults to required (spec T2); promo code is always
+    // optional (enforced by the schema transform as well).
+    required: type === "ticket-selector",
     isMandatory: false,
     order,
-    origin,
+    origin: commerce ? "event" : origin,
     sourceTemplateFieldId: undefined,
     rows: type === "textarea" ? defaults.rows ?? 4 : undefined,
   };
@@ -419,7 +438,15 @@ export function applyTemplateToLinkedForm(input: {
   template: WithId<FormTemplateDoc>;
   appliedAt: Timestamp | FieldValue;
 }) {
-  const templateFieldIds = new Set(input.template.fields.map((field) => field.id));
+  // M3-T2 guard (T2 AC-3): the template cascade must never insert, remove or
+  // edit commerce fields on a linked form. templateBuilderSchema already
+  // rejects commerce types at save, but a stale/tampered template doc must
+  // not propagate them either — filter defensively. Event-origin commerce
+  // fields on the form itself flow through `eventFields` untouched below.
+  const templateFields = input.template.fields.filter(
+    (field) => !isCommerceFieldType(field.type),
+  );
+  const templateFieldIds = new Set(templateFields.map((field) => field.id));
   const existingTemplateFields = input.form.fields.filter(
     (field) => field.origin === "template",
   );
@@ -445,7 +472,7 @@ export function applyTemplateToLinkedForm(input: {
       rows: field.type === "textarea" ? field.rows ?? 4 : undefined,
     }));
 
-  const nextTemplateFields = input.template.fields.map((templateField) => {
+  const nextTemplateFields = templateFields.map((templateField) => {
     const existing = existingTemplateFields.find(
       (field) => field.sourceTemplateFieldId === templateField.id,
     );

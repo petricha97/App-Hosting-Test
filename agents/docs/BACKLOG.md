@@ -22,11 +22,11 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M2-T2 | Discounts tab (promotions integration) | M2 | Done | — | S2 |
 | M2-T3 | Taxes & service fees | M2 | Done | — | S2 |
 | M2-T4 | Orders & payment records | M2 | Done | — | S2 |
-| M3-T1 | Registration Paths admin | M3 | Todo | — | — |
-| M3-T2 | Form builder commerce fields | M3 | Todo | — | — |
-| M3-T3 | Public multi-step registration flow | M3 | Todo | — | — |
-| M3-T4 | Response approval workflow | M3 | Todo | — | — |
-| M3-T5 | Abandoned-registration tracking | M3 | Todo | — | — |
+| M3-T1 | Registration Paths admin | M3 | Done | — | S3 |
+| M3-T2 | Form builder commerce fields | M3 | Done | — | S3 |
+| M3-T3 | Public multi-step registration flow | M3 | Done | — | S3 |
+| M3-T4 | Response approval workflow | M3 | Done | — | S3 |
+| M3-T5 | Abandoned-registration tracking | M3 | Done | — | S3 |
 | M4-T1 | New Puck blocks (pricing table, countdown, reg embed) | M4 | Todo | — | — |
 | M4-T2 | Per-path page customization | M4 | Todo | — | — |
 | M5-T1 | Attendee entity + QR identity service | M5 | Todo | — | — |
