@@ -27,6 +27,7 @@ const {
   getAdminRegistrationTypesForEvent,
   getAdminTicketTypesReferencingRegistrationType,
   getAdminFeesReferencingRegistrationType,
+  getAdminRegistrationPathsReferencingRegistrationType,
 } = vi.hoisted(() => ({
   cookies: vi.fn(),
   decodeUser: vi.fn(),
@@ -40,6 +41,7 @@ const {
   getAdminRegistrationTypesForEvent: vi.fn(),
   getAdminTicketTypesReferencingRegistrationType: vi.fn(),
   getAdminFeesReferencingRegistrationType: vi.fn(),
+  getAdminRegistrationPathsReferencingRegistrationType: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies }));
@@ -59,6 +61,9 @@ vi.mock("@/lib/db/adminTicketType", () => ({
 }));
 vi.mock("@/lib/db/adminFee", () => ({
   getAdminFeesReferencingRegistrationType,
+}));
+vi.mock("@/lib/db/adminRegistrationPath", () => ({
+  getAdminRegistrationPathsReferencingRegistrationType,
 }));
 
 import { POST } from "@/app/api/dashboard/events/[eventId]/registration-types/route";
@@ -123,6 +128,7 @@ beforeEach(() => {
   getAdminRegistrationTypeForEvent.mockResolvedValue(existingType);
   getAdminTicketTypesReferencingRegistrationType.mockResolvedValue([]);
   getAdminFeesReferencingRegistrationType.mockResolvedValue([]);
+  getAdminRegistrationPathsReferencingRegistrationType.mockResolvedValue([]);
 });
 
 describe("POST /registration-types — auth and tenancy gates", () => {
@@ -377,6 +383,35 @@ describe("DELETE /registration-types/[id] — BLOCK, never cascade", () => {
     );
     expect(payload.blockingFeeNames).toEqual(["GC-EB Delegate USD"]);
     expect(getAdminFeesReferencingRegistrationType).toHaveBeenCalledWith({
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+      registrationTypeId: TYPE_ID,
+    });
+    expect(deleteAdminRegistrationType).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 naming the blocking paths when a path's audience pins this type (M3-T1 AC-6)", async () => {
+    getAdminRegistrationPathsReferencingRegistrationType.mockResolvedValue([
+      { id: "path-1", name: "2. Sponsor — Card" },
+      { id: "path-2", name: "2.1 Sponsor — Invoice" },
+    ]);
+
+    const response = await DELETE(deleteRequest(), itemContext());
+
+    expect(response.status).toBe(409);
+    const payload = await response.json();
+    expect(payload.error).toContain("2. Sponsor — Card");
+    expect(payload.error).toContain("2.1 Sponsor — Invoice");
+    expect(payload.error).toContain(
+      '"Delegate" is the audience of 2 registration paths',
+    );
+    expect(payload.blockingPathNames).toEqual([
+      "2. Sponsor — Card",
+      "2.1 Sponsor — Invoice",
+    ]);
+    expect(
+      getAdminRegistrationPathsReferencingRegistrationType,
+    ).toHaveBeenCalledWith({
       eventId: EVENT_ID,
       organizationId: ORG_ID,
       registrationTypeId: TYPE_ID,

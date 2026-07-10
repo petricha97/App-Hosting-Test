@@ -20,6 +20,15 @@ env:
   # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
   # - variable: API_KEY
   #   secret: myApiKeySecret
+  # HMAC secret for public registration draft tokens (M3-T3,
+  # src/lib/draft-token.ts). Create it once with:
+  #   firebase apphosting:secrets:set draftTokenSecret
+  # Without it the server falls back to a DEV-ONLY secret and logs a loud
+  # warning (draft tokens would be forgeable in production).
+  - variable: DRAFT_TOKEN_SECRET
+    secret: draftTokenSecret
+    availability:
+    - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     value: AIzaSyDvWOtA68Iq9svp9gFxuvsoWYHcYA56hT4
     availability:

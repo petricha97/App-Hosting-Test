@@ -1,7 +1,8 @@
 // API routes for a specific RegistrationType (M1-T1):
 //   PATCH  — update name/code/capacity (server-owned fields unreachable)
 //   DELETE — hard delete, BLOCKED (409) when tickets reference the type,
-//            when fees pin this type (M2-T1 AC-6), or registeredCount > 0
+//            when fees pin this type (M2-T1 AC-6), when registration paths
+//            pin it as their audience (M3-T1 AC-6), or registeredCount > 0
 //            (block, never cascade)
 //
 // Route-owned validations (spec: agents/docs/specs/m1-registration-spine.md):
@@ -20,6 +21,7 @@ import {
   updateAdminRegistrationType,
 } from "@/lib/db/adminRegistrationType";
 import { getAdminFeesReferencingRegistrationType } from "@/lib/db/adminFee";
+import { getAdminRegistrationPathsReferencingRegistrationType } from "@/lib/db/adminRegistrationPath";
 import { getAdminTicketTypesReferencingRegistrationType } from "@/lib/db/adminTicketType";
 
 interface RouteContext {
@@ -142,6 +144,27 @@ export async function DELETE(_request: Request, context: RouteContext) {
           names.length === 1 ? "" : "s"
         }: ${names.join(", ")}. Delete or archive those fees first.`,
         blockingFeeNames: names,
+      },
+      { status: 409 },
+    );
+  }
+
+  // M3-T1 AC-6: BLOCK when registration paths pin this type as their
+  // audience ("Any"-audience paths never block — deleting a type does not
+  // affect them).
+  const blockingPaths = await getAdminRegistrationPathsReferencingRegistrationType({
+    eventId,
+    organizationId: scope.organizationId,
+    registrationTypeId,
+  });
+  if (blockingPaths.length > 0) {
+    const names = blockingPaths.map((path) => path.name);
+    return NextResponse.json(
+      {
+        error: `"${existing.name}" is the audience of ${names.length} registration path${
+          names.length === 1 ? "" : "s"
+        }: ${names.join(", ")}. Re-point or delete those paths first.`,
+        blockingPathNames: names,
       },
       { status: 409 },
     );

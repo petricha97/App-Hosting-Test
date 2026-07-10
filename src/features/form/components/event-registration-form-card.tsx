@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import {
   buildFormSubmissionSchema,
+  getNonCommerceFields,
   type FormFieldValues,
 } from "@/features/form/schema";
 import type { SerializedForm } from "@/features/form/utils";
@@ -33,14 +34,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
-function buildDefaultSubmissionValues(fields: FormFieldValues[]) {
+export function buildDefaultSubmissionValues(fields: FormFieldValues[]) {
   return fields.reduce<Record<string, string>>((accumulator, field) => {
     accumulator[field.key] = "";
     return accumulator;
   }, {});
 }
 
-function renderFieldInput(field: FormFieldValues, formField: {
+// Exported for reuse by the public multi-step flow's Personal Information
+// step (design §3) — one renderer for text/email/textarea question inputs.
+export function renderFieldInput(field: FormFieldValues, formField: {
   value: string;
   onChange: ControllerRenderProps<Record<string, string>, string>["onChange"];
   onBlur: ControllerRenderProps<Record<string, string>, string>["onBlur"];
@@ -91,18 +94,23 @@ export function EventRegistrationFormCard({
   emptyDescription = "Open the form builder first, save a draft, then come back here to test the participant flow and write a real response into `FormData`.",
   submitLabel = "Submit registration",
 }: EventRegistrationFormCardProps) {
-  const submissionSchema = useMemo(
-    () => buildFormSubmissionSchema((form?.fields ?? []) as FormFieldValues[]),
+  // M3-T2: commerce fields (ticket selector / promo code) belong to the
+  // multi-step flow — the flat card renders and submits only question fields.
+  const questionFields = useMemo(
+    () => getNonCommerceFields((form?.fields ?? []) as FormFieldValues[]),
     [form?.fields],
+  );
+  const submissionSchema = useMemo(
+    () => buildFormSubmissionSchema(questionFields),
+    [questionFields],
   );
   type SubmissionValues = Record<string, string>;
 
   const reactForm = useForm<SubmissionValues>({
     resolver: zodResolver(submissionSchema) as never,
     defaultValues: useMemo(
-      () =>
-        buildDefaultSubmissionValues((form?.fields ?? []) as FormFieldValues[]) as SubmissionValues,
-      [form?.fields],
+      () => buildDefaultSubmissionValues(questionFields) as SubmissionValues,
+      [questionFields],
     ),
   });
 
@@ -130,7 +138,7 @@ export function EventRegistrationFormCard({
           "The response has been written into FormData for this event.",
       });
       reactForm.reset(
-        buildDefaultSubmissionValues((form?.fields ?? []) as FormFieldValues[]) as SubmissionValues,
+        buildDefaultSubmissionValues(questionFields) as SubmissionValues,
       );
     } catch (error) {
       console.error(error);
@@ -197,7 +205,7 @@ export function EventRegistrationFormCard({
               </p>
             </div>
 
-            {form.fields.map((field) => (
+            {questionFields.map((field) => (
               <FormField
                 key={field.id}
                 control={reactForm.control}

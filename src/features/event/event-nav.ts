@@ -62,10 +62,6 @@ export const eventNavGroups: EventNavGroup[] = [
         title: "Registration Paths",
         segment: "registration-paths",
         icon: Route,
-        comingSoon: true,
-        milestone: "M3",
-        description:
-          "Design audience-specific registration journeys with their own steps and payment methods.",
       },
     ],
   },

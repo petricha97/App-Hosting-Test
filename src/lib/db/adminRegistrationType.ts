@@ -131,9 +131,12 @@ export async function updateAdminRegistrationType(
 }
 
 // Hard delete. Delete protection is BLOCK, not cascade: the route must 409
-// when registeredCount > 0 or when any TicketType references this type — use
-// getAdminTicketTypesReferencingRegistrationType (adminTicketType.ts) for the
-// reference check before calling this.
+// when registeredCount > 0 or when any TicketType, Fee or RegistrationPath
+// references this type — use getAdminTicketTypesReferencingRegistrationType
+// (adminTicketType.ts), getAdminFeesReferencingRegistrationType (adminFee.ts)
+// and getAdminRegistrationPathsReferencingRegistrationType
+// (adminRegistrationPath.ts, M3-T1 AC-6) for the reference checks before
+// calling this.
 export async function deleteAdminRegistrationType(
   registrationTypeId: string,
 ): Promise<void> {

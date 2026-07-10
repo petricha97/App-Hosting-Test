@@ -10,8 +10,63 @@ const firestoreTimestampSchema = z.custom<Timestamp | FieldValue>(
   "Expected a Firestore timestamp-like value",
 );
 
-export const formFieldTypeSchema = z.enum(["text", "email", "textarea"]);
+export const formFieldTypeSchema = z.enum([
+  "text",
+  "email",
+  "textarea",
+  // M3-T2 commerce field types — EVENT-ONLY, never valid in templates
+  // (templateBuilderSchema rejects them below).
+  "ticket-selector",
+  "promo-code",
+]);
 export const formFieldOriginSchema = z.enum(["mandatory", "template", "event"]);
+
+// M3-T2 — commerce field rules (spec: agents/docs/specs/m3-registration-paths.md).
+// At most ONE field of each commerce type per form; keys are FIXED so the
+// draft/order pipeline can address them; promo-code is ALWAYS optional.
+export const COMMERCE_FIELD_TYPES = ["ticket-selector", "promo-code"] as const;
+export type CommerceFieldType = (typeof COMMERCE_FIELD_TYPES)[number];
+
+export const COMMERCE_FIELD_KEYS: Record<CommerceFieldType, string> = {
+  "ticket-selector": "ticket",
+  "promo-code": "promo_code",
+};
+
+export function isCommerceFieldType(
+  type: string,
+): type is CommerceFieldType {
+  return (COMMERCE_FIELD_TYPES as readonly string[]).includes(type);
+}
+
+// Fields that render as regular question inputs (step 1 of the public flow /
+// the flat legacy form). Commerce fields travel through the draft/order
+// pipeline instead of the submission record.
+export function getNonCommerceFields<T extends { type: string }>(
+  fields: T[],
+): T[] {
+  return fields.filter((field) => !isCommerceFieldType(field.type));
+}
+
+// Refine helper shared by the builder schemas: rejects a second field of
+// either commerce type (T2 AC-2 — builder blocks AND server Zod rejects).
+function refineSingleCommerceField(
+  fields: Array<{ type: string }>,
+  ctx: z.RefinementCtx,
+) {
+  for (const type of COMMERCE_FIELD_TYPES) {
+    const count = fields.filter((field) => field.type === type).length;
+    if (count > 1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["fields"],
+        message:
+          type === "ticket-selector"
+            ? "Only one ticket selector is allowed per form."
+            : "Only one promo code field is allowed per form.",
+      });
+    }
+  }
+}
 
 export const formStatusSchema = z.enum(["draft", "published"]);
 export const formTemplateStatusSchema = z.enum(["active", "archived"]);
@@ -31,17 +86,36 @@ export const formFieldSchema = z
     sourceTemplateFieldId: z.string().trim().min(1).optional(),
     rows: z.coerce.number().int().min(2).max(12).optional(),
   })
-  .transform((field) => ({
-    ...field,
-    rows: field.type === "textarea" ? field.rows ?? 4 : undefined,
-  }));
+  .transform((field) => {
+    if (isCommerceFieldType(field.type)) {
+      // Commerce fields carry NORMALIZED invariants regardless of what the
+      // caller sent: fixed key, event origin, never mandatory/template-managed,
+      // promo-code always optional (T2). Server-side normalization means a
+      // tampered payload cannot smuggle a commerce field under another key.
+      return {
+        ...field,
+        key: COMMERCE_FIELD_KEYS[field.type],
+        origin: "event" as const,
+        isMandatory: false,
+        sourceTemplateFieldId: undefined,
+        required: field.type === "promo-code" ? false : field.required,
+        rows: undefined,
+      };
+    }
+
+    return {
+      ...field,
+      rows: field.type === "textarea" ? field.rows ?? 4 : undefined,
+    };
+  });
 
 export const formBuilderSchema = z.object({
   title: z.string().trim().min(1, "Form title is required"),
   status: formStatusSchema,
   fields: z
     .array(formFieldSchema)
-    .min(3, "The registration form must include the mandatory fields."),
+    .min(3, "The registration form must include the mandatory fields.")
+    .superRefine(refineSingleCommerceField),
 });
 
 export const formTemplateLinkSchema = z.object({
@@ -81,7 +155,20 @@ export const templateBuilderSchema = z.object({
   status: formTemplateStatusSchema,
   fields: z
     .array(formFieldSchema)
-    .min(3, "The template must include the mandatory registration fields."),
+    .min(3, "The template must include the mandatory registration fields.")
+    // M3-T2: templates are org-level and reusable across events; commerce
+    // fields bind to event-scoped TicketTypes/EventPromotions, so they are
+    // rejected here outright (T2 AC-3).
+    .superRefine((fields, ctx) => {
+      if (fields.some((field) => isCommerceFieldType(field.type))) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["fields"],
+          message:
+            "Ticket selector and promo code fields are event-only and cannot be part of a template.",
+        });
+      }
+    }),
 });
 
 export const storedFormTemplateDocumentSchema = z.object({
@@ -122,6 +209,14 @@ export function buildFormSubmissionSchema(fields: FormFieldValues[]) {
   const shape: Record<string, z.ZodType<string>> = {};
 
   for (const field of fields) {
+    // M3-T2 backward compat: commerce field values travel through the
+    // draft/order pipeline, never the flat submission record. Excluding them
+    // here keeps existing published forms (and the legacy flat submit route)
+    // parsing exactly as before.
+    if (isCommerceFieldType(field.type)) {
+      continue;
+    }
+
     if (field.type === "email") {
       shape[field.key] = field.required
         ? z

@@ -24,6 +24,10 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+# Chromium/crashpad stderr logs occasionally dropped into the tree (incl.
+# inside route directories) — never commit them (M3 review S7).
+debug.log
+**/debug.log
 
 # local env files
 .env*.local
@@ -46,3 +50,8 @@ apphosting.emulator.yaml
 
 # video stills (172MB) - never commit
 /prototype/keyframes/
+
+# prototype-capture artifacts (pre-existing user files, kept locally but
+# never committed — M3 review S7)
+/prototype/contact_sheet.jpg
+/prototype/metadata/

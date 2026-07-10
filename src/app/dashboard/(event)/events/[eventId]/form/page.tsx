@@ -6,6 +6,7 @@ import { getDashboardScope } from "@/features/dashboard/server/get-dashboard-sco
 import { serializeForm, serializeFormTemplate } from "@/features/form/utils";
 import { getAdminFormForEvent } from "@/lib/db/adminForm";
 import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
+import { getAdminTicketTypesForEvent } from "@/lib/db/adminTicketType";
 import {
   getAdminActiveFormTemplatesForOrganization,
   getAdminFormTemplateForOrganization,
@@ -59,6 +60,12 @@ export default async function DashboardEventFormBuilderPage({
     );
   }
 
+  // Drives the zero-tickets save warning for the ticket selector (T2 AC-9).
+  const ticketTypes = await getAdminTicketTypesForEvent({
+    eventId,
+    organizationId: scope.organizationId,
+  });
+
   return (
     <FormBuilderWorkspace
       eventId={eventId}
@@ -69,6 +76,7 @@ export default async function DashboardEventFormBuilderPage({
       initialTemplate={
         selectedTemplate ? serializeFormTemplate(selectedTemplate) : null
       }
+      ticketTypeCount={ticketTypes.length}
     />
   );
 }
