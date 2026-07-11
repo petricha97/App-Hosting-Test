@@ -42,7 +42,6 @@ next-env.d.ts
 apphosting.emulator.yaml
 
 /AI-Driven-Project
-*.md
 
 # agent loop docs and prototype reference mockups (exempt from *.md ignore)
 !/agents/**
