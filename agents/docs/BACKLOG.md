@@ -27,8 +27,8 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M3-T3 | Public multi-step registration flow | M3 | Done | — | S3 |
 | M3-T4 | Response approval workflow | M3 | Done | — | S3 |
 | M3-T5 | Abandoned-registration tracking | M3 | Done | — | S3 |
-| M4-T1 | New Puck blocks (pricing table, countdown, reg embed) | M4 | Todo | — | — |
-| M4-T2 | Per-path page customization | M4 | Todo | — | — |
+| M4-T1 | New Puck blocks (pricing table, countdown, reg embed) | M4 | Done | — | S4 |
+| M4-T2 | Per-path page customization | M4 | Done | — | S4 |
 | M5-T1 | Attendee entity + QR identity service | M5 | Todo | — | — |
 | M5-T2 | Attendee roster screen | M5 | Todo | — | — |
 | M5-T3 | Abandoned tab UI | M5 | Todo | — | — |

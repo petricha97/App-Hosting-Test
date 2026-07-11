@@ -21,6 +21,7 @@ import {
   registrationPathPayloadSchema,
 } from "@/features/registration-paths/schemas";
 import { resolveRegistrationRouteScope } from "@/features/registration/server/route-scope";
+import { deleteAdminEventPagesForPageKey } from "@/lib/db/adminEventPage";
 import { getAdminFormDataReferencingPath } from "@/lib/db/adminFormData";
 import { getAdminRegistrationDraftsReferencingPath } from "@/lib/db/adminRegistrationDraft";
 import {
@@ -182,6 +183,19 @@ export async function DELETE(_request: Request, context: RouteContext) {
     );
   }
 
+  // M4-T2 AC-26: cascade the path's custom EventPage doc in the same
+  // operation — an orphaned page would be unreachable and would collide if
+  // the path id were ever recreated. Shared event storage assets untouched.
+  // Page docs go FIRST: if this cascade fails the path stays intact and the
+  // whole delete is retryable, whereas deleting the path first would 404 on
+  // retry and orphan the page permanently.
+  await deleteAdminEventPagesForPageKey({
+    eventId,
+    organizationId: scope.organizationId,
+    pageKey: pathId,
+  });
+
   await deleteAdminRegistrationPath(pathId);
+
   return NextResponse.json({ success: true });
 }

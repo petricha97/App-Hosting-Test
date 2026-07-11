@@ -573,6 +573,11 @@ export interface RegistrationDraftDoc {
 export interface EventPageDoc {
   eventId: string;
   organizationId: string;
+  // M4-T2: "default" for the event's default page, else a RegistrationPath id
+  // of the same event (route-validated). Legacy docs lack the field and read
+  // as "default" via the schema default — no backfill. Uniqueness: one page
+  // per (eventId, pageKey), enforced by lookup-then-create in adminEventPage.
+  pageKey?: string;
   title: string;
   status: "draft" | "published";
   storagePrefix: string;

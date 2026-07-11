@@ -5,7 +5,11 @@ import { FieldValue } from "firebase-admin/firestore";
 import decodeUser from "@/lib/auth-utils";
 import { getAdminEventForOrganization, updateAdminEvent } from "@/lib/db/adminEvent";
 import { getAdminUserByEmail } from "@/lib/db/adminUser";
-import { saveAdminEventPageDraft } from "@/lib/db/adminEventPage";
+import {
+  DEFAULT_EVENT_PAGE_KEY,
+  saveAdminEventPageDraft,
+} from "@/lib/db/adminEventPage";
+import { getAdminRegistrationPathForEvent } from "@/lib/db/adminRegistrationPath";
 import { saveEventPageDraftSchema } from "@/features/event-pages/schema";
 
 const COOKIE_NAME = "session";
@@ -59,22 +63,45 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
+    // M4-T2 AC-25: a non-default pageKey must be a registration path id of
+    // THIS event (org-scoped) — foreign/unknown ids are rejected.
+    const pageKey = parsed.data.pageKey ?? DEFAULT_EVENT_PAGE_KEY;
+    if (pageKey !== DEFAULT_EVENT_PAGE_KEY) {
+      const path = await getAdminRegistrationPathForEvent({
+        pathId: pageKey,
+        eventId,
+        organizationId: userDoc.organizationId,
+      });
+      if (!path) {
+        return NextResponse.json(
+          { error: "Unknown registration path for this event" },
+          { status: 400 },
+        );
+      }
+    }
+
     const saved = await saveAdminEventPageDraft({
       eventId,
       organizationId: userDoc.organizationId,
       eventPagePath: event.eventPagePath,
+      pageKey,
       title: parsed.data.title,
       draftContent: parsed.data.draftContent,
     });
 
-    await updateAdminEvent(eventId, {
-      eventPagePath: saved.path,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    // event.eventPagePath keeps pointing at the DEFAULT page only (AC-24);
+    // path pages are found by (eventId, pageKey) query.
+    if (pageKey === DEFAULT_EVENT_PAGE_KEY) {
+      await updateAdminEvent(eventId, {
+        eventPagePath: saved.path,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
 
     return NextResponse.json({
       eventPageId: saved.id,
       eventPagePath: saved.path,
+      pageKey,
       status: "draft",
     });
   } catch (error) {

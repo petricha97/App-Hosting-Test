@@ -87,3 +87,37 @@ export type CommerceFieldConfig = Pick<
   FormFieldValues,
   "label" | "helpText" | "placeholder" | "required"
 >;
+
+// ============================================================================
+// M4-T1 — TicketPricingTable block (path-agnostic pricing projection).
+// Public-safe by construction (M4 AC-7): name/code/price/currency/
+// availability/audience-names ONLY — never capacity, registeredCount, raw
+// internal ids, or sales timestamps.
+// ============================================================================
+
+// One ticket price in one currency: the MINIMUM basePriceMinor across the
+// ticket's active fees in that currency; isFrom when >1 distinct amount
+// prices it there (per-registration-type fees differ) — rendered "from $X".
+export interface PublicPricingPrice {
+  currency: Currency;
+  minPriceMinor: number;
+  isFrom: boolean;
+}
+
+// One row of the public pricing table. Sold-out tickets are included and
+// badged (M3 parity) — only derived-closed / unpriced tickets are hidden.
+export interface PublicPricingTicket {
+  name: string;
+  code: string;
+  soldOut: boolean;
+  // Names of the audiences the ticket is restricted to; empty = everyone.
+  // Eligibility never hides rows here — the register flow enforces it.
+  audienceNames: string[];
+  prices: PublicPricingPrice[];
+}
+
+export interface PublicPricingProjection {
+  // Currencies in first-appearance order across the rows — the table columns.
+  currencies: Currency[];
+  tickets: PublicPricingTicket[];
+}

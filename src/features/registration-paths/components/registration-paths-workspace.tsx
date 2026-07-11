@@ -5,6 +5,7 @@
 // up/down reorder, create/edit dialog, and BLOCK-style delete confirm.
 // Data arrives from the server page; every mutation calls router.refresh().
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -43,6 +44,9 @@ interface RegistrationPathsWorkspaceProps {
   eventId: string;
   paths: SerializedRegistrationPath[];
   registrationTypes: SerializedRegistrationType[];
+  // M4-T2: path ids that own a custom EventPage doc — drives the "Page"
+  // column badge and the delete-confirm cascade warning.
+  customPageKeys: string[];
   loadError: boolean;
 }
 
@@ -50,6 +54,7 @@ export function RegistrationPathsWorkspace({
   eventId,
   paths,
   registrationTypes,
+  customPageKeys,
   loadError,
 }: RegistrationPathsWorkspaceProps) {
   const router = useRouter();
@@ -268,7 +273,7 @@ export function RegistrationPathsWorkspace({
             </span>
           </div>
           <div className="overflow-x-auto">
-            <Table aria-label="Registration paths" className="min-w-[52rem]">
+            <Table aria-label="Registration paths" className="min-w-[60rem]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="min-w-48">Registration path</TableHead>
@@ -276,6 +281,7 @@ export function RegistrationPathsWorkspace({
                   <TableHead>Audience</TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead>Currency</TableHead>
+                  <TableHead>Page</TableHead>
                   <TableHead>Active</TableHead>
                   <TableHead>
                     <span className="sr-only">Actions</span>
@@ -308,6 +314,27 @@ export function RegistrationPathsWorkspace({
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {path.currency}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {customPageKeys.includes(path.id) ? (
+                            <Badge className="rounded-full bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-200">
+                              Custom
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="rounded-full">
+                              Default
+                            </Badge>
+                          )}
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link
+                              href={`/dashboard/events/${eventId}/page-builder?path=${encodeURIComponent(path.id)}`}
+                              aria-label={`Customize page for ${path.name}`}
+                            >
+                              Customize
+                            </Link>
+                          </Button>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -403,7 +430,11 @@ export function RegistrationPathsWorkspace({
           }
         }}
         title={`Delete ${deleting?.name ?? "registration path"}?`}
-        description="This removes the path permanently. Registrations already collected keep their data."
+        description={
+          deleting && customPageKeys.includes(deleting.id)
+            ? "This removes the path permanently and its custom page will also be deleted. Registrations already collected keep their data."
+            : "This removes the path permanently. Registrations already collected keep their data."
+        }
         blockedMessage={deleteBlocked}
         pending={deletePending}
         onConfirm={confirmDelete}

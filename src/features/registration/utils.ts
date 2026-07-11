@@ -85,6 +85,41 @@ export function eventLocalDateToUtcMs(
   return wallMs - offset;
 }
 
+// Converts an event-local wall clock ("YYYY-MM-DD" + "HH:MM"[":SS"]) to a UTC
+// instant in the given timezone (same two-pass DST-safe offset lookup as
+// eventLocalDateToUtcMs). Returns null on malformed input — callers treat
+// that as "no resolvable instant" (M4 countdown target resolution).
+export function eventLocalDateTimeToUtcMs(
+  date: string,
+  time: string,
+  timeZone: string,
+): number | null {
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
+  const timeMatch = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(time.trim());
+  if (!dateMatch || !timeMatch) {
+    return null;
+  }
+
+  const [, year, month, day] = dateMatch;
+  const [, hour, minute, second] = timeMatch;
+  if (Number(hour) > 23 || Number(minute) > 59 || Number(second ?? "0") > 59) {
+    return null;
+  }
+
+  const wallMs = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second ?? "0"),
+  );
+
+  const firstGuess = wallMs - getTimeZoneOffsetMs(timeZone, wallMs);
+  const offset = getTimeZoneOffsetMs(timeZone, firstGuess);
+  return wallMs - offset;
+}
+
 // Formats a UTC instant as the event-local calendar date "YYYY-MM-DD"
 // (inverse of eventLocalDateToUtcMs, used to prefill the edit dialog).
 export function utcToEventLocalDate(ms: number, timeZone: string): string {

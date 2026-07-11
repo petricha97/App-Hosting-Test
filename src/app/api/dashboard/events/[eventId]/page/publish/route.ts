@@ -5,7 +5,11 @@ import { FieldValue } from "firebase-admin/firestore";
 import decodeUser from "@/lib/auth-utils";
 import { getAdminEventForOrganization, updateAdminEvent } from "@/lib/db/adminEvent";
 import { getAdminUserByEmail } from "@/lib/db/adminUser";
-import { publishAdminEventPage } from "@/lib/db/adminEventPage";
+import {
+  DEFAULT_EVENT_PAGE_KEY,
+  publishAdminEventPage,
+} from "@/lib/db/adminEventPage";
+import { getAdminRegistrationPathForEvent } from "@/lib/db/adminRegistrationPath";
 import { saveEventPageDraftSchema } from "@/features/event-pages/schema";
 
 const COOKIE_NAME = "session";
@@ -59,25 +63,48 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
+    // M4-T2 AC-25: a non-default pageKey must be a registration path id of
+    // THIS event (org-scoped) — foreign/unknown ids are rejected.
+    const pageKey = parsed.data.pageKey ?? DEFAULT_EVENT_PAGE_KEY;
+    if (pageKey !== DEFAULT_EVENT_PAGE_KEY) {
+      const path = await getAdminRegistrationPathForEvent({
+        pathId: pageKey,
+        eventId,
+        organizationId: userDoc.organizationId,
+      });
+      if (!path) {
+        return NextResponse.json(
+          { error: "Unknown registration path for this event" },
+          { status: 400 },
+        );
+      }
+    }
+
     const published = await publishAdminEventPage({
       eventId,
       organizationId: userDoc.organizationId,
       eventPagePath: event.eventPagePath,
+      pageKey,
       title: parsed.data.title,
       draftContent: parsed.data.draftContent,
     });
 
-    await updateAdminEvent(eventId, {
-      eventPagePath: published.path,
-      pageMode: "custom",
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    // AC-24: publishing a PATH page never flips event.pageMode or moves
+    // event.eventPagePath — those track the default page only.
+    if (pageKey === DEFAULT_EVENT_PAGE_KEY) {
+      await updateAdminEvent(eventId, {
+        eventPagePath: published.path,
+        pageMode: "custom",
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
 
     return NextResponse.json({
       eventPageId: published.id,
       eventPagePath: published.path,
+      pageKey,
       status: "published",
-      pageMode: "custom",
+      pageMode: pageKey === DEFAULT_EVENT_PAGE_KEY ? "custom" : event.pageMode,
     });
   } catch (error) {
     console.error(error);

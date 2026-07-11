@@ -9,20 +9,35 @@ import type { SerializedForm } from "@/features/form/utils";
 import {
   createEventPagePuckConfig,
   createPublicRegistrationRenderer,
+  type EventPageCountdownData,
 } from "@/features/event-pages/puck";
-import type { SerializedEventPage } from "@/features/event-pages/utils";
+import type { PublicEventPagePayload } from "@/features/event-pages/utils";
+import type { PublicPricingProjection } from "@/features/public-registration/types";
 import { Badge } from "@/components/ui/badge";
 
 interface PublicCustomEventPageProps {
   event: SerializedEvent;
   form: SerializedForm | null;
-  eventPage: SerializedEventPage;
+  // SEC-M4-1: public projection only — this is a client component, so every
+  // prop lands in the anonymous visitor's RSC payload. No draftContent,
+  // storagePrefix, or organizationId may ever cross here.
+  eventPage: PublicEventPagePayload;
+  // M4-T1 live block data, fetched server-side per request (never frozen
+  // into publishedContent). null pricing = failure/none → block empty state.
+  pricingTickets: PublicPricingProjection | null;
+  countdown: EventPageCountdownData;
+  // null = the event has never configured registration paths → the
+  // RegistrationEmbed block keeps rendering the legacy inline form (AC-14).
+  registrationCta: { state: "open" | "closed"; registerHref: string } | null;
 }
 
 export function PublicCustomEventPage({
   event,
   form,
   eventPage,
+  pricingTickets,
+  countdown,
+  registrationCta,
 }: PublicCustomEventPageProps) {
   const config = createEventPagePuckConfig({
     registrationRender: createPublicRegistrationRenderer({
@@ -30,6 +45,11 @@ export function PublicCustomEventPage({
       eventName: event.name,
       form,
     }),
+    pricingTickets,
+    countdown,
+    registrationCta: registrationCta
+      ? { ...registrationCta, variant: "public" }
+      : null,
   });
 
   return (
@@ -54,12 +74,9 @@ export function PublicCustomEventPage({
         </div>
 
         <div className="space-y-6">
-          <Render
-            config={config}
-            data={
-              (eventPage.publishedContent ?? eventPage.draftContent) as Data
-            }
-          />
+          {/* Published content only — getAdminPublishedEventPageForEvent
+              guarantees it, so no draft fallback exists here (SEC-M4-1). */}
+          <Render config={config} data={eventPage.publishedContent as Data} />
         </div>
       </section>
     </main>
