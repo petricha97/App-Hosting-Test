@@ -58,7 +58,14 @@ describe("resolveRegistrationRouteScope", () => {
   it("resolves the org scope for a roster-confirmed member", async () => {
     const scope = await resolveRegistrationRouteScope(EVENT_ID);
 
-    expect(scope).toEqual({ ok: true, organizationId: ORG_ID, event });
+    // userId (M5): the User doc id — the lowercased session email — recorded
+    // as the dashboard scanner's checkedInBy identity.
+    expect(scope).toEqual({
+      ok: true,
+      organizationId: ORG_ID,
+      event,
+      userId: "owner@example.com",
+    });
     expect(getAdminEventForOrganization).toHaveBeenCalledWith(EVENT_ID, ORG_ID);
   });
 

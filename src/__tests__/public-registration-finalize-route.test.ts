@@ -10,12 +10,17 @@
  * - attempt++ happens ONLY on PAYMENT_FAILED (402); no FormData, no draft
  *   delete on any failure (T3 AC-9: draft intact for the losing racer);
  * - typed error statuses: SOLD_OUT/TYPE_FULL → 409 + refresh signal,
- *   PRICE_CHANGED → 409, PAYMENT_FAILED → 402, promo failures → generic 409.
+ *   PRICE_CHANGED → 409, PAYMENT_FAILED → 402, promo failures → generic 409;
+ * - M5-T1 retrofit: the response carries qrSvg — an SVG encoding ONLY the
+ *   deterministic QR token (no PII), identical across finalize replays
+ *   (T1 AC-5/6/7).
  */
+import QRCode from "qrcode";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { formDataIdFromDraftId } from "@/lib/db/formDataId";
 import { hashDraftToken, mintDraftToken } from "@/lib/draft-token";
+import { mintQrToken } from "@/lib/qr/qr-token";
 import { resetRateLimits } from "@/lib/rate-limit";
 
 const {
@@ -75,6 +80,12 @@ const FORM_DATA_ID = formDataIdFromDraftId({
   eventId: EVENT_ID,
   draftId: DRAFT_ID,
 });
+
+// The deterministic entry-pass token the route must encode — same inputs,
+// same secret (dev fallback in tests), so the expected SVG is computable
+// independently of the route (proves the QR payload is the token and
+// NOTHING else — T1 AC-5).
+const QR_TOKEN = mintQrToken({ eventId: EVENT_ID, formDataId: FORM_DATA_ID });
 
 const publishedEvent = {
   id: EVENT_ID,
@@ -214,13 +225,43 @@ describe("POST finalize — happy path + contractual order", () => {
     expect(response.status).toBe(200);
     expect(callOrder).toEqual(["placeOrder", "createFormData", "deleteDraft"]);
 
+    const expectedSvg = await QRCode.toString(QR_TOKEN, {
+      type: "svg",
+      margin: 0,
+    });
     await expect(response.json()).resolves.toEqual({
       registrationRef: FORM_DATA_ID,
       orderRef: "order-1",
       paymentStatus: "outstanding",
       amounts: successOrder.order.amounts,
       currency: "GBP",
+      qrSvg: expectedSvg,
     });
+  });
+
+  it("qrSvg encodes ONLY the deterministic token — no PII — and replays identically (T1 AC-5/7)", async () => {
+    const first = await POST(makeRequest({ token }), makeContext());
+    const firstBody = (await first.json()) as { qrSvg: string };
+
+    // Exactly the SVG of the token string: encoding anything else (name,
+    // email, order refs) would change the matrix and fail this equality.
+    const expectedSvg = await QRCode.toString(QR_TOKEN, {
+      type: "svg",
+      margin: 0,
+    });
+    expect(firstBody.qrSvg).toBe(expectedSvg);
+    // The token itself is eventId.formDataId.signature — no PII material.
+    expect(QR_TOKEN).not.toContain("Ada");
+    expect(QR_TOKEN).not.toContain("ada@x.co");
+
+    // Finalize replay (idempotent path) returns the identical SVG.
+    placeOrder.mockImplementation(async () => {
+      callOrder.push("placeOrder");
+      return { ...successOrder, created: false };
+    });
+    const replay = await POST(makeRequest({ token }), makeContext());
+    const replayBody = (await replay.json()) as { qrSvg: string };
+    expect(replayBody.qrSvg).toBe(firstBody.qrSvg);
   });
 
   it("takes paymentMethod/currency from the PATH and strips client-supplied ones (T3 AC-6)", async () => {

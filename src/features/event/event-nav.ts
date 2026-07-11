@@ -77,24 +77,8 @@ export const eventNavGroups: EventNavGroup[] = [
         description:
           "Configure lifecycle emails, triggers, and audience segments.",
       },
-      {
-        title: "Attendees",
-        segment: "attendees",
-        icon: Users,
-        comingSoon: true,
-        milestone: "M5",
-        description:
-          "Track the confirmed roster and follow up on abandoned registrations.",
-      },
-      {
-        title: "Check-in",
-        segment: "checkin",
-        icon: QrCode,
-        comingSoon: true,
-        milestone: "M5",
-        description:
-          "Configure on-site badges, QR scanning, and check-in staff.",
-      },
+      { title: "Attendees", segment: "attendees", icon: Users },
+      { title: "Check-in", segment: "checkin", icon: QrCode },
       {
         title: "Reports",
         segment: "reports",

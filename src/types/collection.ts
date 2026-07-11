@@ -290,8 +290,16 @@ export interface FormDataDoc {
   statusUpdatedAt?: Timestamp | FieldValue | null;
   // Stamped exactly once, on the transition into "accepted" (terminal).
   acceptedAt?: Timestamp | FieldValue | null;
-  // false until M5-T1's attendee-creation hook flips it.
+  // false until M5-T1's attendee-creation hook flips it. status "accepted"
+  // with attendeeCreated false is the "hook pending" signal — healed by an
+  // idempotent re-invoke of onSubmissionAccepted.
   attendeeCreated?: boolean;
+  // M5-T1 additive: SHA-256 hex of the deterministic attendee QR token
+  // (src/lib/qr/qr-token.ts) — the RAW token is never stored. Stamped at
+  // finalize (createAdminFormDataForDraft); legacy/flat submissions lack it
+  // and get one minted by the accept hook (backfill-safe read: absent means
+  // "mint on accept", never a crash).
+  qrTokenHash?: string | null;
 }
 
 // M1 — Registration data spine (spec: agents/docs/specs/m1-registration-spine.md).
@@ -566,6 +574,106 @@ export interface RegistrationDraftDoc {
   firstName: string;
   lastName: string;
   email: string;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+// ============================================================================
+// M5 — Attendees & Check-in
+// (spec: agents/docs/specs/m5-attendees-checkin.md)
+//
+// All three are ROOT collections keyed by canonical organizationId + eventId,
+// and ALL are SERVER-ONLY: no client repo pairs exist and firestore.rules
+// denies all client access (Attendee carries registrant PII + QR token
+// hashes; CheckinTeamMember carries access-code hashes).
+// ============================================================================
+
+// Attendee lifecycle is ORTHOGONAL to the FormData status machine: an
+// Attendee is a different record, born at accept. "cancelled" exists for
+// forward-compat only — no cancel UI ships in M5 (documented gap).
+export type AttendeeStatus = "accepted" | "cancelled";
+
+export type AttendeeCheckInState = "not-arrived" | "checked-in";
+
+// Who flipped the check-in: the dashboard scanner (admin session; userId is
+// the User doc id, i.e. the lowercased email) or a door team member
+// (scanner session token; name denormalized for the ALREADY_CHECKED_IN
+// result card — "at 09:42 by Maria").
+export type AttendeeCheckedInBy =
+  | { kind: "admin"; userId: string }
+  | { kind: "team-member"; teamMemberId: string; name: string };
+
+// Root collection `Attendee`. Doc id is DETERMINISTIC:
+// attendeeIdFromSubmissionId(org, event, submissionId)
+// (src/lib/db/attendeeId.ts) — duplicate accepts collapse onto one doc.
+export interface AttendeeDoc {
+  organizationId: string;
+  eventId: string;
+  // The FormData doc id this attendee was born from (1:1).
+  submissionId: string;
+  // null for legacy flat submissions that never went through finalize.
+  orderId: string | null;
+  pathId: string | null;
+  // Denormalized from the submission map keys first_name / last_name /
+  // email / company / job_title — "" when the form lacked the key.
+  firstName: string;
+  lastName: string;
+  email: string;
+  company: string;
+  jobTitle: string;
+  // Denormalized from the linked Order (+ RegistrationType doc name) at
+  // accept; null ids + "—" labels for legacy flat submissions.
+  registrationTypeId: string | null;
+  registrationTypeLabel: string;
+  ticketTypeId: string | null;
+  ticketLabel: string;
+  // "accepted" initial; "cancelled" is model-only in M5 (no UI).
+  status: AttendeeStatus;
+  // Orthogonal to status. "not-arrived" initial.
+  checkInState: AttendeeCheckInState;
+  // Both null until the first (and only) check-in flip — never overwritten
+  // (duplicate scans return the ORIGINAL values, spec T5 AC-6).
+  checkedInAt: Timestamp | FieldValue | null;
+  checkedInBy: AttendeeCheckedInBy | null;
+  // SHA-256 hex of the deterministic QR token (src/lib/qr/qr-token.ts) —
+  // the RAW token is never stored. Revocation seam: resolve compares the
+  // presented token's hash against this field.
+  qrTokenHash: string;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+// Root collection `CheckinConfig`, DOC ID = eventId (1:1 per event, lazy
+// upsert — no doc until the first save; reads apply CHECKIN_CONFIG_DEFAULTS,
+// src/lib/db/adminCheckinConfig.ts). Toggles are stored booleans; what they
+// gate is enforced in later milestones (documented).
+export interface CheckinConfigDoc {
+  organizationId: string;
+  eventId: string;
+  signatureCollection: boolean;
+  photoCapture: boolean;
+  photoIdVerification: boolean;
+  selfPrintBadges: boolean;
+  walletPasses: boolean;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+// Root collection `CheckinTeamMember`, auto IDs. The scanner's credential:
+// a server-minted random access code (>= 128 bits, displayed exactly once)
+// whose SHA-256 hash is the ONLY persisted code material
+// (src/lib/qr/scanner-session.ts). Revoke = isActive:false — the next
+// resolve/confirm under any outstanding session token 401s (T5 AC-9).
+export interface CheckinTeamMemberDoc {
+  organizationId: string;
+  eventId: string;
+  name: string;
+  deviceLabel: string;
+  // sha256 hex of the NORMALIZED access code — the raw code is never stored.
+  accessCodeHash: string;
+  isActive: boolean;
+  // Bumped on session exchange and on each resolve/confirm; null = never used.
+  lastSeenAt: Timestamp | FieldValue | null;
   createdAt: Timestamp | FieldValue;
   updatedAt: Timestamp | FieldValue;
 }

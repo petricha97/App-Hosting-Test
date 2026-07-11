@@ -1,6 +1,44 @@
 {
   "indexes": [
     {
+      "collectionGroup": "Attendee",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventId", "order": "ASCENDING" },
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "Attendee",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventId", "order": "ASCENDING" },
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "Attendee",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventId", "order": "ASCENDING" },
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "checkInState", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "CheckinTeamMember",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventId", "order": "ASCENDING" },
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "EventPage",
       "queryScope": "COLLECTION",
       "fields": [

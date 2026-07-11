@@ -15,6 +15,7 @@
 // stripped by the schema (T3 AC-6). Card data never reaches this server
 // (the provider is simulated).
 import { NextResponse } from "next/server";
+import QRCode from "qrcode";
 import { z } from "zod";
 
 import {
@@ -32,6 +33,7 @@ import { formDataIdFromDraftId } from "@/lib/db/formDataId";
 import { getAdminTicketTypeForEvent } from "@/lib/db/adminTicketType";
 import { placeOrder, type PlaceOrderErrorCode } from "@/lib/orders/place-order";
 import { SimulatedPaymentProvider } from "@/lib/payments/simulated-payment-provider";
+import { mintQrToken } from "@/lib/qr/qr-token";
 import { checkRequestRateLimit } from "@/lib/rate-limit";
 
 interface RouteContext {
@@ -207,11 +209,20 @@ export async function POST(request: Request, context: RouteContext) {
   // --- 3. Draft delete — only now that Order AND FormData both exist. ---
   await deleteAdminRegistrationDraft(draft.id);
 
+  // --- M5-T1: confirmation QR. The token is DETERMINISTIC (same inputs the
+  // FormData create hashed), so finalize replays return the identical
+  // token/SVG (T1 AC-7). The QR encodes ONLY the token string — no PII —
+  // and travels in the response body, never a URL (T1 AC-6). margin 0: the
+  // confirmation panel's white padding provides the quiet zone.
+  const qrToken = mintQrToken({ eventId, formDataId });
+  const qrSvg = await QRCode.toString(qrToken, { type: "svg", margin: 0 });
+
   return NextResponse.json({
     registrationRef: formDataResult.formDataId,
     orderRef: result.orderId,
     paymentStatus: result.order.paymentStatus,
     amounts: result.order.amounts,
     currency: result.order.currency,
+    qrSvg,
   });
 }

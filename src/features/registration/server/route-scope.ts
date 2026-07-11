@@ -16,7 +16,15 @@ import type { EventDoc, WithId } from "@/types/collection";
 const COOKIE_NAME = "session";
 
 export type RegistrationRouteScope =
-  | { ok: true; organizationId: string; event: WithId<EventDoc> }
+  | {
+      ok: true;
+      organizationId: string;
+      event: WithId<EventDoc>;
+      // The User doc id (lowercased email) — the dashboard scanner records it
+      // as checkedInBy { kind: "admin", userId } (M5-T5 AC-8). Additive field;
+      // pre-M5 consumers ignore it.
+      userId: string;
+    }
   | { ok: false; error: string; status: 401 | 403 | 404 };
 
 export async function resolveRegistrationRouteScope(
@@ -64,5 +72,10 @@ export async function resolveRegistrationRouteScope(
     return { ok: false, error: "Event not found", status: 404 };
   }
 
-  return { ok: true, organizationId, event };
+  return {
+    ok: true,
+    organizationId,
+    event,
+    userId: decodedUser.email.toLowerCase(),
+  };
 }

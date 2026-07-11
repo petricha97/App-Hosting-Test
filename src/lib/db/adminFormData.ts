@@ -25,6 +25,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/app/lib/firestore";
 import { createAdminCollectionApi } from "@/lib/db/adminBase";
 import { formDataIdFromDraftId } from "@/lib/db/formDataId";
+import { hashQrToken, mintQrToken } from "@/lib/qr/qr-token";
 import {
   canTransitionFormDataStatus,
   readFormDataStatus,
@@ -220,6 +221,14 @@ export interface CreateAdminFormDataForDraftResult {
 // placeOrder replays idempotently, then this write lands on the same doc —
 // exactly one FormData per draft, ever). Arrives status "new" with
 // orderId/pathId/ticketLabel populated (spec T4 AC-7).
+//
+// M5-T1: the finalize path also stamps qrTokenHash here — the QR token is
+// DETERMINISTIC (src/lib/qr/qr-token.ts: eventId + the formDataId derived
+// below), so it is mintable before the doc exists, the finalize route can
+// re-mint the identical token for the confirmation qrSvg, and the Attendee
+// created at accept inherits the same hash. Only the SHA-256 hash is stored.
+// In production a missing QR_TOKEN_SECRET makes this throw (fail-closed by
+// design — finalize breaks loudly rather than issuing unverifiable passes).
 export async function createAdminFormDataForDraft(
   input: CreateAdminFormDataForDraftInput,
 ): Promise<CreateAdminFormDataForDraftResult> {
@@ -228,6 +237,9 @@ export async function createAdminFormDataForDraft(
     eventId: input.eventId,
     draftId: input.draftId,
   });
+  const qrTokenHash = hashQrToken(
+    mintQrToken({ eventId: input.eventId, formDataId }),
+  );
   const ref = formDataCol().doc(formDataId);
 
   return adminDb.runTransaction<CreateAdminFormDataForDraftResult>(
@@ -254,6 +266,7 @@ export async function createAdminFormDataForDraft(
         statusUpdatedAt: null,
         acceptedAt: null,
         attendeeCreated: false,
+        qrTokenHash,
       };
 
       // create() (not set) — backstops a race between the read above and the
@@ -267,6 +280,27 @@ export async function createAdminFormDataForDraft(
       };
     },
   );
+}
+
+// ============================================================================
+// M5-T1 — accept-hook completion marker
+// ============================================================================
+
+// Flips attendeeCreated after the Attendee doc exists, and (for legacy flat
+// submissions that never went through finalize) backfills the freshly minted
+// qrTokenHash. Idempotent: re-running the hook re-applies the same values.
+// Called ONLY by onSubmissionAccepted — status "accepted" with
+// attendeeCreated false is the "hook pending" signal this write clears.
+export async function markAdminFormDataAttendeeCreated(input: {
+  formDataId: string;
+  // Pass ONLY when the FormData doc lacked a stored hash (legacy) — an
+  // existing finalize-stamped hash is never rewritten.
+  qrTokenHash?: string;
+}): Promise<void> {
+  const update: Record<string, unknown> = { attendeeCreated: true };
+  if (input.qrTokenHash !== undefined) update.qrTokenHash = input.qrTokenHash;
+
+  await formDataCol().doc(input.formDataId).update(update);
 }
 
 // ============================================================================

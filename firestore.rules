@@ -289,6 +289,29 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------
+    // M5 — attendees & check-in. ALL THREE server-only (spec:
+    // agents/docs/specs/m5-attendees-checkin.md "Shared decisions").
+    //
+    // Attendee: registrant PII + QR token hashes; the roster reads through
+    // write:events-gated admin routes and the scanner resolves exclusively
+    // through the signed QR token (capability-based — inexpressible in
+    // rules). CheckinConfig: admin-route CRUD only. CheckinTeamMember:
+    // access-code HASHES (the scanner credential) — a client-readable copy
+    // would enable offline brute-force of door codes. DENY ALL.
+    // ------------------------------------------------------------------
+    match /Attendee/{attendeeId} {
+      allow read, write: if false;
+    }
+
+    match /CheckinConfig/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /CheckinTeamMember/{teamMemberId} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------
     // Server-only collections (no production client-SDK access exists):
     // Form authoring, registration submissions (PII), form templates, Puck
     // pages and promotion templates are all read AND written through admin

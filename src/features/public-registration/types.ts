@@ -80,6 +80,11 @@ export interface FinalizeSuccess {
     totalMinor: number;
   };
   currency: Currency;
+  // M5-T1 confirmation retrofit: server-rendered SVG of the deterministic
+  // attendee QR token (the token itself carries NO PII — eventId + opaque
+  // formDataId + signature only; src/lib/qr/qr-token.ts). Optional so the
+  // confirmation step keeps its dashed placeholder for legacy payloads.
+  qrSvg?: string;
 }
 
 // Commerce field configs pulled off the published form for step 2 display.

@@ -4,6 +4,7 @@
 //   collection().doc().get/create/set/update/delete, collection().add(),
 //   doc().collection() subcollection chains (Event/{id}/EventPromotion),
 //   where/orderBy/limit/startAfter query chains with .get(),
+//   aggregate .count().get() (M5 attendee stat cards),
 //   runTransaction with tx.get (ref or query) / tx.create / tx.update.
 // update() MERGES into the store (and throws NOT_FOUND on missing docs, like
 // the real SDK) so post-write assertions can read final doc state; every
@@ -51,6 +52,9 @@ export function createFakeAdminDb() {
       docs: Array<{ id: string; data: () => DocData }>;
       empty: boolean;
     }>;
+    count(): {
+      get(): Promise<{ data: () => { count: number } }>;
+    };
   }
 
   function runQuery(q: FakeQuery) {
@@ -141,6 +145,15 @@ export function createFakeAdminDb() {
       },
       async get() {
         return runQuery(this);
+      },
+      count() {
+        const query = this;
+        return {
+          async get() {
+            const { docs } = runQuery(query);
+            return { data: () => ({ count: docs.length }) };
+          },
+        };
       },
     };
   }
