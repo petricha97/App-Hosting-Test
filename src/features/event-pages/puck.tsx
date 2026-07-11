@@ -6,6 +6,16 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { EventRegistrationFormCard } from "@/features/form/components/event-registration-form-card";
 import type { EventPageAsset } from "@/features/event-pages/assets";
+import {
+  CountdownBlock,
+  COUNTDOWN_DEFAULT_COMPLETED_MESSAGE,
+} from "@/features/event-pages/blocks/countdown";
+import { RegistrationCtaCard } from "@/features/event-pages/blocks/registration-cta";
+import {
+  PRICING_TABLE_DEFAULT_EMPTY_MESSAGE,
+  TicketPricingTableBlock,
+} from "@/features/event-pages/blocks/ticket-pricing-table";
+import type { PublicPricingProjection } from "@/features/public-registration/types";
 import type { SerializedForm } from "@/features/form/utils";
 import type { Config, Data } from "@measured/puck";
 import { nanoid } from "nanoid";
@@ -23,9 +33,34 @@ interface RegistrationRenderOptions {
   body: string;
 }
 
+// Countdown injection: eventStartIso is resolved server-side from the event
+// doc on every request (M4 AC-9); timezone drives the absolute target label.
+export interface EventPageCountdownData {
+  eventStartIso: string | null;
+  timezone: string;
+}
+
+// RegistrationEmbed CTA injection. Pass null/undefined when the event has
+// NEVER configured registration paths — the block then keeps rendering the
+// legacy inline form (M4 AC-14).
+export interface EventPageRegistrationCta {
+  state: "open" | "closed";
+  registerHref: string;
+  variant: "public" | "editor";
+  pathsHref?: string;
+}
+
 interface CreateEventPagePuckConfigOptions {
   registrationRender?: (options: RegistrationRenderOptions) => ReactElement;
   assets?: EventPageAsset[];
+  // Live pricing projection for TicketPricingTable. undefined/null → the
+  // block renders its empty state (also the AC-8 fetch-failure degrade).
+  pricingTickets?: PublicPricingProjection | null;
+  countdown?: EventPageCountdownData | null;
+  registrationCta?: EventPageRegistrationCta | null;
+  // Editor-only hints on data-bound blocks (empty-state guidance, past-target
+  // chip). Never set on the public page.
+  editorHints?: boolean;
 }
 
 function SharedRegistrationPlaceholder({
@@ -308,6 +343,10 @@ export function ensurePuckDataIds(data: LoosePuckData | Data): Data {
 export function createEventPagePuckConfig({
   registrationRender,
   assets = [],
+  pricingTickets = null,
+  countdown = null,
+  registrationCta = null,
+  editorHints = false,
 }: CreateEventPagePuckConfigOptions = {}): Config {
   const renderRegistration = registrationRender ?? SharedRegistrationPlaceholder;
   const createImageField = () => ({
@@ -363,6 +402,25 @@ export function createEventPagePuckConfig({
   });
 
   return {
+    // Palette grouping (design §4): the brand-highlighted Registration
+    // cluster mirrors the prototype.
+    categories: {
+      content: {
+        title: "Content",
+        components: [
+          "Hero",
+          "Highlights",
+          "Story",
+          "Schedule",
+          "Faq",
+          "CallToAction",
+        ],
+      },
+      registration: {
+        title: "Registration",
+        components: ["RegistrationEmbed", "TicketPricingTable", "CountdownTimer"],
+      },
+    },
     components: {
       Hero: {
         fields: {
@@ -615,16 +673,123 @@ export function createEventPagePuckConfig({
           </section>
         ),
       },
+      // M4-T1: retargeted — same type + title/body props so saved pages load
+      // unchanged (AC-16); buttonLabel added with a render-time default for
+      // legacy docs. With paths configured it renders the CTA card; with no
+      // paths ever it keeps today's inline legacy form (AC-13/14/15).
       RegistrationEmbed: {
+        label: "Registration Embed",
         fields: {
           title: { type: "text" },
           body: { type: "textarea" },
+          buttonLabel: { type: "text" },
         },
-        render: ({ title, body }) =>
-          renderRegistration({
-            title: String(title ?? ""),
-            body: String(body ?? ""),
-          }),
+        defaultProps: {
+          title: "Save your seat",
+          body: "Register for the event in a couple of minutes.",
+          buttonLabel: "Register now",
+        },
+        render: ({ title, body, buttonLabel }) => {
+          const resolvedTitle = String(title ?? "");
+          const resolvedBody = String(body ?? "");
+          // Legacy saved pages carry no buttonLabel prop → default (AC-16).
+          const resolvedButtonLabel =
+            typeof buttonLabel === "string" && buttonLabel.trim().length > 0
+              ? buttonLabel
+              : "Register now";
+
+          if (registrationCta) {
+            return (
+              <RegistrationCtaCard
+                title={resolvedTitle}
+                body={resolvedBody}
+                buttonLabel={resolvedButtonLabel}
+                state={registrationCta.state}
+                registerHref={registrationCta.registerHref}
+                variant={registrationCta.variant}
+                pathsHref={registrationCta.pathsHref}
+              />
+            );
+          }
+
+          return renderRegistration({
+            title: resolvedTitle,
+            body: resolvedBody,
+          });
+        },
+      },
+      // M4-T1: live pricing table — data injected, never author-entered or
+      // snapshotted (AC-6/19).
+      TicketPricingTable: {
+        label: "Ticket & Pricing table",
+        fields: {
+          title: { type: "text" },
+          intro: { type: "textarea" },
+          emptyMessage: { type: "text" },
+        },
+        defaultProps: {
+          title: "Tickets & pricing",
+          intro: "",
+          emptyMessage: PRICING_TABLE_DEFAULT_EMPTY_MESSAGE,
+        },
+        render: ({ title, intro, emptyMessage }) => (
+          <TicketPricingTableBlock
+            title={String(title ?? "")}
+            intro={String(intro ?? "")}
+            emptyMessage={String(emptyMessage ?? "")}
+            projection={pricingTickets}
+            editorHint={editorHints}
+          />
+        ),
+      },
+      // M4-T1: countdown to event start or a custom moment (AC-9..12).
+      CountdownTimer: {
+        label: "Countdown timer",
+        fields: {
+          title: { type: "text" },
+          target: {
+            type: "radio",
+            options: [
+              { label: "Event start", value: "eventStart" },
+              { label: "Custom date", value: "custom" },
+            ],
+          },
+          customDateTime: {
+            type: "custom",
+            label: "Custom date & time",
+            render: ({
+              value,
+              onChange,
+            }: {
+              value?: string;
+              onChange: (nextValue: string) => void;
+            }) => (
+              <Input
+                type="datetime-local"
+                value={typeof value === "string" ? value : ""}
+                onChange={(event) => onChange(event.target.value)}
+              />
+            ),
+          },
+          completedMessage: { type: "text" },
+        },
+        defaultProps: {
+          title: "Event starts in",
+          target: "eventStart",
+          customDateTime: "",
+          completedMessage: COUNTDOWN_DEFAULT_COMPLETED_MESSAGE,
+        },
+        render: ({ title, target, customDateTime, completedMessage }) => (
+          <CountdownBlock
+            title={String(title ?? "")}
+            target={String(target ?? "eventStart")}
+            customDateTime={String(customDateTime ?? "")}
+            completedMessage={String(completedMessage ?? "")}
+            eventStartIso={countdown?.eventStartIso ?? null}
+            timezone={countdown?.timezone ?? "UTC"}
+            editorHint={editorHints}
+          />
+        ),
       },
     },
   };

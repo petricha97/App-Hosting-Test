@@ -16,6 +16,7 @@ import {
   type SerializedRegistrationType,
 } from "@/features/registration/types";
 import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
+import { getAdminEventPageKeysForEvent } from "@/lib/db/adminEventPage";
 import { getAdminRegistrationPathsForEvent } from "@/lib/db/adminRegistrationPath";
 import { getAdminRegistrationTypesForEvent } from "@/lib/db/adminRegistrationType";
 
@@ -41,9 +42,10 @@ export default async function EventRegistrationPathsPage({ params }: PageProps) 
 
   let paths: SerializedRegistrationPath[] = [];
   let registrationTypes: SerializedRegistrationType[] = [];
+  let customPageKeys: string[] = [];
   let loadError = false;
   try {
-    const [pathDocs, registrationTypeDocs] = await Promise.all([
+    const [pathDocs, registrationTypeDocs, pageKeys] = await Promise.all([
       getAdminRegistrationPathsForEvent({
         eventId,
         organizationId: scope.organizationId,
@@ -52,9 +54,15 @@ export default async function EventRegistrationPathsPage({ params }: PageProps) 
         eventId,
         organizationId: scope.organizationId,
       }),
+      getAdminEventPageKeysForEvent({
+        eventId,
+        organizationId: scope.organizationId,
+      }),
     ]);
     paths = pathDocs.map(serializeRegistrationPath);
     registrationTypes = registrationTypeDocs.map(serializeRegistrationType);
+    // M4-T2: the "Page" column only cares about PATH pages, not "default".
+    customPageKeys = pageKeys.filter((key) => key !== "default");
   } catch {
     // Shell stays interactive; the workspace shows a retryable error panel.
     loadError = true;
@@ -65,6 +73,7 @@ export default async function EventRegistrationPathsPage({ params }: PageProps) 
       eventId={eventId}
       paths={paths}
       registrationTypes={registrationTypes}
+      customPageKeys={customPageKeys}
       loadError={loadError}
     />
   );

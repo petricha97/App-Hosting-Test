@@ -30,6 +30,7 @@ const {
   getAdminRegistrationTypeForEvent,
   getAdminRegistrationDraftsReferencingPath,
   getAdminFormDataReferencingPath,
+  deleteAdminEventPagesForPageKey,
 } = vi.hoisted(() => ({
   cookies: vi.fn(),
   decodeUser: vi.fn(),
@@ -43,6 +44,7 @@ const {
   getAdminRegistrationTypeForEvent: vi.fn(),
   getAdminRegistrationDraftsReferencingPath: vi.fn(),
   getAdminFormDataReferencingPath: vi.fn(),
+  deleteAdminEventPagesForPageKey: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies }));
@@ -64,6 +66,10 @@ vi.mock("@/lib/db/adminRegistrationDraft", () => ({
 }));
 vi.mock("@/lib/db/adminFormData", () => ({
   getAdminFormDataReferencingPath,
+}));
+// M4-T2 AC-26: path delete cascades its EventPage doc.
+vi.mock("@/lib/db/adminEventPage", () => ({
+  deleteAdminEventPagesForPageKey,
 }));
 
 import { POST } from "@/app/api/dashboard/events/[eventId]/registration-paths/route";
@@ -453,11 +459,18 @@ describe("DELETE /registration-paths/[id] — BLOCK, never cascade (T1 AC-5)", (
     expect(deleteAdminRegistrationPath).not.toHaveBeenCalled();
   });
 
-  it("hard-deletes when nothing references the path", async () => {
+  it("hard-deletes when nothing references the path, cascading its page doc (M4 AC-26)", async () => {
+    deleteAdminEventPagesForPageKey.mockResolvedValue(0);
+
     const response = await DELETE(deleteRequest(), itemContext());
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true });
     expect(deleteAdminRegistrationPath).toHaveBeenCalledWith(PATH_ID);
+    expect(deleteAdminEventPagesForPageKey).toHaveBeenCalledWith({
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+      pageKey: PATH_ID,
+    });
   });
 });

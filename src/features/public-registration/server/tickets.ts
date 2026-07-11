@@ -26,7 +26,8 @@
 import "server-only";
 
 import { isTicketOpen } from "@/features/registration/utils";
-import { resolveAdminFeeForOrder } from "@/lib/db/adminFee";
+import { buildPublicPricingProjection } from "@/features/public-registration/pricing-projection";
+import { getAdminFeesForEvent, resolveAdminFeeForOrder } from "@/lib/db/adminFee";
 import { getAdminRegistrationTypesForEvent } from "@/lib/db/adminRegistrationType";
 import {
   getAdminTicketTypesForEvent,
@@ -39,6 +40,7 @@ import type {
   WithId,
 } from "@/types/collection";
 import type {
+  PublicPricingProjection,
   PublicTicketAvailability,
   PublicTicketOption,
 } from "@/features/public-registration/types";
@@ -253,6 +255,58 @@ export async function listPublicTicketsForPath(input: {
   }
 
   return options;
+}
+
+// M4-T1: path-agnostic pricing projection for the TicketPricingTable block —
+// the sibling of listPublicTicketsForPath above. Live-read on every request
+// (M4 AC-6: publishedContent stores block props only, never prices). Rules
+// and public-safety live in the pure builder (pricing-projection.ts); this is
+// the DAL adapter.
+export async function listPublicTicketsForEvent(input: {
+  eventId: string;
+  organizationId: string;
+  nowMs?: number;
+}): Promise<PublicPricingProjection> {
+  const [tickets, fees, registrationTypes] = await Promise.all([
+    getAdminTicketTypesForEvent({
+      eventId: input.eventId,
+      organizationId: input.organizationId,
+    }),
+    getAdminFeesForEvent({
+      eventId: input.eventId,
+      organizationId: input.organizationId,
+    }),
+    getAdminRegistrationTypesForEvent({
+      eventId: input.eventId,
+      organizationId: input.organizationId,
+    }),
+  ]);
+
+  return buildPublicPricingProjection({
+    tickets: tickets.map((ticket) => ({
+      id: ticket.id,
+      name: ticket.name,
+      code: ticket.code,
+      capacity: ticket.capacity,
+      registeredCount: ticket.registeredCount,
+      isOpen: ticket.isOpen,
+      salesStartMs: toMs(ticket.salesStart),
+      salesEndMs: toMs(ticket.salesEnd),
+      registrationTypeIds: ticket.registrationTypeIds,
+    })),
+    fees: fees.map((fee) => ({
+      ticketTypeId: fee.ticketTypeId,
+      registrationTypeId: fee.registrationTypeId,
+      currency: fee.currency,
+      basePriceMinor: fee.basePriceMinor,
+      status: fee.status,
+    })),
+    registrationTypes: registrationTypes.map((type) => ({
+      id: type.id,
+      name: type.name,
+    })),
+    nowMs: input.nowMs ?? Date.now(),
+  });
 }
 
 // Step-2 server validation (T3 AC-4 — client prefilters are advisory only):
