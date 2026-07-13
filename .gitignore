@@ -24,9 +24,15 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+# Chromium/crashpad stderr logs occasionally dropped into the tree (incl.
+# inside route directories) — never commit them (M3 review S7).
+debug.log
+**/debug.log
 
 # local env files
 .env*.local
+.env*
+!.env.example
 
 # typescript
 *.tsbuildinfo
@@ -36,4 +42,15 @@ next-env.d.ts
 apphosting.emulator.yaml
 
 /AI-Driven-Project
-*.md
+
+# agent loop docs and prototype reference mockups (exempt from *.md ignore)
+!/agents/**
+!/prototype/prototype/**
+
+# video stills (172MB) - never commit
+/prototype/keyframes/
+
+# prototype-capture artifacts (pre-existing user files, kept locally but
+# never committed — M3 review S7)
+/prototype/contact_sheet.jpg
+/prototype/metadata/

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GC Summit · Registration Form</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">E</div><b>Eventa</b></div>
+    <nav class="nav">
+      <a href="events.html"><span class="ic">←</span> All events</a>
+      <div class="nav-label">Event</div>
+      <a href="event-overview.html"><span class="ic">🏠</span> Overview</a>
+      <div class="nav-label">Build</div>
+      <a href="event-page-builder.html"><span class="ic">🎨</span> Website / Pages</a>
+      <a href="event-form.html" class="active"><span class="ic">📝</span> Registration Form</a>
+      <div class="nav-label">Registration</div>
+      <a href="event-tickets.html"><span class="ic">🎟️</span> Ticket Types</a>
+      <a href="event-pricing.html"><span class="ic">💲</span> Pricing</a>
+      <a href="event-registration-types.html"><span class="ic">🏷️</span> Registration Types</a>
+      <a href="event-registration-paths.html"><span class="ic">🧭</span> Registration Paths</a>
+      <div class="nav-label">Engage &amp; Manage</div>
+      <a href="event-emails.html"><span class="ic">✉️</span> Emails</a>
+      <a href="event-attendees.html"><span class="ic">👤</span> Attendees</a>
+      <a href="event-checkin.html"><span class="ic">📱</span> Check-in</a>
+      <a href="event-reports.html"><span class="ic">📊</span> Reports</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="me"><div class="av">P</div><div>Petri<small>petricha98@gmail.com</small></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumbs"><a href="events.html">Events</a> / GC Summit US 2026 / Registration Form</div>
+      <div class="actionbar">
+        <button class="btn">Preview</button>
+        <button class="btn primary">Publish form</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="note" style="margin-bottom:14px">
+        Linked to template <b>Registration template · v1</b>. Locked fields sync from the template;
+        add event-specific fields below. <button class="btn sm ghost">Manage template</button>
+      </div>
+      <div class="builder">
+        <div class="palette">
+          <div class="nav-label" style="color:var(--ink-faint);padding-left:2px">Field types</div>
+          <div class="blk">🔤 Short text</div>
+          <div class="blk">✉️ Email</div>
+          <div class="blk">📄 Long answer</div>
+          <div class="blk">◉ Single choice</div>
+          <div class="blk">☑ Multiple choice</div>
+          <div class="blk">📅 Date / time</div>
+          <div class="blk" style="border-color:var(--brand);color:var(--brand-ink)">🎟️ Ticket selector <span class="badge violet">new</span></div>
+          <div class="blk" style="border-color:var(--brand);color:var(--brand-ink)">🏷️ Promo code <span class="badge violet">new</span></div>
+        </div>
+
+        <div class="canvas">
+          <h3 style="margin-bottom:4px">petri Registration</h3>
+          <p class="sub" style="margin-bottom:16px">Status: <span class="badge green">Published</span></p>
+          <div class="field-row"><div><div class="lbl">First name <span class="req">*</span></div><small class="mono">first_name · locked</small></div><span class="badge">🔒 template</span></div>
+          <div class="field-row"><div><div class="lbl">Last name <span class="req">*</span></div><small class="mono">last_name · locked</small></div><span class="badge">🔒 template</span></div>
+          <div class="field-row"><div><div class="lbl">Email <span class="req">*</span></div><small class="mono">email · locked</small></div><span class="badge">🔒 template</span></div>
+          <div class="field-row"><div><div class="lbl">Job title <span class="req">*</span></div><small class="mono">job_title</small></div><span class="badge violet">event field</span></div>
+          <div class="field-row"><div><div class="lbl">Company</div><small class="mono">company</small></div><span class="badge violet">event field</span></div>
+          <div class="field-row" style="border-color:var(--brand)"><div><div class="lbl">Select your ticket <span class="req">*</span></div><small class="mono">ticket · from Ticket Types</small></div><span class="badge violet">new</span></div>
+          <div class="field-row" style="border-style:dashed;justify-content:center;color:var(--ink-faint)">＋ Drag a field here</div>
+        </div>
+
+        <div class="palette">
+          <div class="nav-label" style="color:var(--ink-faint);padding-left:2px">Field settings — Job title</div>
+          <div class="kv"><span>Key</span><span class="mono">job_title</span></div>
+          <div class="kv"><span>Label placement</span><span>Above</span></div>
+          <div class="kv"><span>Display as</span><span class="badge">Required</span></div>
+          <div class="kv"><span>Placeholder</span><span>“Enter title”</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

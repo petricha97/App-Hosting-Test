@@ -7,6 +7,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { createAdminCollectionApi } from "@/lib/db/adminBase";
 import { adminDb } from "@/app/lib/firestore";
+import { normalizePromoCodeUpper } from "@/lib/db/adminEventPromotion";
 import type { PromotionTemplateDoc } from "@/types/collection";
 
 const promotionTemplateAdminApi =
@@ -97,6 +98,9 @@ export async function applyTemplateToInheritingEvents(
     for (const d of chunk) {
       batch.update(d.ref, {
         ...fields,
+        // Cascades rewrite promoCode, so the normalized lookup copy is
+        // re-stamped in the same write (M3 review S4).
+        promoCodeUpper: normalizePromoCodeUpper(fields.promoCode),
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
@@ -173,6 +177,8 @@ export async function applyTemplateToSpecificEvents(
     for (const d of chunk) {
       batch.update(d.ref, {
         ...fields,
+        // Same S4 stamp as applyTemplateToInheritingEvents.
+        promoCodeUpper: normalizePromoCodeUpper(fields.promoCode),
         inheritFromParent: true,
         updatedAt: FieldValue.serverTimestamp(),
       });

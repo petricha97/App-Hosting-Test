@@ -10,6 +10,7 @@ import { z } from "zod";
 import decodeUser from "@/lib/auth-utils";
 import { getAdminUserByEmail } from "@/lib/db/adminUser";
 import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
+import { resolveActiveOrganizationId } from "@/lib/org-membership";
 import {
   getAdminEventPromotionById,
   updateAdminEventPromotion,
@@ -78,18 +79,19 @@ async function resolveScope(eventId: string) {
     return { error: decodedUser.error, status: 401 } as const;
 
   const userDoc = await getAdminUserByEmail(decodedUser.email.toLowerCase());
-  if (!userDoc?.organizationId)
+  // SEC M2 Finding 1: the active organizationId is client-writable — only a
+  // valid tenant key when the server-locked organizations[] roster confirms
+  // membership (shared check with route-scope.ts / get-dashboard-scope.ts).
+  const organizationId = resolveActiveOrganizationId(userDoc);
+  if (!organizationId)
     return { error: "Missing organization scope", status: 403 } as const;
-  if (!userDoc.permissions.includes("write:events"))
+  if (!userDoc?.permissions.includes("write:events"))
     return { error: "Missing write:events permission", status: 403 } as const;
 
-  const event = await getAdminEventForOrganization(
-    eventId,
-    userDoc.organizationId,
-  );
+  const event = await getAdminEventForOrganization(eventId, organizationId);
   if (!event) return { error: "Event not found", status: 404 } as const;
 
-  return { organizationId: userDoc.organizationId };
+  return { organizationId };
 }
 
 // Updates event-level promotion fields. Changes are isolated to this event's

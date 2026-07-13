@@ -2,18 +2,21 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Puck, Render, type Data } from "@measured/puck";
 import {
   ArrowRight,
   Copy,
   ExternalLink,
-  FileText,
   Image as ImageIcon,
   LayoutTemplate,
   Link2,
   Loader2,
+  Monitor,
   RefreshCcw,
+  Smartphone,
   Sparkles,
+  Tablet,
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -25,12 +28,25 @@ import {
   createEventPagePuckConfig,
   ensurePuckDataIds,
   starterTemplates,
+  type EventPageCountdownData,
   type PageMode,
   type StarterTemplateKey,
 } from "@/features/event-pages/puck";
+import type { RegistrationCtaState } from "@/features/event-pages/registration-state";
 import type { EventPageAsset } from "@/features/event-pages/assets";
 import type { SerializedEventPage } from "@/features/event-pages/utils";
 import type { SerializedForm } from "@/features/form/utils";
+import type { PublicPricingProjection } from "@/features/public-registration/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,16 +57,43 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+
+// Builder switcher entries (M4-T2 AC-24: default + ALL paths, inactive
+// included and badged).
+export interface EditorPathOption {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
 
 interface EventPageEditorWorkspaceProps {
   eventId: string;
   eventName: string;
   pageMode: PageMode;
   redirectUrl: string;
+  // The page doc for the pageKey being edited (null = not created yet).
   initialEventPage: SerializedEventPage | null;
+  // The default page doc — powers the inherit-fallback banner preview and
+  // the "start from a copy" action when editing a path page.
+  defaultEventPage: SerializedEventPage | null;
   form: SerializedForm | null;
+  paths: EditorPathOption[];
+  // null = editing the default event page.
+  editingPathId: string | null;
+  // Live editor data for the data-bound blocks (M4-T1).
+  pricingTickets: PublicPricingProjection | null;
+  countdown: EventPageCountdownData;
+  registrationState: RegistrationCtaState;
 }
 
 interface WorkspaceState {
@@ -62,10 +105,29 @@ interface WorkspaceState {
   draftData: Data;
   publishedData: Data | null;
   publishedAtLabel: string | null;
+  // M4-T2 inherit-fallback: false while a path page has no doc AND the
+  // organizer has not chosen "copy default" / "start blank" yet. Persisted
+  // in the per-page cache so a reload keeps the choice.
+  pathStarted: boolean;
 }
 
-function buildCacheKey(eventId: string) {
-  return `event-page-editor-cache:${eventId}`;
+type PreviewDevice = "mobile" | "tablet" | "desktop";
+
+const PREVIEW_DEVICES: Array<{
+  key: PreviewDevice;
+  label: string;
+  icon: typeof Smartphone;
+  className: string;
+}> = [
+  { key: "mobile", label: "Mobile preview", icon: Smartphone, className: "max-w-[360px] mx-auto" },
+  { key: "tablet", label: "Tablet preview", icon: Tablet, className: "max-w-[768px] mx-auto" },
+  { key: "desktop", label: "Desktop preview", icon: Monitor, className: "" },
+];
+
+const NEW_BLOCK_NAMES = new Set(["TicketPricingTable", "CountdownTimer"]);
+
+function buildCacheKey(eventId: string, editingPathId: string | null) {
+  return `event-page-editor-cache:${eventId}:${editingPathId ?? "default"}`;
 }
 
 function createInitialWorkspaceState(
@@ -73,6 +135,7 @@ function createInitialWorkspaceState(
   pageMode: PageMode,
   redirectUrl: string,
   initialEventPage: SerializedEventPage | null,
+  editingPath: EditorPathOption | null,
 ): WorkspaceState {
   const draftContent =
     initialEventPage?.draftContent ?? ensurePuckDataIds(blankCustomData);
@@ -81,7 +144,9 @@ function createInitialWorkspaceState(
     : null;
 
   return {
-    title: initialEventPage?.title ?? `${eventName} page`,
+    title:
+      initialEventPage?.title ??
+      (editingPath ? `${eventName} — ${editingPath.name}` : `${eventName} page`),
     mode: pageMode,
     redirectUrl,
     selectedTemplate: "summit",
@@ -90,6 +155,9 @@ function createInitialWorkspaceState(
     publishedData,
     publishedAtLabel:
       initialEventPage?.status === "published" ? "Saved in Firebase" : null,
+    // Default page never needs the banner; a path page needs a start choice
+    // only while its doc does not exist yet.
+    pathStarted: editingPath === null || initialEventPage !== null,
   };
 }
 
@@ -118,20 +186,49 @@ export function EventPageEditorWorkspace({
   pageMode,
   redirectUrl,
   initialEventPage,
+  defaultEventPage,
   form,
+  paths,
+  editingPathId,
+  pricingTickets,
+  countdown,
+  registrationState,
 }: EventPageEditorWorkspaceProps) {
+  const router = useRouter();
   const [isReady, setIsReady] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [assets, setAssets] = useState<EventPageAsset[]>([]);
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
   const [isUploadingAsset, setIsUploadingAsset] = useState(false);
+  // In-session unsaved edits — guards the "Editing page" switcher (M4-T2).
+  const [isDirty, setIsDirty] = useState(false);
+  // Page switch awaiting discard confirmation (null = no dialog). Wrapped in
+  // an object because nextPathId: null (the default page) is a valid target.
+  const [pendingPageSwitch, setPendingPageSwitch] = useState<{
+    nextPathId: string | null;
+  } | null>(null);
+  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
+  const editingPath = useMemo(
+    () => paths.find((path) => path.id === editingPathId) ?? null,
+    [editingPathId, paths],
+  );
   const [state, setState] = useState<WorkspaceState>(() =>
-    createInitialWorkspaceState(eventName, pageMode, redirectUrl, initialEventPage),
+    createInitialWorkspaceState(
+      eventName,
+      pageMode,
+      redirectUrl,
+      initialEventPage,
+      editingPath,
+    ),
   );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const cacheKey = useMemo(() => buildCacheKey(eventId), [eventId]);
+  const cacheKey = useMemo(
+    () => buildCacheKey(eventId, editingPathId),
+    [eventId, editingPathId],
+  );
+  const pageKey = editingPathId ?? "default";
 
   useEffect(() => {
     const nextInitialState = createInitialWorkspaceState(
@@ -139,6 +236,7 @@ export function EventPageEditorWorkspace({
       pageMode,
       redirectUrl,
       initialEventPage,
+      editingPath,
     );
     const saved = window.localStorage.getItem(cacheKey);
 
@@ -159,6 +257,8 @@ export function EventPageEditorWorkspace({
                     nextInitialState.draftData,
                 )
               : null,
+          pathStarted:
+            nextInitialState.pathStarted || parsed.pathStarted === true,
         });
       } catch {
         setState(nextInitialState);
@@ -167,8 +267,9 @@ export function EventPageEditorWorkspace({
       setState(nextInitialState);
     }
 
+    setIsDirty(false);
     setIsReady(true);
-  }, [cacheKey, eventName, initialEventPage, pageMode, redirectUrl]);
+  }, [cacheKey, editingPath, eventName, initialEventPage, pageMode, redirectUrl]);
 
   useEffect(() => {
     if (!isReady) {
@@ -236,12 +337,97 @@ export function EventPageEditorWorkspace({
           eventName,
           form,
         }),
+        // Live editor data (M4-T1): the canvas shows what visitors will see —
+        // no sample data; empty projections render the block's empty state
+        // plus an editor-only hint.
+        pricingTickets,
+        countdown,
+        registrationCta:
+          registrationState === "no_paths"
+            ? null
+            : {
+                state: registrationState,
+                // N3: on a path page the public CTA carries ?path=, so the
+                // editor preview mirrors the real destination.
+                registerHref: `/events/${eventId}/register${
+                  editingPathId
+                    ? `?path=${encodeURIComponent(editingPathId)}`
+                    : ""
+                }`,
+                variant: "editor",
+                pathsHref: `/dashboard/events/${eventId}/registration-paths`,
+              },
+        editorHints: true,
       }),
-    [assets, eventId, eventName, form],
+    [
+      assets,
+      countdown,
+      editingPathId,
+      eventId,
+      eventName,
+      form,
+      pricingTickets,
+      registrationState,
+    ],
   );
 
   function updateState(patch: Partial<WorkspaceState>) {
     setState((current) => ({ ...current, ...patch }));
+  }
+
+  // M4-T2: a path page that has no document yet needs an explicit start
+  // choice before the editor acts on it.
+  const needsStartChoice = editingPath !== null && !state.pathStarted;
+
+  const defaultPagePreviewData = useMemo(
+    () =>
+      ensurePuckDataIds(
+        (defaultEventPage?.publishedContent ??
+          defaultEventPage?.draftContent ??
+          blankCustomData) as Data,
+      ),
+    [defaultEventPage],
+  );
+
+  function navigateToEditorPage(nextPathId: string | null) {
+    router.push(
+      `/dashboard/events/${eventId}/page-builder${
+        nextPathId ? `?path=${encodeURIComponent(nextPathId)}` : ""
+      }`,
+    );
+  }
+
+  // S3: never block Radix Select's onValueChange with a synchronous native
+  // confirm — with unsaved edits we stash the requested page and let the
+  // AlertDialog below decide. The Select stays controlled by editingPathId,
+  // so cancelling simply leaves the current value in place.
+  function handleEditingPageChange(nextValue: string) {
+    const nextPathId = nextValue === "default" ? null : nextValue;
+    if (nextPathId === editingPathId) return;
+    if (isDirty) {
+      setPendingPageSwitch({ nextPathId });
+      return;
+    }
+    navigateToEditorPage(nextPathId);
+  }
+
+  function startPathPage(source: "copy" | "blank") {
+    updateState({
+      pathStarted: true,
+      draftData:
+        source === "copy"
+          ? ensurePuckDataIds(defaultPagePreviewData)
+          : ensurePuckDataIds(blankCustomData),
+    });
+    setIsDirty(true);
+    toast.success(
+      source === "copy"
+        ? "Started from a copy of the default page"
+        : "Started a blank page",
+      {
+        description: "Save the draft to create this path's page document.",
+      },
+    );
   }
 
   function applyStarterTemplate(key: StarterTemplateKey) {
@@ -249,7 +435,9 @@ export function EventPageEditorWorkspace({
       selectedTemplate: key,
       draftData: ensurePuckDataIds(starterTemplates[key].data),
       mode: "custom",
+      pathStarted: true,
     });
+    setIsDirty(true);
 
     toast.success("Starter template applied", {
       description: `${starterTemplates[key].label} is now loaded in the event page draft.`,
@@ -300,7 +488,9 @@ export function EventPageEditorWorkspace({
       mode: "custom",
       selectedTemplate: nextTemplate,
       draftData: ensurePuckDataIds(generatedData),
+      pathStarted: true,
     });
+    setIsDirty(true);
 
     toast.success("Draft generated", {
       description:
@@ -320,6 +510,7 @@ export function EventPageEditorWorkspace({
         body: JSON.stringify({
           title: state.title,
           draftContent: ensurePuckDataIds(state.draftData),
+          pageKey,
         }),
       });
 
@@ -333,6 +524,7 @@ export function EventPageEditorWorkspace({
         );
       }
 
+      setIsDirty(false);
       toast.success("Draft saved to Firebase", {
         description:
           "The custom page draft is now stored remotely, with local cache kept for faster editing.",
@@ -364,6 +556,7 @@ export function EventPageEditorWorkspace({
           body: JSON.stringify({
             title: state.title,
             draftContent: ensurePuckDataIds(state.draftData),
+            pageKey,
           }),
         },
       );
@@ -382,10 +575,12 @@ export function EventPageEditorWorkspace({
         publishedData: ensurePuckDataIds(state.draftData),
         publishedAtLabel: "Published to Firebase",
       });
+      setIsDirty(false);
 
       toast.success("Page published", {
-        description:
-          "Public visitors will see this custom page when the event page mode is set to custom.",
+        description: editingPath
+          ? `Visitors arriving via ?path= for ${editingPath.name} will see this page.`
+          : "Public visitors will see this custom page when the event page mode is set to custom.",
       });
     } catch (error) {
       console.error(error);
@@ -403,8 +598,15 @@ export function EventPageEditorWorkspace({
   function clearLocalCache() {
     window.localStorage.removeItem(cacheKey);
     setState(
-      createInitialWorkspaceState(eventName, pageMode, redirectUrl, initialEventPage),
+      createInitialWorkspaceState(
+        eventName,
+        pageMode,
+        redirectUrl,
+        initialEventPage,
+        editingPath,
+      ),
     );
+    setIsDirty(false);
     toast.success("Local cache cleared", {
       description: "The editor reset to the last Firebase-backed version.",
     });
@@ -819,21 +1021,56 @@ export function EventPageEditorWorkspace({
                   </CardTitle>
                   <CardDescription>
                     Puck builder with Firebase-backed draft/publish actions.
+                    Each page saves and publishes independently.
                   </CardDescription>
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="editing-page-select">Editing page</Label>
+                    <Select
+                      value={editingPathId ?? "default"}
+                      onValueChange={handleEditingPageChange}
+                    >
+                      <SelectTrigger
+                        id="editing-page-select"
+                        className="min-w-52 bg-white"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">
+                          Default event page
+                        </SelectItem>
+                        {paths.map((path) => (
+                          <SelectItem key={path.id} value={path.id}>
+                            <span className="flex items-center gap-2">
+                              {path.name}
+                              {path.isActive ? null : (
+                                <Badge
+                                  variant="secondary"
+                                  className="rounded-full text-[10px] uppercase"
+                                >
+                                  Inactive
+                                </Badge>
+                              )}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Button
                     type="button"
                     variant="outline"
                     onClick={saveDraft}
-                    disabled={isSavingDraft}
+                    disabled={isSavingDraft || needsStartChoice}
                   >
                     {isSavingDraft ? "Saving draft..." : "Save draft"}
                   </Button>
                   <Button
                     type="button"
                     onClick={publishPage}
-                    disabled={isPublishing}
+                    disabled={isPublishing || needsStartChoice}
                   >
                     {isPublishing ? "Publishing..." : "Publish page"}
                   </Button>
@@ -841,40 +1078,135 @@ export function EventPageEditorWorkspace({
               </div>
             </CardHeader>
             <CardContent className="px-0 pb-0 pt-0">
-              <div className="px-6 pb-4">
-                <label className="space-y-2 text-sm font-medium text-slate-700">
-                  <span>Page title</span>
-                  <Input
-                    className="h-12 rounded-2xl border-slate-200 bg-slate-50"
-                    value={state.title}
-                    onChange={(event) => updateState({ title: event.target.value })}
+              {needsStartChoice ? (
+                <div className="space-y-4 px-6 pb-6">
+                  <div className="rounded-2xl border border-border bg-muted/50 p-4">
+                    <p className="text-sm font-medium text-foreground">
+                      This path currently inherits the default event page.
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Choose how to start customizing it — until then, visitors
+                      on this path see the default page below.
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <Button type="button" onClick={() => startPathPage("copy")}>
+                        Start from a copy of the default page
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => startPathPage("blank")}
+                      >
+                        Start blank
+                      </Button>
+                    </div>
+                  </div>
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none space-y-6 opacity-60"
+                  >
+                    <Render config={puckConfig} data={defaultPagePreviewData} />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="px-6 pb-4">
+                    <label className="space-y-2 text-sm font-medium text-slate-700">
+                      <span>Page title</span>
+                      <Input
+                        className="h-12 rounded-2xl border-slate-200 bg-slate-50"
+                        value={state.title}
+                        onChange={(event) => {
+                          updateState({ title: event.target.value });
+                          setIsDirty(true);
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <Puck
+                    config={puckConfig}
+                    data={state.draftData}
+                    headerTitle={
+                      editingPath
+                        ? `${eventName} — ${editingPath.name}`
+                        : `${eventName} page`
+                    }
+                    renderHeaderActions={() => <div />}
+                    viewports={[
+                      { width: 360, label: "Mobile" },
+                      { width: 768, label: "Tablet" },
+                      { width: 1280, label: "Desktop" },
+                    ]}
+                    overrides={{
+                      componentItem: ({ children, name }) => (
+                        <div className="flex items-center gap-2">
+                          <div className="min-w-0 flex-1">{children}</div>
+                          {NEW_BLOCK_NAMES.has(name) ? (
+                            <Badge className="rounded-full bg-violet-100 text-violet-900">
+                              New
+                            </Badge>
+                          ) : null}
+                        </div>
+                      ),
+                    }}
+                    onChange={(data) => {
+                      const next = ensurePuckDataIds(data);
+                      if (JSON.stringify(next) !== JSON.stringify(state.draftData)) {
+                        setIsDirty(true);
+                      }
+                      updateState({ draftData: next });
+                    }}
                   />
-                </label>
-              </div>
-              <Puck
-                config={puckConfig}
-                data={state.draftData}
-                headerTitle={`${eventName} page`}
-                renderHeaderActions={() => <div />}
-                onChange={(data) =>
-                  updateState({ draftData: ensurePuckDataIds(data) })
-                }
-              />
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">
             <CardHeader className="px-6 pt-6">
-              <CardTitle className="text-2xl text-slate-950">
-                Public render preview
-              </CardTitle>
-              <CardDescription>
-                This shows the current draft using the same approved block set the
-                public page will use once published.
-              </CardDescription>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-2xl text-slate-950">
+                    Public render preview
+                  </CardTitle>
+                  <CardDescription>
+                    This shows the current draft using the same approved block set
+                    the public page will use once published.
+                  </CardDescription>
+                </div>
+                <div
+                  role="group"
+                  aria-label="Preview device width"
+                  className="flex gap-1"
+                >
+                  {PREVIEW_DEVICES.map(({ key, label, icon: Icon }) => (
+                    <Button
+                      key={key}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      aria-pressed={previewDevice === key}
+                      className={cn(
+                        previewDevice === key &&
+                          "border-orange-300 bg-orange-50 text-orange-900",
+                      )}
+                      onClick={() => setPreviewDevice(key)}
+                    >
+                      <Icon aria-hidden="true" className="h-4 w-4" />
+                      <span className="sr-only">{label}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-6 px-6 pb-6 pt-0">
-              <div className="space-y-6">
+              <div
+                className={cn(
+                  "space-y-6",
+                  PREVIEW_DEVICES.find((device) => device.key === previewDevice)
+                    ?.className,
+                )}
+              >
                 <Render config={puckConfig} data={state.draftData} />
               </div>
               {state.publishedData ? (
@@ -913,6 +1245,45 @@ export function EventPageEditorWorkspace({
           </Link>
         </Button>
       </div>
+
+      {/* S3: discard-confirm for the page switcher, deferred out of the
+          Select's onValueChange so Radix focus/open state stays consistent. */}
+      <AlertDialog
+        open={pendingPageSwitch !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingPageSwitch(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This page has unsaved edits. Switching to another page discards
+              them.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingPageSwitch) {
+                  // QA-M4-D1: actually discard — every edit is persisted to
+                  // the per-page localStorage cache as it happens, so a
+                  // confirmed discard must clear this page's entry or the
+                  // "discarded" edits silently reload on the next visit.
+                  window.localStorage.removeItem(cacheKey);
+                  navigateToEditorPage(pendingPageSwitch.nextPathId);
+                }
+                setPendingPageSwitch(null);
+              }}
+            >
+              Discard and switch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

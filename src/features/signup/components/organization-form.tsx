@@ -8,7 +8,14 @@ import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } 
 import { FirebaseError } from "firebase/app";
 
 import { auth } from "@/lib/firebase";
-import { signupJoinOrg, signupCreateOrgAndUser, getOrganizationByDomain, getOrganizationByInviteCode } from "@/lib/db";
+import { signupCreateOrgAndUser, getOrganizationByDomain } from "@/lib/db";
+// Joins run SERVER-SIDE (SEC M2): invite codes are validated and memberships
+// written by /api/organizations/* — firestore.rules denies the old client
+// flows. Creating a brand-new org stays client-side (rules allow that shape).
+import {
+    joinOrganization,
+    lookupOrganizationByInviteCode,
+} from "@/lib/org-join-client";
 import { extractDomain, isPersonalEmail, formatDomainForDisplay } from "@/lib/domain-utils";
 import { normalizeInviteCode } from "@/lib/invite-utils";
 import { useSignupStore } from "@/features/signup/store";
@@ -74,7 +81,7 @@ export function OrganizationForm() {
         setCodeValidating(true);
         const timeout = setTimeout(async () => {
             try {
-                const found = await getOrganizationByInviteCode(normalizeInviteCode(inviteCodeValue));
+                const found = await lookupOrganizationByInviteCode(normalizeInviteCode(inviteCodeValue));
                 setFoundOrg(found ? { id: found.id, name: found.name } : null);
                 setCodeError(found ? null : "Invalid invite code");
             } catch {
@@ -112,10 +119,20 @@ export function OrganizationForm() {
             const displayName = store.name ?? firebaseUser.displayName ?? "";
 
             if (data.action === "join" && foundOrg) {
-                await signupJoinOrg(firebaseUser, displayName, foundOrg.id, "invite_code");
+                const idToken = await firebaseUser.getIdToken();
+                await joinOrganization(idToken, {
+                    joinMethod: "invite_code",
+                    code: normalizeInviteCode(data.inviteCode ?? ""),
+                    displayName,
+                });
                 store.setData({ action: "join", organizationName: foundOrg.name });
             } else if (data.action === "auto-join" && existingOrg) {
-                await signupJoinOrg(firebaseUser, displayName, existingOrg.id, "domain_auto_join");
+                const idToken = await firebaseUser.getIdToken();
+                await joinOrganization(idToken, {
+                    joinMethod: "domain_auto_join",
+                    organizationId: existingOrg.id,
+                    displayName,
+                });
                 store.setData({ action: "auto-join", organizationName: existingOrg.name });
             } else {
                 await signupCreateOrgAndUser(firebaseUser, displayName, data.organizationName!, domain, isPersonal);

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GC Summit · Page Builder</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">E</div><b>Eventa</b></div>
+    <nav class="nav">
+      <a href="events.html"><span class="ic">←</span> All events</a>
+      <div class="nav-label">Event</div>
+      <a href="event-overview.html"><span class="ic">🏠</span> Overview</a>
+      <div class="nav-label">Build</div>
+      <a href="event-page-builder.html" class="active"><span class="ic">🎨</span> Website / Pages</a>
+      <a href="event-form.html"><span class="ic">📝</span> Registration Form</a>
+      <div class="nav-label">Registration</div>
+      <a href="event-tickets.html"><span class="ic">🎟️</span> Ticket Types</a>
+      <a href="event-pricing.html"><span class="ic">💲</span> Pricing</a>
+      <a href="event-registration-types.html"><span class="ic">🏷️</span> Registration Types</a>
+      <a href="event-registration-paths.html"><span class="ic">🧭</span> Registration Paths</a>
+      <div class="nav-label">Engage &amp; Manage</div>
+      <a href="event-emails.html"><span class="ic">✉️</span> Emails</a>
+      <a href="event-attendees.html"><span class="ic">👤</span> Attendees</a>
+      <a href="event-checkin.html"><span class="ic">📱</span> Check-in</a>
+      <a href="event-reports.html"><span class="ic">📊</span> Reports</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="me"><div class="av">P</div><div>Petri<small>petricha98@gmail.com</small></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumbs"><a href="events.html">Events</a> / GC Summit US 2026 / Page Builder</div>
+      <div class="actionbar">
+        <select style="border:1px solid var(--line);border-radius:8px;padding:7px 10px"><option>Custom page</option><option>Default</option><option>Redirect</option></select>
+        <button class="btn">Save draft</button>
+        <button class="btn primary">Publish page</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <p class="sub" style="margin-bottom:14px">Drag components onto the canvas. Same block engine also powers <a href="event-emails.html" style="color:var(--brand)">emails</a> and badges.</p>
+      <div class="builder">
+        <div class="palette">
+          <div class="nav-label" style="color:var(--ink-faint);padding-left:2px">Components</div>
+          <div class="blk">▦ Hero</div>
+          <div class="blk">★ Highlights</div>
+          <div class="blk">✎ Story</div>
+          <div class="blk">🗓 Schedule</div>
+          <div class="blk">❓ FAQ</div>
+          <div class="blk">🔔 Call to Action</div>
+          <div class="blk" style="border-color:var(--brand);color:var(--brand-ink)">🎟️ Registration Embed</div>
+          <div class="blk" style="border-color:var(--brand);color:var(--brand-ink)">💲 Ticket &amp; Pricing table <span class="badge violet">new</span></div>
+          <div class="blk" style="border-color:var(--brand);color:var(--brand-ink)">⏳ Countdown timer <span class="badge violet">new</span></div>
+        </div>
+
+        <div class="canvas">
+          <div style="background:var(--accent);color:#fff;border-radius:8px;padding:26px;text-align:center">
+            <div style="font-size:12px;letter-spacing:.1em;opacity:.85">ECONOMIST ENTERPRISE</div>
+            <h2 style="font-size:22px;margin:8px 0">5th annual General Counsel Summit US 2026</h2>
+            <div style="opacity:.9;font-size:13px">Law in the age of systemic risk · September 15, 2026 · New York</div>
+            <div style="margin-top:16px"><span class="btn" style="background:#fff">Register now</span></div>
+          </div>
+          <div style="display:flex;gap:24px;justify-content:center;margin:22px 0;text-align:center">
+            <div><div style="font-size:26px;font-weight:750">87</div><small>days</small></div>
+            <div><div style="font-size:26px;font-weight:750">02</div><small>hrs</small></div>
+            <div><div style="font-size:26px;font-weight:750">54</div><small>min</small></div>
+          </div>
+          <div class="field-row" style="border-style:dashed;justify-content:center;color:var(--ink-faint)">＋ Drop a component here</div>
+        </div>
+
+        <div class="palette">
+          <div class="nav-label" style="color:var(--ink-faint);padding-left:2px">Hero settings</div>
+          <div class="kv"><span>Headline</span><span>Edit</span></div>
+          <div class="kv"><span>Background</span><span>#E3120B</span></div>
+          <div class="kv"><span>Button links to</span><span>Registration</span></div>
+          <div class="nav-label" style="color:var(--ink-faint);padding-left:2px;margin-top:10px">Preview</div>
+          <div class="actionbar"><button class="btn sm">📱</button><button class="btn sm">💻</button><button class="btn sm">🖥️</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

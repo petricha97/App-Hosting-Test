@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eventa · Responses</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">E</div><b>Eventa</b></div>
+    <div class="ws-switch"><div>Petri Test<small>Workspace</small></div><span>⌄</span></div>
+    <nav class="nav">
+      <div class="nav-label">Workspace</div>
+      <a href="index.html"><span class="ic">🏠</span> Overview</a>
+      <a href="events.html"><span class="ic">📅</span> Events</a>
+      <a href="forms.html"><span class="ic">📝</span> Forms &amp; Templates</a>
+      <a href="responses.html" class="active"><span class="ic">📥</span> Responses</a>
+      <a href="promotions.html"><span class="ic">🏷️</span> Promotions</a>
+      <a href="users.html"><span class="ic">👥</span> Users &amp; Access</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="me"><div class="av">P</div><div>Petri<small>petricha98@gmail.com</small></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumbs">Petri Test / Responses</div>
+      <button class="btn">Export CSV</button>
+    </div>
+
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>Responses</h1>
+          <p>Track live submissions across the active workspace.</p>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-tools">
+          <input type="search" placeholder="Search submissions…" data-filter="#resp-table">
+          <select><option>All events</option><option>General Counsel Summit</option><option>petri</option></select>
+          <select><option>Any status</option><option>New</option><option>Reviewed</option></select>
+          <span class="grow"></span>
+          <span class="badge">150 submissions</span>
+        </div>
+        <table id="resp-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Event</th><th>Ticket</th><th>Status</th><th>Submitted</th></tr></thead>
+          <tbody>
+            <tr><td class="t-strong">Kenneth Alexander</td><td>ka@usp.org</td><td>GC Summit US 2026</td><td>Complimentary delegate</td><td><span class="badge green">Accepted</span></td><td>Jun 30, 2026</td></tr>
+            <tr><td class="t-strong">Anushree Bagrodia</td><td>a.bagrodia@mastercard.com</td><td>GC Summit US 2026</td><td>GC early bird</td><td><span class="badge green">Accepted</span></td><td>Jun 28, 2026</td></tr>
+            <tr><td class="t-strong">Jason Bartlett</td><td>jason@maschoffbrennan.com</td><td>GC Summit US 2026</td><td>Sponsor speaker In-person</td><td><span class="badge amber">Pending</span></td><td>Jun 27, 2026</td></tr>
+            <tr><td class="t-strong">Adam Becker</td><td>adam@cockroachlabs.com</td><td>GC Summit US 2026</td><td>GC standard rate</td><td><span class="badge green">Accepted</span></td><td>Jun 25, 2026</td></tr>
+            <tr><td class="t-strong">Test Petri</td><td>monkey@gmail.com</td><td>petri</td><td>—</td><td><span class="badge">New</span></td><td>Jun 20, 2026</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

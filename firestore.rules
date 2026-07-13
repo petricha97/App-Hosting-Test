@@ -1,0 +1,331 @@
+rules_version = '2';
+
+// Firestore security rules — introduced with M2 (closes baseline R8 / SEC-M0-1),
+// LOCKED DOWN per the M2 security review (agents/docs/security/m2-pricing-commerce.md
+// Findings 1-4, then review NEW-2/R3): the User doc's authorization/tenancy
+// fields (permissions, organizations, organizationId, organizationRole,
+// email, uid, status, createdAt) are SERVER-ONLY after the create shape,
+// and Organization is no longer world-readable.
+//
+// Posture: DEFAULT DENY. Every `allow` below maps to a concrete client-SDK
+// code path (file references in comments). Everything else — all dashboard
+// CRUD, public event/registration reads, the commerce surface, and ALL
+// membership mutations (signup joins, invite-code joins, memberCount) — runs
+// server-side through the Admin SDK (src/lib/db/admin*.ts, notably the new
+// adminUserOrganization.ts), which bypasses these rules by design.
+//
+// Trust contract with the server: because organizations[] and permissions are
+// unwritable by clients under these rules, server routes may derive tenancy
+// from userDoc.organizationId ONLY after verifying it against the
+// organizations[] roster (src/lib/org-membership.ts — used by route-scope.ts
+// and get-dashboard-scope.ts), and may gate on userDoc.permissions.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // User docs are keyed by LOWERCASED email (baseline convention).
+    function callerEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function callerUserDoc() {
+      return get(/databases/$(database)/documents/User/$(callerEmail())).data;
+    }
+
+    // Roster check: does the memberships list (array of maps) contain an
+    // entry for orgId? Rules cannot loop, so the check is unrolled over the
+    // first 10 entries — users in more than 10 organizations need the
+    // (server-side) flows for orgs beyond the 10th. && / || short-circuit,
+    // so the size() guards make out-of-range indexing unreachable.
+    function rosterHas(orgs, orgId) {
+      return (orgs.size() > 0 && orgs[0].organizationId == orgId)
+        || (orgs.size() > 1 && orgs[1].organizationId == orgId)
+        || (orgs.size() > 2 && orgs[2].organizationId == orgId)
+        || (orgs.size() > 3 && orgs[3].organizationId == orgId)
+        || (orgs.size() > 4 && orgs[4].organizationId == orgId)
+        || (orgs.size() > 5 && orgs[5].organizationId == orgId)
+        || (orgs.size() > 6 && orgs[6].organizationId == orgId)
+        || (orgs.size() > 7 && orgs[7].organizationId == orgId)
+        || (orgs.size() > 8 && orgs[8].organizationId == orgId)
+        || (orgs.size() > 9 && orgs[9].organizationId == orgId);
+    }
+
+    // Membership check against the caller's ACTIVE organization
+    // (UserDoc.organizationId). Sound at the rules layer because
+    // organizationId is SERVER-ONLY after create (User update rule below):
+    // it is written exclusively by POST /api/organizations/switch and the
+    // server-side join flows (adminUserOrganization.ts), which verify the
+    // target org against the organizations[] roster before writing.
+    function isActiveOrgMember(orgId) {
+      return isSignedIn() && callerUserDoc().organizationId == orgId;
+    }
+
+    // Legacy Event tenant key: organizationPath is a path-shaped string with
+    // 5 historical formats (src/features/event/utils.ts:50).
+    function orgPathCandidates(orgId) {
+      return [
+        'Organization/' + orgId,
+        'organization/' + orgId,
+        '/organization/' + orgId,
+        'organizations/' + orgId,
+        '/organizations/' + orgId
+      ];
+    }
+
+    // ------------------------------------------------------------------
+    // User — own-doc only; the authorization/tenancy fields are SERVER-ONLY.
+    //
+    // get/subscribe: AuthContext (src/lib/db/user.ts).
+    //
+    // create: ONLY the "signed up and created my own brand-new org" shape
+    // (src/lib/db/user-organization.ts: signupCreateOrgAndUser), which is
+    // fully verifiable here: the org doc (written immediately before) must
+    // name the caller as ownerId, and the doc must carry exactly the default
+    // owner membership + OWNER_PERMISSIONS for that one org. Every other
+    // create (invite-code / domain join signups, join-dialog createUser) is
+    // DENIED — those flows must move server-side (adminUserOrganization.ts:
+    // addAdminUserToOrganization), because rules cannot verify an invite
+    // code or a domain entitlement at write time.
+    //
+    // update: innocuous profile fields ONLY (review NEW-2 / SEC R3). The org
+    // switcher no longer writes from the client — AuthContext.switchOrganization
+    // posts to /api/organizations/switch, which re-verifies roster membership
+    // and re-stamps the permissions mirror via the Admin SDK. So
+    // organizationId / organizationRole / permissions / organizations /
+    // email / uid / status / emailVerified / createdAt / lastLoginAt can
+    // NEVER be touched by a client after create (field-diff lock) — this
+    // closes the self-service privilege escalation (SEC Finding 2), the
+    // cross-tenant organizationId rewrite (SEC Finding 1), and the
+    // self-labeled 'owner' organizationRole (NEW-2) at the rules layer.
+    // ------------------------------------------------------------------
+    match /User/{userEmail} {
+      allow get: if isSignedIn() && callerEmail() == userEmail;
+      allow list: if false;
+
+      allow create: if isSignedIn()
+        && callerEmail() == userEmail
+        // Identity fields must match the token.
+        && request.resource.data.email == userEmail
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'active'
+        // Exactly one membership: the org just created, owned by the caller.
+        && request.resource.data.organizationRole == 'owner'
+        && request.resource.data.organizations.size() == 1
+        && request.resource.data.organizations[0].organizationId
+             == request.resource.data.organizationId
+        && request.resource.data.organizations[0].role == 'owner'
+        && request.resource.data.organizations[0].joinMethod == 'created'
+        && get(/databases/$(database)/documents/Organization/$(request.resource.data.organizationId))
+             .data.ownerId == callerEmail()
+        // Exact OWNER_PERMISSIONS (src/types/collection.ts — keep in sync;
+        // list equality is order-sensitive and the client writes the
+        // constant verbatim).
+        && request.resource.data.permissions == [
+             'view:events', 'write:events',
+             'view:form', 'write:form',
+             'view:invoice', 'write:invoice',
+             'view:promotion', 'write:promotion',
+             'view:organization', 'write:organization',
+             'view:user', 'write:user'
+           ];
+
+      allow update: if isSignedIn()
+        && callerEmail() == userEmail
+        // Innocuous profile fields only. Everything else — organizationId,
+        // organizationRole, permissions, organizations, email, uid, status,
+        // emailVerified, createdAt, lastLoginAt — is server-only.
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['name', 'avatarUrl', 'updatedAt']);
+
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------------
+    // Organization — no more blanket signed-in get/list (SEC Finding 3:
+    // inviteCode / inviteLinkToken / orgId enumeration).
+    //
+    // get/subscribe: MEMBERS ONLY (roster-checked against the caller's
+    // server-locked organizations[]) — AuthContext active-org get/subscribe
+    // (src/lib/db/organization.ts:45,63). Non-members can never read another
+    // org's invite secrets.
+    //
+    // list: ONLY the signup domain-suggestion query
+    // (organization.ts:23 — where domain == X && allowDomainAutoJoin == true,
+    // used by organization-form.tsx and AuthContext.signInWithGoogle). The
+    // rule constrains results to the CALLER'S OWN email domain with
+    // auto-join enabled, so the query only ever returns the org the caller
+    // is already entitled to join; any broader query is rejected by the
+    // rules engine. The invite-CODE lookup (organization.ts:34) is DENIED —
+    // "knows the code" cannot be expressed in rules, so that lookup must
+    // move to a server route returning an opaque projection.
+    //
+    // create: signup creating a brand-new org owned by the caller
+    // (user-organization.ts:66) — ownerId must be the caller, memberCount
+    // must start at exactly 1, status at 'pending' with no verified domain
+    // (a client can never mint itself a 'verified' org).
+    //
+    // TODO(review NEW-1, OPEN — do not silently "fix"): the create shape
+    // does NOT yet constrain `domain` / `allowDomainAutoJoin`, because the
+    // live signup flow (user-organization.ts:63) client-creates company
+    // orgs with allowDomainAutoJoin == true. Target end-state: clients
+    // always create with allowDomainAutoJoin == false and enabling
+    // auto-join becomes a server-side operation (gated on domain
+    // verification); until then a squatter with any sign-in can claim
+    // another company's domain for auto-join suggestions.
+    //
+    // update: DENIED (SEC Finding 4 / review S-3). memberCount maintenance
+    // belongs to the server-side membership flows (adminUserOrganization.ts)
+    // together with the roster writes they must stay atomic with; all other
+    // org settings already go through Admin-SDK routes.
+    // ------------------------------------------------------------------
+    match /Organization/{orgId} {
+      allow get: if isSignedIn()
+        && rosterHas(callerUserDoc().organizations, orgId);
+      allow list: if isSignedIn()
+        && resource.data.allowDomainAutoJoin == true
+        && resource.data.domain == callerEmail().split('@')[1];
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == callerEmail()
+        && request.resource.data.memberCount == 1
+        && request.resource.data.status == 'pending'
+        && request.resource.data.domainVerified == false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------------
+    // Event — client flows:
+    // - create: create-event-workspace.tsx:21 writes a new event from the
+    //   dashboard; organizationPath must resolve to the caller's ACTIVE org
+    //   (organizationId is server-owned — only the roster-verified switch
+    //   route / join flows ever set it).
+    // - read: client repo getEventsForOrganization/getEventForOrganization
+    //   (src/lib/db/event.ts:31,51) query organizationPath equality; scoped
+    //   to the caller's active org. Public visitors never read Event via the
+    //   client SDK (public pages render server-side via adminEvent).
+    // - update/delete: server-only (status flips etc. via API routes).
+    // ------------------------------------------------------------------
+    match /Event/{eventId} {
+      allow read: if isSignedIn()
+        && resource.data.organizationPath in
+             orgPathCandidates(callerUserDoc().organizationId);
+      allow create: if isSignedIn()
+        && request.resource.data.organizationPath in
+             orgPathCandidates(callerUserDoc().organizationId);
+      allow update, delete: if false;
+
+      // EventPromotion — M2: org-member READ only (Discounts tab /
+      // src/lib/db/eventPromotion.ts). ALL writes are server-only:
+      // usedCount is mutated exclusively by the order-finalize transaction,
+      // and promotion CRUD goes through the admin promotion routes.
+      match /EventPromotion/{promotionId} {
+        allow read: if isActiveOrgMember(resource.data.organizationId);
+        allow write: if false;
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // M1 registration spine — org-member READ (client repos
+    // registrationType.ts / ticketType.ts); ALL writes server-only so
+    // registeredCount, code uniqueness and capacity invariants can only be
+    // enforced by the admin DAL + routes. (The client repos' write methods
+    // are intentionally dead under these rules.)
+    // ------------------------------------------------------------------
+    match /RegistrationType/{registrationTypeId} {
+      allow read: if isActiveOrgMember(resource.data.organizationId);
+      allow write: if false;
+    }
+
+    match /TicketType/{ticketTypeId} {
+      allow read: if isActiveOrgMember(resource.data.organizationId);
+      allow write: if false;
+    }
+
+    // ------------------------------------------------------------------
+    // M2 commerce — Fee/Tax: org-member READ (pricing tabs via fee.ts /
+    // tax.ts); ALL writes server-only (uniqueness + money invariants).
+    // ------------------------------------------------------------------
+    match /Fee/{feeId} {
+      allow read: if isActiveOrgMember(resource.data.organizationId);
+      allow write: if false;
+    }
+
+    match /Tax/{taxId} {
+      allow read: if isActiveOrgMember(resource.data.organizationId);
+      allow write: if false;
+    }
+
+    // Order — fully server-only: no client repo exists, totals/counters are
+    // transaction-owned, and payment records must never be client-readable.
+    match /Order/{orderId} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------
+    // M3 — registration paths & public flow. BOTH server-only (spec:
+    // agents/docs/specs/m3-registration-paths.md).
+    //
+    // RegistrationPath: flow config read by the admin table and the PUBLIC
+    // path picker — both render server-side through Admin-SDK routes, so no
+    // client-SDK access exists (and the picker must serve signed-out
+    // visitors, which the client SDK could not scope safely anyway).
+    //
+    // RegistrationDraft: in-progress registrations — registrant PII and
+    // draft-token HASHES. Access is capability-based (the signed draft
+    // token, verified server-side per src/lib/draft-token.ts), which rules
+    // cannot express; every read/write goes through the public register
+    // routes or write:events-gated admin routes. DENY ALL.
+    // ------------------------------------------------------------------
+    match /RegistrationPath/{pathId} {
+      allow read, write: if false;
+    }
+
+    match /RegistrationDraft/{draftId} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------
+    // M5 — attendees & check-in. ALL THREE server-only (spec:
+    // agents/docs/specs/m5-attendees-checkin.md "Shared decisions").
+    //
+    // Attendee: registrant PII + QR token hashes; the roster reads through
+    // write:events-gated admin routes and the scanner resolves exclusively
+    // through the signed QR token (capability-based — inexpressible in
+    // rules). CheckinConfig: admin-route CRUD only. CheckinTeamMember:
+    // access-code HASHES (the scanner credential) — a client-readable copy
+    // would enable offline brute-force of door codes. DENY ALL.
+    // ------------------------------------------------------------------
+    match /Attendee/{attendeeId} {
+      allow read, write: if false;
+    }
+
+    match /CheckinConfig/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /CheckinTeamMember/{teamMemberId} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------
+    // Server-only collections (no production client-SDK access exists):
+    // Form authoring, registration submissions (PII), form templates, Puck
+    // pages and promotion templates are all read AND written through admin
+    // routes / server components. Explicit denies for documentation.
+    // ------------------------------------------------------------------
+    match /Form/{formId} { allow read, write: if false; }
+    match /FormData/{formDataId} { allow read, write: if false; }
+    match /FormTemplate/{templateId} { allow read, write: if false; }
+    match /EventPage/{pageId} { allow read, write: if false; }
+    match /PromotionTemplate/{templateId} { allow read, write: if false; }
+
+    // Default deny for anything not matched above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

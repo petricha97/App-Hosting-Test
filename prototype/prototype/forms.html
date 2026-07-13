@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eventa · Forms &amp; Templates</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">E</div><b>Eventa</b></div>
+    <div class="ws-switch"><div>Petri Test<small>Workspace</small></div><span>⌄</span></div>
+    <nav class="nav">
+      <div class="nav-label">Workspace</div>
+      <a href="index.html"><span class="ic">🏠</span> Overview</a>
+      <a href="events.html"><span class="ic">📅</span> Events</a>
+      <a href="forms.html" class="active"><span class="ic">📝</span> Forms &amp; Templates</a>
+      <a href="responses.html"><span class="ic">📥</span> Responses</a>
+      <a href="promotions.html"><span class="ic">🏷️</span> Promotions</a>
+      <a href="users.html"><span class="ic">👥</span> Users &amp; Access</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="me"><div class="av">P</div><div>Petri<small>petricha98@gmail.com</small></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumbs">Petri Test / Forms &amp; Templates</div>
+      <a class="btn primary" href="event-form.html">+ New template</a>
+    </div>
+
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>Forms &amp; Templates</h1>
+          <p>Reusable registration templates. Update a template, apply the new version to every linked form.</p>
+        </div>
+      </div>
+
+      <div class="note" style="margin-bottom:18px">
+        <b>Template-first flow:</b> core fields (<span class="mono">first_name</span>,
+        <span class="mono">last_name</span>, <span class="mono">email</span>) are locked and shared;
+        each event form extends the template and stays in sync via versioning.
+      </div>
+
+      <div class="grid c2">
+        <div class="card pad">
+          <div style="display:flex;justify-content:space-between;align-items:start">
+            <div><h3>Registration template</h3><p class="sub" style="margin-top:2px">Base for all event forms</p></div>
+            <span class="badge violet">v1 · Active</span>
+          </div>
+          <div class="pill-row" style="margin:12px 0">
+            <span class="badge">1 linked form</span>
+            <span class="badge">6 fields</span>
+          </div>
+          <div class="actionbar"><a class="btn sm" href="event-form.html">Open template</a><button class="btn sm">Apply to all linked</button></div>
+        </div>
+        <div class="card pad">
+          <div style="display:flex;justify-content:space-between;align-items:start">
+            <div><h3>Delegate + Guest template</h3><p class="sub" style="margin-top:2px">Adds guest sub-registration</p></div>
+            <span class="badge amber">Draft</span>
+          </div>
+          <div class="pill-row" style="margin:12px 0">
+            <span class="badge">0 linked forms</span>
+            <span class="badge">9 fields</span>
+          </div>
+          <div class="actionbar"><a class="btn sm" href="event-form.html">Open template</a></div>
+        </div>
+      </div>
+
+      <h3 style="margin:26px 0 12px">Event forms</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Form</th><th>Event</th><th>Template</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="t-strong">General Counsel Registration</td>
+              <td>General Counsel Summit US 2026</td>
+              <td>Registration template <small>v1 · linked</small></td>
+              <td><span class="badge green dot">Published</span></td>
+              <td><a class="btn sm" href="event-form.html">Edit</a></td>
+            </tr>
+            <tr>
+              <td class="t-strong">petri Registration</td>
+              <td>petri</td>
+              <td>Registration template <small>v1 · linked</small></td>
+              <td><span class="badge amber dot">Draft</span></td>
+              <td><a class="btn sm" href="event-form.html">Edit</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

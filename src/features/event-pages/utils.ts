@@ -5,6 +5,8 @@ export interface SerializedEventPage {
   id: string;
   eventId: string;
   organizationId: string;
+  // "default" or a RegistrationPath id (M4-T2); legacy docs read as "default".
+  pageKey: string;
   title: string;
   status: "draft" | "published";
   storagePrefix: string;
@@ -34,6 +36,34 @@ export function extractEventPageIdFromPath(path?: string) {
   return segments.length > 0 ? segments[segments.length - 1] : null;
 }
 
+// SEC-M4-1: the anonymous public page must never ship draftContent,
+// storagePrefix, or organizationId in the RSC payload. This projection is
+// rebuilt with an EXACT key list (mirroring pricing-projection.ts) — extend
+// deliberately, never spread the doc.
+export interface PublicEventPagePayload {
+  id: string;
+  title: string;
+  publishedContent: EventPageContentValues;
+}
+
+// Public projection for PublicCustomEventPage. Callers must only pass pages
+// from getAdminPublishedEventPageForEvent (publishedContent guaranteed
+// non-null); the empty-content fallback is a type-level safety net only.
+export function serializePublicEventPage(
+  eventPage: WithId<EventPageDoc>,
+): PublicEventPagePayload {
+  return {
+    id: eventPage.id,
+    title: eventPage.title,
+    publishedContent:
+      (eventPage.publishedContent as EventPageContentValues | null) ?? {
+        content: [],
+        root: {},
+        zones: {},
+      },
+  };
+}
+
 export function serializeEventPage(
   eventPage: WithId<EventPageDoc>,
 ): SerializedEventPage {
@@ -54,6 +84,7 @@ export function serializeEventPage(
     id: eventPage.id,
     eventId: eventPage.eventId,
     organizationId: eventPage.organizationId,
+    pageKey: eventPage.pageKey ?? "default",
     title: eventPage.title,
     status: eventPage.status,
     storagePrefix: eventPage.storagePrefix,

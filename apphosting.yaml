@@ -16,12 +16,37 @@ env:
     availability:
       - BUILD
       - RUNTIME
-  - variable: GPT_API_KEY
-    secret: GPT_API_KEY
   # Configure secrets
   # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
   # - variable: API_KEY
   #   secret: myApiKeySecret
+  # HMAC secret for public registration draft tokens (M3-T3,
+  # src/lib/draft-token.ts). Create it once with:
+  #   firebase apphosting:secrets:set draftTokenSecret
+  # Without it the server falls back to a DEV-ONLY secret and logs a loud
+  # warning (draft tokens would be forgeable in production).
+  - variable: DRAFT_TOKEN_SECRET
+    secret: draftTokenSecret
+    availability:
+    - RUNTIME
+  # HMAC secret for deterministic attendee QR tokens (M5-T1,
+  # src/lib/qr/qr-token.ts). Create it once with:
+  #   firebase apphosting:secrets:set qrTokenSecret
+  # SEPARATE from the scanner-session secret: rotating THIS one voids every
+  # issued badge/confirmation QR. Production fails closed without it.
+  - variable: QR_TOKEN_SECRET
+    secret: qrTokenSecret
+    availability:
+    - RUNTIME
+  # HMAC secret for short-lived scanner session tokens (M5-T5,
+  # src/lib/qr/scanner-session.ts). Create it once with:
+  #   firebase apphosting:secrets:set scannerSessionSecret
+  # Cheap to rotate (staff re-enter their access code) — kept separate from
+  # QR_TOKEN_SECRET so that rotation stays cheap. Production fails closed.
+  - variable: SCANNER_SESSION_SECRET
+    secret: scannerSessionSecret
+    availability:
+    - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     value: AIzaSyDvWOtA68Iq9svp9gFxuvsoWYHcYA56hT4
     availability:

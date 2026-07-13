@@ -1,0 +1,56 @@
+// Registration Types screen (M1-T1). Server Component: verifies org
+// ownership (404 on cross-org), fetches via the admin DAL, and renders the
+// client workspace. Mutations go through the API routes + router.refresh().
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+
+import { getDashboardScope } from "@/features/dashboard/server/get-dashboard-scope";
+import { RegistrationTypesWorkspace } from "@/features/registration/components/registration-types-workspace";
+import {
+  serializeRegistrationType,
+  type SerializedRegistrationType,
+} from "@/features/registration/types";
+import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
+import { getAdminRegistrationTypesForEvent } from "@/lib/db/adminRegistrationType";
+
+export const metadata: Metadata = {
+  title: "Registration Types | Eventa",
+};
+
+interface PageProps {
+  params: Promise<{ eventId: string }>;
+}
+
+export default async function EventRegistrationTypesPage({ params }: PageProps) {
+  const { eventId } = await params;
+  const scope = await getDashboardScope();
+  const event = await getAdminEventForOrganization(
+    eventId,
+    scope.organizationId,
+  );
+
+  if (!event) {
+    notFound();
+  }
+
+  let registrationTypes: SerializedRegistrationType[] = [];
+  let loadError = false;
+  try {
+    const docs = await getAdminRegistrationTypesForEvent({
+      eventId,
+      organizationId: scope.organizationId,
+    });
+    registrationTypes = docs.map(serializeRegistrationType);
+  } catch {
+    // Shell stays interactive; the workspace shows a retryable error panel.
+    loadError = true;
+  }
+
+  return (
+    <RegistrationTypesWorkspace
+      eventId={eventId}
+      registrationTypes={registrationTypes}
+      loadError={loadError}
+    />
+  );
+}
