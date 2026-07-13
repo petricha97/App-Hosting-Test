@@ -3,6 +3,29 @@
 Date: 2026-07-11
 Branch at handover: `feat/m5-attendees-checkin`
 
+## AGENT LOOP STATE (live — updated by the loop after every step; read this first on restart)
+
+Last updated: 2026-07-13 23:10 (+08). Branch: `feat/m5-attendees-checkin`, all loop work UNCOMMITTED in the working tree.
+
+Done (do not redo):
+1. Backlog reconciled; M5-T1..T5 went Review → Done (closed 2026-07-13, DoD verified). See `agents/docs/BACKLOG.md`.
+2. Code review APPROVED (incl. S-1 fix + re-review): `agents/docs/reviews/m5-attendees-checkin.md`.
+3. Security PASS, 0 Critical/High (1 Medium → M8-T5, 6 Lows): `agents/docs/security/m5-attendees-checkin.md`.
+4. QA SIGNED OFF, 39/39 ACs (1 Minor defect D-1 → ticket M5-F1): `agents/docs/qa/m5-attendees-checkin.md`.
+5. M6-T1 spec complete: `agents/docs/specs/m6-email-infrastructure.md`. L-4 spec reconciliation done.
+6. Suite baseline: lint clean, build exit 0, 72 files / 965 tests passing (+2 pending from M5-F1 test promotion).
+
+In progress:
+- **GitHub Agent: commit + merge M5** — M5-F1 fix APPROVED and D-1 CLOSED by QA (2026-07-13 ~23:40, closure appended to QA doc; sign-off stands, zero open defects, 72 files / 967 tests). All gates complete: M5-T1..T5 + M5-F1 fully approved end-to-end.
+
+Next steps, in order (per Orchestrator — full detail in `agents/docs/BACKLOG.md` Sprint 5 notes):
+3. github-agent: commit milestone (conventional messages, ticket IDs in body), merge `feat/m5-attendees-checkin` → `prototype` with `--no-ff`, smoke-check lint+build, log to `agents/docs/git/m5-attendees-checkin.md`. NEVER touch `main`. (IN PROGRESS)
+4. M6-T1: backend-agent + fullstack-developer in parallel from the M6-T1 spec, on `feat/m6-t1-email-infrastructure` cut from `prototype`. Then CR → SEC → QA pipeline.
+
+Human tasks (unchanged): create `DRAFT_TOKEN_SECRET`, `QR_TOKEN_SECRET`, `SCANNER_SESSION_SECRET` in App Hosting before prod deploy; answer email-provider question (Q2) when convenient.
+
+Rule for the loop: if a session/limit failure interrupts any step, update THIS section with exactly what completed and what remains before stopping, so the next loop iteration resumes here instead of re-running finished gates.
+
 ## What this project is
 
 This repository is a Next.js 15 + TypeScript event-management app built toward Cvent-style parity on top of Firebase / Firestore. It includes an `agents/` directory with planning, specs, design notes, reviews, and QA artifacts from an agent-driven workflow.

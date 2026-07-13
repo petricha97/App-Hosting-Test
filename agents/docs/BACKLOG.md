@@ -29,12 +29,13 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M3-T5 | Abandoned-registration tracking | M3 | Done | — | S3 |
 | M4-T1 | New Puck blocks (pricing table, countdown, reg embed) | M4 | Done | — | S4 |
 | M4-T2 | Per-path page customization | M4 | Done | — | S4 |
-| M5-T1 | Attendee entity + QR identity service | M5 | Todo | — | — |
-| M5-T2 | Attendee roster screen | M5 | Todo | — | — |
-| M5-T3 | Abandoned tab UI | M5 | Todo | — | — |
-| M5-T4 | Check-in configuration screen | M5 | Todo | — | — |
-| M5-T5 | Check-in scan flow | M5 | Todo | — | — |
-| M6-T1 | Email infrastructure (provider + outbox DAL) | M6 | Todo | — | — |
+| M5-T1 | Attendee entity + QR identity service | M5 | Done (2026-07-13) | — | S5 |
+| M5-T2 | Attendee roster screen | M5 | Done (2026-07-13) | — | S5 |
+| M5-T3 | Abandoned tab UI | M5 | Done (2026-07-13) | — | S5 |
+| M5-T4 | Check-in configuration screen | M5 | Done (2026-07-13) | — | S5 |
+| M5-T5 | Check-in scan flow | M5 | Done (2026-07-13) | — | S5 |
+| M5-F1 | D-1 fix: drop sold-out precheck blocking idempotent replay | M5 | In Dev | FS | S5 |
+| M6-T1 | Email infrastructure (provider + outbox DAL) | M6 | In Dev | BE+FS | S6 |
 | M6-T2 | Emails admin screen | M6 | Todo | — | — |
 | M6-T3 | Lifecycle triggers & audience segmentation | M6 | Todo | — | — |
 | M6-T4 | Email designer via shared block engine | M6 | Todo | — | — |
@@ -45,10 +46,74 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M8-T2 | Workspace dashboard real metrics | M8 | Todo | — | — |
 | M8-T3 | Event overview parity | M8 | Todo | — | — |
 | M8-T4 | Test coverage & regression backfill | M8 | Todo | — | — |
+| M8-T5 | Dependency hardening (next 15.5.x bump + audit fixes) | M8 | Todo | — | — |
+| M8-T6 | Generic accept-hook repair path (retry attendee creation) | M8 | Todo | — | — |
 
 ---
 
-## Milestones (dependency order)
+## Orchestrator Notes
+
+### 2026-07-13 — M5 closed (DoD verified)
+All three gates completed on 2026-07-13 and the Definition of Done is met for M5-T1..T5:
+- **Code Review:** APPROVED, all five tickets (`agents/docs/reviews/m5-attendees-checkin.md`). One Should-fix (S-1, invisible-registrant/false-200 on hook crash) was fixed by FS and re-reviewed; nits N-1..N-8 stand as optional.
+- **Security:** PASS, zero Critical/High (`agents/docs/security/m5-attendees-checkin.md`). 1 Medium (M-1, pre-existing dependency advisories → new ticket **M8-T5**) and 6 Lows (L-1..L-6) carried below.
+- **QA:** SIGNED OFF, all 39 acceptance criteria pass (`agents/docs/qa/m5-attendees-checkin.md`). One **Minor** open defect D-1 (below Major threshold, so sign-off stands) — tracked as **M5-F1**.
+- **Checks:** lint clean, build exit 0, `npm test -- --run` 72 files / 965 tests passing on the final working tree.
+
+**D-1 sequencing decision: fix BEFORE merge.** M5-F1 (drop/move the sold-out precheck in `attendees/register/route.ts` so `placeOrder`'s idempotency replay is reached; promote QA's two `it.todo` markers in `src/__tests__/attendees-register-route.test.ts` to real assertions) is executed on `feat/m5-attendees-checkin` before the GitHub Agent merges to `prototype`. Rationale: (a) the defect breaks the idempotent-replay contract and, in the crashed-hook corner, leaves an *unrepairable* orphan — and this route is the only shipped repair seam, so data integrity outranks speed; (b) it deviates from the spec's "same pipeline as public finalize" (spec correctness > speed); (c) `prototype` is the branch every future ticket cuts from — merging a known defect in the sole repair path propagates it into M6 work; (d) the fix is one scoped change with tests already pinned, so the cost is a single short fix-diff review cycle. Fix re-enters at **Review** (fix diff only), then QA verifies the promoted tests, then GitHub Agent merges.
+
+**Carried items from M5 gates (not lost, not gating):**
+- **M5-F1 / D-1 (Minor, FS):** sold-out precheck 409s before `placeOrder` replay (`attendees/register/route.ts:214-219`) — fix pre-merge per the decision above.
+- **M8-T5 / M-1 (Medium, pre-existing):** bump `next` 15.0.5 → patched 15.5.x line and `npm audit fix` firebase-admin transitives (`@grpc/grpc-js`, `protobufjs`, `form-data`). Placed in M8 (hardening); independent, may be pulled forward if a convenient window appears before then.
+- **M8-T6 (QA-triaged gap):** the generic responses status route ignores `acceptHookFailed` (spec-documented M5 gap — no generic repair route). Ship a generic heal path / admin "retry attendee creation" affordance so the manual-register route is not the only repair seam. Placed in M8; revisit when M6-T3 touches the accept hook.
+- **L-4 spec reconciliation (RL, doc-only):** M5 read pages gate org membership, not `write:events` — amend `agents/docs/specs/m5-attendees-checkin.md` to record the read-surface convention (or escalate as a product decision if view-role PII visibility is unwanted).
+- **Optional cleanup (non-gating, pick up opportunistically):** Security L-1 (durable rate limiter → already an M8 note), L-2 (32KB body cap on dashboard mutating routes), L-3 (delete or org-scope dead `getAdminAttendeeByQrTokenHash`), L-5 (don't show admin email to team scanners — fold into M6-T2 polish), L-6 (document the QR-SVG server-only invariant at both sinks); Review nits N-1..N-8 (timezone helper, formatter consolidation, dead code, resolver cast, `.gitignore` comment, pagination interleave, approximate `checkedInAt`, ESM cycle watch).
+- **Deployment prerequisite (human/owner):** create `DRAFT_TOKEN_SECRET`, `QR_TOKEN_SECRET`, `SCANNER_SESSION_SECRET` in App Hosting before production deploy.
+
+**M6 kickoff confirmed:** M6-T1 spec complete (`agents/docs/specs/m6-email-infrastructure.md`); RL determined T1 has no UI, so the Design step is skipped and the ticket moves straight to **In Dev** (BE + FS). The M6 branch (`feat/m6-t1-email-infrastructure`) cuts from `prototype` **after** the M5 merge lands.
+
+### 2026-07-13 — M5 status reconciliation
+M5-T1..T5 were fully implemented and shipped on branch `feat/m5-attendees-checkin` on 2026-07-11 (commit `2148ce8`, see `HANDOVER.md`), but this backlog was left stale at `Todo`. Per the loop rules ("code re-entering the pipeline resumes at Review, not from scratch"), all five tickets are now set to **Review** — specs (`agents/docs/specs/m5-attendees-checkin.md`), design (`agents/docs/design/m5-attendees-checkin.md`), and data-model (`agents/docs/data-models/m5-attendees-checkin.md`) docs exist; review/security/QA artifacts do **not** and must be produced before the tickets can close. At handover, `npm run lint`, `npm run build`, and `npm run test -- --run` all passed (72 files / 959 tests).
+
+---
+
+## Sprint 5 — Close out M5 (Review → Security → QA)
+
+**Tickets:** M5-T1, M5-T2, M5-T3, M5-T4, M5-T5 — all at **Review**.
+
+### Review strategy: one combined M5 diff
+The five tickets are reviewed as **one combined milestone diff** (`prototype...feat/m5-attendees-checkin`), not five separate reviews, because:
+1. **They shipped as one interdependent unit** — the attendee entity + QR token (T1) threads through the roster (T2), check-in config (T4), and scan flow (T5); reviewing them separately would force reviewers to re-read the same core files five times and would hide cross-ticket seams (e.g., attendee write consistency between accept-hook, manual registration, and scan updates).
+2. **Milestone-combined artifacts are the established precedent** (M0–M4 each have one `reviews/`, `security/`, `qa/` artifact).
+3. **Findings are still filed per ticket** inside each artifact (tagged M5-T1..T5) so a Blocker on the scan flow returns only that ticket to the Full-Stack Developer/Backend Agent without reopening the others.
+
+**Security exception:** within the combined pass, the Security Agent must give explicit, individually-documented attention to the three high-risk surfaces: (a) QR token minting/entropy/lookup (T1), (b) scan endpoint auth + replay + cross-event scans + scanner-session scoping (T5), (c) `apphosting.yaml` secret wiring (`DRAFT_TOKEN_SECRET`, `QR_TOKEN_SECRET`, `SCANNER_SESSION_SECRET`) including the dev-fallback / production fail-closed behavior, plus Firestore rules changes for attendee/check-in data.
+
+### Pipeline (strict order; fixes re-enter at Review)
+1. **Code Review** (CR) → `agents/docs/reviews/m5-attendees-checkin.md` — verdict per ticket. Blockers → FS/BE fix → re-review.
+2. **Security** (SEC) → `agents/docs/security/m5-attendees-checkin.md` — Critical/High block; findings per ticket.
+3. **QA** (QA) → `agents/docs/qa/m5-attendees-checkin.md` — test plan from spec acceptance criteria + design states; regression tests added for any defect.
+4. **Orchestrator** verifies DoD, closes M5-T1..T5.
+5. **GitHub Agent** merges `feat/m5-attendees-checkin` → `prototype` (`--no-ff`), smoke-checks lint/build, logs to `agents/docs/git/m5-attendees-checkin.md`. **Never `main`.**
+
+### Definition-of-Done items (per ticket, all five) — COMPLETE 2026-07-13
+- [x] Code Reviewer verdict APPROVED — `agents/docs/reviews/m5-attendees-checkin.md` (S-1 fixed + re-reviewed; N-1..N-8 optional).
+- [x] Security Agent pass, no Critical/High — `agents/docs/security/m5-attendees-checkin.md` (M-1 Medium → M8-T5; L-1..L-6 carried).
+- [x] QA test plan executed + regression tests + sign-off — `agents/docs/qa/m5-attendees-checkin.md` (39/39 ACs; D-1 Minor → M5-F1, fixed pre-merge).
+- [x] Fresh `npm run lint` / `npm run build` / `npm test` on final working tree — lint clean, build exit 0, 72 files / 965 tests passing.
+- [x] Spec acceptance criteria coverage — QA verified all 39 across T1–T5.
+- [x] Design spec (states/responsive/themes) — QA cross-cutting section verified.
+- [x] DAL boundary + data model doc + `firestore.indexes.json` — CR mandatory checks 1 and 3 PASS.
+
+**Sprint 5 remaining work before merge:** M5-F1 (D-1 fix, FS) → CR fix-diff review → QA promotes the two `it.todo` regressions and verifies → GitHub Agent merges `feat/m5-attendees-checkin` → `prototype` (`--no-ff`) and logs `agents/docs/git/m5-attendees-checkin.md`. See the 2026-07-13 closure note above for the full rationale.
+
+**Deployment prerequisite (not DoD, but blocks release):** App Hosting secrets `DRAFT_TOKEN_SECRET`, `QR_TOKEN_SECRET`, `SCANNER_SESSION_SECRET` must be created before production deploy (human/owner task).
+
+### Next after M5 closes: M6-T1 (email infrastructure)
+M6-T1 is confirmed next in dependency order: it has no hard code dependency, blocks M6-T2/T3 and M7-T3, and M6-T2 additionally needs M5-T1's QR (now in place). Prerequisites:
+- **Q2 (email provider)** remains open — proceed with the documented default (dev outbox transport + provider interface) so no blocking; real transport swaps in when Q2 is answered.
+- M5 merged into `prototype` first, so the M6 branch (`feat/m6-t1-email-infrastructure`) cuts from an integration branch that already contains attendee/QR code.
+- M6-T1 kicks off at **Research** (RL merge-tag catalog + send-log spec), per the standard sequence.
 
 Rationale for reordering vs. the AGENT_LOOP.md seed:
 - The **Event shell** (grouped event-level sidebar seen in every `event-*.html`) must exist before any new event sub-screen, so it is M0, not part of "Events core".
@@ -385,6 +450,18 @@ Rationale for reordering vs. the AGENT_LOOP.md seed:
 - **Code:** `src/__tests__/`.
 - **Deps:** ongoing; final pass after M7.
 - **Agents:** QA (own the gap list + plan) · FS/BE (write tests in their areas) · CR (test quality review).
+
+### M8-T5 — Dependency hardening (from M5 Security M-1)
+- **Goal:** Clear the pre-existing `npm audit --omit=dev` advisories: bump `next@15.0.5` to the patched 15.5.x line (middleware-bypass/SSRF/cache-poisoning advisories — not directly exploitable today, no `middleware.ts`) and fix firebase-admin transitives (`@grpc/grpc-js`, `protobufjs`, `form-data`).
+- **Code:** `package.json`, lockfile; full regression run after the Next bump.
+- **Deps:** none — independent; **may be pulled forward** before M8 if a convenient window appears.
+- **Agents:** FS (bump + fix breakages) · CR (diff review) · SEC (verify audit clean) · QA (full suite + smoke).
+
+### M8-T6 — Generic accept-hook repair path (from M5 QA triage)
+- **Goal:** The generic responses accept route returns 200 and ignores `acceptHookFailed` (spec-documented M5 gap), so an orphaned accepted submission (`attendeeCreated:false`) created outside the manual-register route has no repair affordance. Ship a generic heal: re-invoke the exported idempotent `onSubmissionAccepted` on replay/detection, and/or an admin "retry attendee creation" action.
+- **Code:** `src/app/api/dashboard/responses/` status route, `src/features/responses/on-submission-accepted.ts` callers; regression tests.
+- **Deps:** M5 (Done); revisit design when M6-T3 adds email side-effects to the accept hook.
+- **Agents:** RL (amend spec: repair semantics) · FS (implement) · CR · SEC (authz on retry action) · QA (orphan-heal E2E).
 
 ---
 
