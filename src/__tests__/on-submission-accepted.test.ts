@@ -33,15 +33,23 @@ vi.mock("@/app/lib/firestore", () => ({ adminDb: fake.db }));
 import { Timestamp } from "firebase-admin/firestore";
 
 import { attendeeIdFromSubmissionId } from "@/lib/db/attendeeId";
-import { QR_TOKEN_SECRET_ENV, hashQrToken, mintQrToken } from "@/lib/qr/qr-token";
+import {
+  QR_TOKEN_SECRET_ENV,
+  hashQrToken,
+  mintQrToken,
+} from "@/lib/qr/qr-token";
 import type { FormDataDoc } from "@/types/collection";
 
 // Deterministic token math needs a pinned secret for the whole file.
 process.env[QR_TOKEN_SECRET_ENV] = "unit-test-qr-secret";
 
-const { transitionAdminFormDataStatus } = await import("@/lib/db/adminFormData");
-const { ATTENDEE_LABEL_FALLBACK, attendeePersonalFieldsFromSubmission, onSubmissionAccepted } =
-  await import("@/features/responses/on-submission-accepted");
+const { transitionAdminFormDataStatus } =
+  await import("@/lib/db/adminFormData");
+const {
+  ATTENDEE_LABEL_FALLBACK,
+  attendeePersonalFieldsFromSubmission,
+  onSubmissionAccepted,
+} = await import("@/features/responses/on-submission-accepted");
 
 const ORG_ID = "org-1";
 const EVENT_ID = "evt-1";
@@ -296,16 +304,28 @@ describe("idempotency (T1 AC-2)", () => {
     ).toHaveLength(1);
   });
 
-  it("a failing hook never un-accepts: status stands, attendeeCreated stays false, re-invoke heals", async () => {
+  it("a failing hook never un-accepts: logged + acceptHookFailed, attendeeCreated stays false, re-invoke heals (S-1)", async () => {
     seedResponse();
     seedOrder();
     seedRegistrationType();
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
 
     // The injectable seam transitionAdminFormDataStatus exposes (kept for M5).
+    // S-1 contract: the crash is caught and LOGGED by the DAL, never
+    // propagated after the committed accept — the caller learns about it via
+    // acceptHookFailed instead of a throw.
     const boom = vi.fn().mockRejectedValue(new Error("attendee infra down"));
-    await expect(accept({ onAccepted: boom })).rejects.toThrow(
-      "attendee infra down",
+    await expect(accept({ onAccepted: boom })).resolves.toMatchObject({
+      ok: true,
+      acceptHookFailed: true,
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining(RESPONSE_ID),
+      expect.objectContaining({ message: "attendee infra down" }),
     );
+    consoleError.mockRestore();
 
     const response = fake.store.get(RESPONSE_PATH)!;
     expect(response.status).toBe("accepted"); // commit stands (T1 contract)

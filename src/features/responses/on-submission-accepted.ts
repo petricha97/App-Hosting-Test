@@ -25,8 +25,10 @@
 // hook throws — the submission is NEVER un-accepted. `status: "accepted"` +
 // `attendeeCreated: false` is the "hook pending" signal; every step above is
 // idempotent, so healing = re-invoking this function with the same
-// submission (it is exported for exactly that — a future repair path calls
-// it directly, since the status machine will not fire it twice).
+// submission (it is exported for exactly that: the manual-registration route
+// re-invokes it directly when it finds an accepted submission with
+// attendeeCreated still false — review S-1 — since the status machine will
+// not fire it twice).
 //
 // DEGRADED DATA (documented decision): an orderId that no longer resolves
 // (corruption/manual deletion) degrades to the legacy shape (null ids, "—"

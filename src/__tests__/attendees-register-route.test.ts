@@ -11,7 +11,12 @@
  *   createAdminFormDataForDraft (synthetic "manual:" draft id) →
  *   transitionAdminFormDataStatus(to: "accepted") which fires the T1 hook;
  * - SOLD_OUT surfaces as a 409 dialog error; a replayed request (terminal
- *   "accepted" -> INVALID_TRANSITION) still returns the same refs (AC-6).
+ *   "accepted" -> INVALID_TRANSITION) still returns the same refs (AC-6);
+ * - S-1 self-heal: "accepted" only counts as success once the Attendee
+ *   exists — an accepted submission with attendeeCreated:false (a prior or
+ *   in-call hook crash) gets the exported idempotent onSubmissionAccepted
+ *   re-invoked directly, and a heal failure is a truthful 500, never a
+ *   200 "Attendee registered" without an attendee.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,7 +34,9 @@ const {
   validateTicketSelection,
   placeOrder,
   createAdminFormDataForDraft,
+  getAdminFormDataForEvent,
   transitionAdminFormDataStatus,
+  onSubmissionAccepted,
 } = vi.hoisted(() => {
   const callOrder: string[] = [];
   return {
@@ -44,7 +51,9 @@ const {
     validateTicketSelection: vi.fn(),
     placeOrder: vi.fn(),
     createAdminFormDataForDraft: vi.fn(),
+    getAdminFormDataForEvent: vi.fn(),
     transitionAdminFormDataStatus: vi.fn(),
+    onSubmissionAccepted: vi.fn(),
   };
 });
 
@@ -63,7 +72,11 @@ vi.mock("@/features/public-registration/server/tickets", () => ({
 vi.mock("@/lib/orders/place-order", () => ({ placeOrder }));
 vi.mock("@/lib/db/adminFormData", () => ({
   createAdminFormDataForDraft,
+  getAdminFormDataForEvent,
   transitionAdminFormDataStatus,
+}));
+vi.mock("@/features/responses/on-submission-accepted", () => ({
+  onSubmissionAccepted,
 }));
 
 import { POST } from "@/app/api/dashboard/events/[eventId]/attendees/register/route";
@@ -189,7 +202,8 @@ beforeEach(() => {
   callOrder.length = 0;
 
   cookies.mockResolvedValue({
-    get: (name: string) => (name === "session" ? { value: "token" } : undefined),
+    get: (name: string) =>
+      name === "session" ? { value: "token" } : undefined,
   });
   decodeUser.mockResolvedValue({
     uid: "u1",
@@ -235,6 +249,17 @@ beforeEach(() => {
     callOrder.push("transition");
     return { ok: true, response: { id: FORM_DATA_ID, status: "accepted" } };
   });
+  // Post-accept verification read (only reached on replay / hook failure):
+  // default = healthy accepted submission whose attendee already exists.
+  getAdminFormDataForEvent.mockResolvedValue({
+    id: FORM_DATA_ID,
+    eventId: EVENT_ID,
+    organizationId: ORG_ID,
+    status: "accepted",
+    attendeeCreated: true,
+    submission: SUBMISSION,
+  });
+  onSubmissionAccepted.mockResolvedValue(undefined);
 });
 
 describe("POST register — gates (T2 AC-9)", () => {
@@ -330,17 +355,29 @@ describe("POST register — path + validation rules", () => {
     });
   });
 
-  it("409s a sold-out selection before placing the order", async () => {
+  it("routes a sold-out selection through placeOrder (no precheck, D-1) — a FRESH registration still 409s SOLD_OUT (T2 AC-5)", async () => {
     validateTicketSelection.mockResolvedValue({
       ok: true,
       ticket: { id: "tick-1" },
       registrationTypeId: "rt-1",
       soldOut: true,
     });
+    // No replayable order exists for this requestId, so the authoritative
+    // capacity check inside placeOrder refuses the fresh registration.
+    placeOrder.mockResolvedValue({
+      ok: false,
+      code: "SOLD_OUT",
+      message: "This ticket is sold out.",
+    });
+
     const response = await POST(makeRequest(makeBody()), makeContext());
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toMatchObject({ code: "SOLD_OUT" });
-    expect(placeOrder).not.toHaveBeenCalled();
+    // The read-time soldOut flag no longer short-circuits the pipeline —
+    // placeOrder is the single capacity authority (public-finalize parity).
+    expect(placeOrder).toHaveBeenCalledTimes(1);
+    expect(createAdminFormDataForDraft).not.toHaveBeenCalled();
+    expect(transitionAdminFormDataStatus).not.toHaveBeenCalled();
   });
 });
 
@@ -363,6 +400,10 @@ describe("POST register — pipeline (public-finalize parity)", () => {
       organizationId: ORG_ID,
       to: "accepted",
     });
+    // Healthy accept: the hook completed inside the transition, so the S-1
+    // verification read and the direct hook re-invocation never run.
+    expect(getAdminFormDataForEvent).not.toHaveBeenCalled();
+    expect(onSubmissionAccepted).not.toHaveBeenCalled();
   });
 
   it("uses the 'manual:' idempotency key, the derived submissionId, and the PATH's method/currency (tampering stripped)", async () => {
@@ -454,6 +495,194 @@ describe("POST register — pipeline (public-finalize parity)", () => {
     });
 
     const response = await POST(makeRequest(makeBody()), makeContext());
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      registrationRef: FORM_DATA_ID,
+      orderRef: "order-1",
+    });
+    // The replay VERIFIED the attendee exists (default mock:
+    // attendeeCreated true) instead of trusting INVALID_TRANSITION blindly.
+    expect(getAdminFormDataForEvent).toHaveBeenCalledWith({
+      responseId: FORM_DATA_ID,
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+    });
+    expect(onSubmissionAccepted).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST register — S-1 self-heal (accepted submission without an attendee)", () => {
+  // The orphan shape a crashed accept hook leaves behind: accepted, but
+  // attendeeCreated never flipped — invisible on the roster until healed.
+  const orphanedSubmission = {
+    id: FORM_DATA_ID,
+    eventId: EVENT_ID,
+    organizationId: ORG_ID,
+    status: "accepted",
+    attendeeCreated: false,
+    submission: SUBMISSION,
+    orderId: "order-1",
+    pathId: "path-1",
+    ticketLabel: "General Admission",
+  };
+
+  const replayTransition = {
+    ok: false as const,
+    code: "INVALID_TRANSITION" as const,
+    message: 'Cannot move a response from "accepted" to "accepted".',
+  };
+
+  it("replay after a hook crash re-invokes onSubmissionAccepted and only then reports success (regression: was a false 200)", async () => {
+    transitionAdminFormDataStatus.mockResolvedValue(replayTransition);
+    getAdminFormDataForEvent.mockResolvedValue(orphanedSubmission);
+
+    const response = await POST(makeRequest(makeBody()), makeContext());
+
+    expect(onSubmissionAccepted).toHaveBeenCalledTimes(1);
+    expect(onSubmissionAccepted).toHaveBeenCalledWith(orphanedSubmission);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      registrationRef: FORM_DATA_ID,
+      orderRef: "order-1",
+    });
+  });
+
+  it("a fresh accept whose hook crashed (acceptHookFailed) retries the hook before responding", async () => {
+    transitionAdminFormDataStatus.mockResolvedValue({
+      ok: true,
+      response: { id: FORM_DATA_ID, status: "accepted" },
+      acceptHookFailed: true,
+    });
+    getAdminFormDataForEvent.mockResolvedValue(orphanedSubmission);
+
+    const response = await POST(makeRequest(makeBody()), makeContext());
+
+    expect(onSubmissionAccepted).toHaveBeenCalledTimes(1);
+    expect(onSubmissionAccepted).toHaveBeenCalledWith(orphanedSubmission);
+    expect(response.status).toBe(200);
+  });
+
+  it("NEVER returns 200 while the attendee still cannot be created — truthful 500 + log", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    transitionAdminFormDataStatus.mockResolvedValue(replayTransition);
+    getAdminFormDataForEvent.mockResolvedValue(orphanedSubmission);
+    onSubmissionAccepted.mockRejectedValue(new Error("attendee create down"));
+
+    const response = await POST(makeRequest(makeBody()), makeContext());
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "ATTENDEE_CREATION_FAILED",
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining(FORM_DATA_ID),
+      expect.any(Error),
+    );
+    consoleError.mockRestore();
+  });
+
+  it("500s (not a fake success) when the submission cannot be re-read during verification", async () => {
+    transitionAdminFormDataStatus.mockResolvedValue(replayTransition);
+    getAdminFormDataForEvent.mockResolvedValue(null);
+
+    const response = await POST(makeRequest(makeBody()), makeContext());
+
+    expect(response.status).toBe(500);
+    expect(onSubmissionAccepted).not.toHaveBeenCalled();
+  });
+});
+
+// QA defect D-1 (agents/docs/qa/m5-attendees-checkin.md, found via Codex
+// second-opinion review, FIXED this cycle): the route used to 409 on the
+// read-time `selection.soldOut` flag BEFORE placeOrder could replay by
+// idempotency key, even though placeOrder returns the existing order before
+// any capacity check (src/lib/orders/place-order.ts:141-146) and the public
+// finalize pipeline has no such precheck. Two broken corners at the
+// exact-capacity boundary, both pinned below as regressions:
+// (a) a retry of an already-successful registration got a false
+//     "That ticket just sold out" instead of the same-refs 200 (replay
+//     contract in the route's own header comment);
+// (b) a retry after a crashed accept hook never reached the S-1 self-heal
+//     block, so the orphaned accepted submission stayed roster-invisible with
+//     no shipped repair path.
+// Fix: the precheck was dropped — placeOrder is the single capacity
+// authority. T2 AC-5 keeps its coverage at :358/:467 (fresh registrations at
+// capacity still 409 SOLD_OUT).
+describe("QA D-1 — sold-out read must not block idempotent replay (regression)", () => {
+  // The ticket legitimately reads sold out on the retry: the ORIGINAL
+  // request consumed the last seat. Capacity boundary of the defect repro.
+  const soldOutSelection = {
+    ok: true as const,
+    ticket: { id: "tick-1" },
+    registrationTypeId: "rt-1",
+    soldOut: true,
+  };
+
+  const replayTransition = {
+    ok: false as const,
+    code: "INVALID_TRANSITION" as const,
+    message: 'Cannot move a response from "accepted" to "accepted".',
+  };
+
+  it("replays an already-successful registration at full capacity: same refs, not SOLD_OUT", async () => {
+    validateTicketSelection.mockResolvedValue(soldOutSelection);
+    // placeOrder finds the ORIGINAL order by idempotency key before any
+    // capacity check and replays it verbatim.
+    placeOrder.mockResolvedValue({ ...successOrder, created: false });
+    createAdminFormDataForDraft.mockResolvedValue({
+      formDataId: FORM_DATA_ID,
+      formData: { id: FORM_DATA_ID },
+      created: false,
+    });
+    transitionAdminFormDataStatus.mockResolvedValue(replayTransition);
+    // Default getAdminFormDataForEvent mock: healthy accepted submission
+    // whose attendee already exists — nothing to heal.
+
+    const response = await POST(makeRequest(makeBody()), makeContext());
+
+    // Pre-fix: died at the precheck with 409 SOLD_OUT, placeOrder never ran.
+    expect(placeOrder).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      registrationRef: FORM_DATA_ID,
+      orderRef: "order-1",
+    });
+    expect(onSubmissionAccepted).not.toHaveBeenCalled();
+  });
+
+  it("heals a crashed-hook orphan on retry even when the ticket now reads sold out", async () => {
+    // The orphan the ORIGINAL request left behind: last seat consumed, order
+    // + accepted submission exist, but the accept hook (and the in-request
+    // heal) crashed before the Attendee was minted — roster-invisible.
+    const orphanedSubmission = {
+      id: FORM_DATA_ID,
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+      status: "accepted",
+      attendeeCreated: false,
+      submission: SUBMISSION,
+      orderId: "order-1",
+      pathId: "path-1",
+      ticketLabel: "General Admission",
+    };
+    validateTicketSelection.mockResolvedValue(soldOutSelection);
+    placeOrder.mockResolvedValue({ ...successOrder, created: false });
+    createAdminFormDataForDraft.mockResolvedValue({
+      formDataId: FORM_DATA_ID,
+      formData: { id: FORM_DATA_ID },
+      created: false,
+    });
+    transitionAdminFormDataStatus.mockResolvedValue(replayTransition);
+    getAdminFormDataForEvent.mockResolvedValue(orphanedSubmission);
+
+    const response = await POST(makeRequest(makeBody()), makeContext());
+
+    // Pre-fix: the 409 precheck made the S-1 heal block unreachable, leaving
+    // the orphan with NO shipped repair path. Now the retry heals it.
+    expect(onSubmissionAccepted).toHaveBeenCalledTimes(1);
+    expect(onSubmissionAccepted).toHaveBeenCalledWith(orphanedSubmission);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       registrationRef: FORM_DATA_ID,

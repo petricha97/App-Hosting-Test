@@ -14,7 +14,12 @@
 //   3. transitionAdminFormDataStatus(to: "accepted") — fires the REAL M5-T1
 //      hook, which mints the Attendee. A replayed request finds the
 //      submission already accepted (INVALID_TRANSITION) and returns the same
-//      refs as success — idempotent end to end.
+//      refs as success — idempotent end to end;
+//   4. self-heal (review S-1): success is only reported once the Attendee
+//      actually exists. If the accept hook crashed (this call or the
+//      original call a replay is retrying), the route re-invokes the
+//      exported idempotent onSubmissionAccepted directly — a failure here is
+//      a truthful 500, never "Attendee registered" without an attendee.
 //
 // Route-owned validations (spec T2):
 // - session -> write:events -> org-owned event (401/403/404, IDOR-safe);
@@ -36,8 +41,13 @@ import {
 } from "@/features/form/schema";
 import { validateTicketSelection } from "@/features/public-registration/server/tickets";
 import { resolveRegistrationRouteScope } from "@/features/registration/server/route-scope";
+import { onSubmissionAccepted } from "@/features/responses/on-submission-accepted";
 import { getAdminFormForEvent } from "@/lib/db/adminForm";
-import { createAdminFormDataForDraft, transitionAdminFormDataStatus } from "@/lib/db/adminFormData";
+import {
+  createAdminFormDataForDraft,
+  getAdminFormDataForEvent,
+  transitionAdminFormDataStatus,
+} from "@/lib/db/adminFormData";
 import { getAdminRegistrationPathForEvent } from "@/lib/db/adminRegistrationPath";
 import { getAdminTicketTypeForEvent } from "@/lib/db/adminTicketType";
 import { formDataIdFromDraftId } from "@/lib/db/formDataId";
@@ -201,12 +211,11 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 400 },
     );
   }
-  if (selection.soldOut) {
-    return NextResponse.json(
-      { error: "That ticket just sold out.", code: "SOLD_OUT" },
-      { status: 409 },
-    );
-  }
+  // NO sold-out precheck here (QA D-1): capacity is enforced by placeOrder
+  // AFTER its idempotency-replay lookup, mirroring the public finalize. A
+  // route-level `selection.soldOut` 409 would fire before placeOrder could
+  // recognize a retried requestId, falsely rejecting an already-successful
+  // registration at exact capacity and making the S-1 heal block unreachable.
 
   // The FormData id is deterministic from the synthetic manual draft id —
   // known BEFORE the order exists, so the Order links to its submission from
@@ -270,6 +279,51 @@ export async function POST(request: Request, context: RouteContext) {
   });
   if (!transition.ok && transition.code !== "INVALID_TRANSITION") {
     return NextResponse.json({ error: transition.message }, { status: 500 });
+  }
+
+  // --- 4. Self-heal (review S-1): an accepted submission with no Attendee is
+  // invisible on the roster, so "accepted" alone is not success here. Two
+  // paths can leave that orphan: (a) THIS accept committed but its hook
+  // crashed (acceptHookFailed); (b) a replay hit INVALID_TRANSITION because
+  // the ORIGINAL accept committed before its hook crashed. In both cases
+  // re-read the submission and, while attendeeCreated is still pending,
+  // re-invoke the exported idempotent hook directly. Only the healthy accept
+  // (hook completed inside the transition) skips the verification read.
+  const acceptNeedsVerification =
+    !transition.ok || transition.acceptHookFailed === true;
+  if (acceptNeedsVerification) {
+    const submission = await getAdminFormDataForEvent({
+      responseId: formDataResult.formDataId,
+      eventId,
+      organizationId: scope.organizationId,
+    });
+    if (!submission) {
+      return NextResponse.json(
+        { error: "Registration record not found after accept." },
+        { status: 500 },
+      );
+    }
+    if (
+      submission.status === "accepted" &&
+      submission.attendeeCreated !== true
+    ) {
+      try {
+        await onSubmissionAccepted(submission);
+      } catch (error) {
+        console.error(
+          `[attendees/register] attendee creation failed for accepted submission ${formDataResult.formDataId}`,
+          error,
+        );
+        return NextResponse.json(
+          {
+            error:
+              "The registration was recorded but the attendee record could not be created. Please retry.",
+            code: "ATTENDEE_CREATION_FAILED",
+          },
+          { status: 500 },
+        );
+      }
+    }
   }
 
   return NextResponse.json({

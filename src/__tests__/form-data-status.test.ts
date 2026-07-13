@@ -12,6 +12,8 @@
  *    EMPTY write set, cross-org/missing -> NOT_FOUND (IDOR-safe)
  *  - accept hook fires AT MOST ONCE (double-accept: second call fails before
  *    the hook), default hook is the responses stub
+ *  - S-1 guard: a crashing accept hook is LOGGED and reported via
+ *    acceptHookFailed — never propagated after the committed accept
  *  - createAdminFormDataForDraft: deterministic id from draftId, "new" +
  *    orderId/pathId/ticketLabel populated, idempotent replay returns the
  *    existing doc with zero writes (crash-recovery contract)
@@ -211,6 +213,48 @@ describe("transitionAdminFormDataStatus", () => {
     expect(stubHook).toHaveBeenCalledTimes(1);
   });
 
+  it("logs a crashing accept hook and returns ok + acceptHookFailed — the accept commit stands (S-1)", async () => {
+    seedResponse({ status: "reviewed" });
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const boom = new Error("attendee create exploded");
+    stubHook.mockRejectedValueOnce(boom);
+
+    const result = await transition("accepted");
+
+    // Not a 500-shaped failure: the transition committed, so ok:true — but
+    // the caller is told the hook did not complete.
+    expect(result).toMatchObject({ ok: true, acceptHookFailed: true });
+    expect(fake.store.get(RESPONSE_PATH)!.status).toBe("accepted");
+    // Not silently swallowed: logged with the submission id + the cause.
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining(RESPONSE_ID),
+      boom,
+    );
+
+    // A later re-accept is still INVALID_TRANSITION (accepted is terminal)
+    // and never refires the hook — healing is the CALLER's job via the
+    // exported onSubmissionAccepted.
+    const replay = await transition("accepted");
+    expect(replay).toMatchObject({ ok: false, code: "INVALID_TRANSITION" });
+    expect(stubHook).toHaveBeenCalledTimes(1);
+
+    consoleError.mockRestore();
+  });
+
+  it("does not flag acceptHookFailed when the hook completes", async () => {
+    seedResponse();
+
+    const result = await transition("accepted");
+
+    expect(result).toMatchObject({ ok: true });
+    expect(
+      (result as { acceptHookFailed?: boolean }).acceptHookFailed,
+    ).toBeUndefined();
+  });
+
   it("prefers an injected onAccepted over the default stub", async () => {
     seedResponse();
     const custom = vi.fn();
@@ -302,14 +346,20 @@ describe("createAdminFormDataForDraft — deterministic id + idempotent replay (
   });
 
   it("namespaces ids per (org, event, draft) and never collides with Order ids", () => {
-    const base = { organizationId: ORG_ID, eventId: EVENT_ID, draftId: DRAFT_ID };
-    expect(formDataIdFromDraftId(base)).toBe(formDataIdFromDraftId({ ...base }));
+    const base = {
+      organizationId: ORG_ID,
+      eventId: EVENT_ID,
+      draftId: DRAFT_ID,
+    };
+    expect(formDataIdFromDraftId(base)).toBe(
+      formDataIdFromDraftId({ ...base }),
+    );
     expect(formDataIdFromDraftId({ ...base, draftId: "other" })).not.toBe(
       EXPECTED_ID,
     );
-    expect(formDataIdFromDraftId({ ...base, organizationId: "org-2" })).not.toBe(
-      EXPECTED_ID,
-    );
+    expect(
+      formDataIdFromDraftId({ ...base, organizationId: "org-2" }),
+    ).not.toBe(EXPECTED_ID);
     expect(formDataIdFromDraftId({ ...base, eventId: "evt-2" })).not.toBe(
       EXPECTED_ID,
     );

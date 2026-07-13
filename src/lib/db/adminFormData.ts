@@ -31,11 +31,7 @@ import {
   readFormDataStatus,
 } from "@/lib/db/formDataStatus";
 import { onSubmissionAccepted } from "@/features/responses/on-submission-accepted";
-import type {
-  FormDataDoc,
-  FormDataStatus,
-  WithId,
-} from "@/types/collection";
+import type { FormDataDoc, FormDataStatus, WithId } from "@/types/collection";
 
 export const FORM_DATA_COLLECTION = "FormData";
 
@@ -46,9 +42,8 @@ export const FORM_DATA_LIST_LIMIT = 50;
 // bounded reference queries, limit 5).
 const REFERENCING_FORM_DATA_LIMIT = 5;
 
-const formDataAdminApi = createAdminCollectionApi<FormDataDoc>(
-  FORM_DATA_COLLECTION,
-);
+const formDataAdminApi =
+  createAdminCollectionApi<FormDataDoc>(FORM_DATA_COLLECTION);
 
 export const {
   create: createAdminFormData,
@@ -69,7 +64,10 @@ function formDataCol() {
 // Kept for existing callers; new list surfaces should use
 // listAdminFormDataForOrganization below (bounded, Firestore-ordered).
 export async function getAdminFormDataForOrganization(organizationId: string) {
-  const responses = await findAdminFormDataByField("organizationId", organizationId);
+  const responses = await findAdminFormDataByField(
+    "organizationId",
+    organizationId,
+  );
 
   return [...responses].sort((left, right) => {
     const leftSeconds =
@@ -308,7 +306,13 @@ export async function markAdminFormDataAttendeeCreated(input: {
 // ============================================================================
 
 export type TransitionAdminFormDataStatusResult =
-  | { ok: true; response: WithId<FormDataDoc> }
+  // acceptHookFailed (M5 S-1): true when the transition to "accepted"
+  // COMMITTED but the post-commit attendee hook threw — the submission is
+  // accepted with attendeeCreated still false ("hook pending"). Callers that
+  // promise an Attendee (manual registration) must heal by re-invoking the
+  // idempotent onSubmissionAccepted directly; the generic status route
+  // treats the accept itself as the success it is.
+  | { ok: true; response: WithId<FormDataDoc>; acceptHookFailed?: boolean }
   // NOT_FOUND -> route 404 (missing or cross-org/cross-event — IDOR-safe);
   // INVALID_TRANSITION -> route 409 (backward move, same-status repeat, or
   // anything out of "accepted" — terminal in M3).
@@ -340,63 +344,76 @@ export async function transitionAdminFormDataStatus(
 ): Promise<TransitionAdminFormDataStatusResult> {
   const ref = formDataCol().doc(input.responseId);
 
-  const result = await adminDb.runTransaction<TransitionAdminFormDataStatusResult>(
-    async (tx) => {
-      const snap = await tx.get(ref);
-      if (!snap.exists) {
-        return {
-          ok: false,
-          code: "NOT_FOUND",
-          message: "Response not found.",
-        };
-      }
+  const result =
+    await adminDb.runTransaction<TransitionAdminFormDataStatusResult>(
+      async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) {
+          return {
+            ok: false,
+            code: "NOT_FOUND",
+            message: "Response not found.",
+          };
+        }
 
-      const doc = snap.data() as FormDataDoc;
-      if (
-        doc.eventId !== input.eventId ||
-        doc.organizationId !== input.organizationId
-      ) {
-        // Cross-tenant ids are indistinguishable from missing ones.
-        return {
-          ok: false,
-          code: "NOT_FOUND",
-          message: "Response not found.",
-        };
-      }
+        const doc = snap.data() as FormDataDoc;
+        if (
+          doc.eventId !== input.eventId ||
+          doc.organizationId !== input.organizationId
+        ) {
+          // Cross-tenant ids are indistinguishable from missing ones.
+          return {
+            ok: false,
+            code: "NOT_FOUND",
+            message: "Response not found.",
+          };
+        }
 
-      const current = readFormDataStatus(doc);
-      if (!canTransitionFormDataStatus(current, input.to)) {
-        return {
-          ok: false,
-          code: "INVALID_TRANSITION",
-          message: `Cannot move a response from "${current}" to "${input.to}".`,
-        };
-      }
+        const current = readFormDataStatus(doc);
+        if (!canTransitionFormDataStatus(current, input.to)) {
+          return {
+            ok: false,
+            code: "INVALID_TRANSITION",
+            message: `Cannot move a response from "${current}" to "${input.to}".`,
+          };
+        }
 
-      const update: Record<string, FormDataStatus | FieldValue> = {
-        status: input.to,
-        statusUpdatedAt: FieldValue.serverTimestamp(),
-      };
-      if (input.to === "accepted") {
-        update.acceptedAt = FieldValue.serverTimestamp();
-      }
-
-      tx.update(ref, update);
-
-      return {
-        ok: true,
-        response: {
-          id: snap.id,
-          ...doc,
+        const update: Record<string, FormDataStatus | FieldValue> = {
           status: input.to,
-        },
-      };
-    },
-  );
+          statusUpdatedAt: FieldValue.serverTimestamp(),
+        };
+        if (input.to === "accepted") {
+          update.acceptedAt = FieldValue.serverTimestamp();
+        }
+
+        tx.update(ref, update);
+
+        return {
+          ok: true,
+          response: {
+            id: snap.id,
+            ...doc,
+            status: input.to,
+          },
+        };
+      },
+    );
 
   if (result.ok && input.to === "accepted") {
     const hook = input.onAccepted ?? onSubmissionAccepted;
-    await hook(result.response);
+    try {
+      await hook(result.response);
+    } catch (error) {
+      // M5 S-1: the accept commit stands — a submission is NEVER un-accepted
+      // because its side-effect hook crashed. Log loudly (this submission is
+      // now "accepted" + attendeeCreated:false, invisible on the roster until
+      // healed) and tell the caller instead of 500ing a committed accept.
+      console.error(
+        `[adminFormData] accept hook failed for submission ${input.responseId}; accepted with attendeeCreated pending`,
+        error,
+      );
+      return { ...result, acceptHookFailed: true };
+    }
   }
 
   return result;
