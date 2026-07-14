@@ -15,12 +15,27 @@ Done (do not redo):
 5. M6-T1 spec complete: `agents/docs/specs/m6-email-infrastructure.md`. L-4 spec reconciliation done.
 6. Suite baseline: lint clean, build exit 0, 72 files / 965 tests passing (+2 pending from M5-F1 test promotion).
 
-In progress:
-- **GitHub Agent: commit + merge M5** — M5-F1 fix APPROVED and D-1 CLOSED by QA (2026-07-13 ~23:40, closure appended to QA doc; sign-off stands, zero open defects, 72 files / 967 tests). All gates complete: M5-T1..T5 + M5-F1 fully approved end-to-end.
+- **M5 MILESTONE LANDED (2026-07-13 ~23:50):** commits `34becf4` (fix: S-1 + M5-F1 + tests) and `3d789fa` (docs: gate artifacts + M6-T1 spec) on feat/m5-attendees-checkin, pushed; merged to `prototype` as `4ae2745` (--no-ff, zero conflicts; also carried M0–M4 history since origin/prototype was stale at cd1951b); merge log `6be9276`; lint+build smoke PASS on prototype; pushed. `main` untouched. Working tree now on `prototype`, clean. Merge log: `agents/docs/git/m5-attendees-checkin.md`.
 
-Next steps, in order (per Orchestrator — full detail in `agents/docs/BACKLOG.md` Sprint 5 notes):
-3. github-agent: commit milestone (conventional messages, ticket IDs in body), merge `feat/m5-attendees-checkin` → `prototype` with `--no-ff`, smoke-check lint+build, log to `agents/docs/git/m5-attendees-checkin.md`. NEVER touch `main`. (IN PROGRESS)
-4. M6-T1: backend-agent + fullstack-developer in parallel from the M6-T1 spec, on `feat/m6-t1-email-infrastructure` cut from `prototype`. Then CR → SEC → QA pipeline.
+- **M6-T1 IMPLEMENTATION DONE (2026-07-14 ~04:00):** full email infrastructure on `feat/m6-t1-email-infrastructure` (uncommitted): src/lib/email/ (transport interface + fail-closed factory, dev-outbox transport, send-service, 14-tag merge renderer, merge-context, sender-identity, Zod schemas) + src/lib/db/ (adminEmailMessage.ts with create-if-absent dedupe + guarded transitions, adminEmailSettings.ts, emailMessageId.ts) + types, deny-all rules, 3 composite indexes, data-model doc, 6 test files. Suite: 78 files / 1050 tests passing (+83), lint clean, build exit 0.
+
+- **M6-T1 code review APPROVED (2026-07-14 ~04:30)** with 3 Should-fix to land before Security (report: agents/docs/reviews/m6-email-infrastructure.md): S-1 tenancy guard missing on markAdminEmailMessageSent/Failed (adminEmailMessage.ts:171-226); S-2 deliverQueuedMessage discards transition results (send-service.ts:174-186); S-3 subject-template control chars not stripped at validateRenderedEmailContent chokepoint (schemas.ts:102-120). 4 nits optional. NOTE: named subagents unavailable mid-loop; gates run via general-purpose agents acting the roles, same artifact conventions.
+
+- **M6-T1 S-1/S-2/S-3 fixes DONE (2026-07-14 ~09:50):** scoped tenancy guard on markSent/markFailed (typed NOT_FOUND, zero writes cross-org); deliverQueuedMessage checks all transition results (typed failed outcome + console.error, shared markMessageFailedChecked helper); chokepoint strips C0/DEL from rendered subject and callers persist/send the sanitized content. +4 regression tests, data-model doc synced. lint clean, build clean, 78 files / 1054 tests passing.
+
+- **M6-T1 code review APPROVED incl. S-1/S-2/S-3 re-review (2026-07-14 ~10:00)**, verdict in agents/docs/reviews/m6-email-infrastructure.md. 78 files / 1054 tests.
+
+- **M6-T1 security PASS (2026-07-14 ~10:15):** 0 Critical/High/Medium, 3 Low (Unicode separator stripping defense-in-depth; pre-existing npm audit items; length bounds on kind/dedupeKey for T2/T3). Report: agents/docs/security/m6-email-infrastructure.md.
+
+- **M6-T1 QA SIGNED OFF (2026-07-14 ~10:30):** zero defects, every spec AC traced to a test or code line, 78 files / 1054 tests. Report: agents/docs/qa/m6-email-infrastructure.md. ALL THREE GATES PASSED.
+
+In progress:
+- **Commit + merge M6-T1 → prototype** (github-agent role): commit code + docs on feat/m6-t1-email-infrastructure, push, merge --no-ff into prototype, smoke lint+build, push, merge log agents/docs/git/m6-email-infrastructure.md. NEVER main.
+
+Next steps, in order:
+5. Gate M6-T1: code review APPROVED → fix S-1..S-3 (IN PROGRESS) → re-review fix diff → security (focus: header injection via merge fields, no secrets client-side, org isolation of outbox) → QA, artifacts in agents/docs/{reviews,security,qa}/m6-email-infrastructure.md.
+6. Commit + merge feat/m6-t1-email-infrastructure → prototype (--no-ff, smoke-check, merge log). NEVER main.
+7. Then M6-T2 (emails admin screen — needs research/design first).
 
 Human tasks (unchanged): create `DRAFT_TOKEN_SECRET`, `QR_TOKEN_SECRET`, `SCANNER_SESSION_SECRET` in App Hosting before prod deploy; answer email-provider question (Q2) when convenient.
 
