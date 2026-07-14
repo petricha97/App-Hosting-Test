@@ -312,6 +312,24 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------
+    // M6 — email infrastructure. BOTH server-only (spec:
+    // agents/docs/specs/m6-email-infrastructure.md "Shared decisions").
+    //
+    // EmailMessage: the outbox / send log — recipient PII + rendered
+    // message bodies; reads/writes go through write:events-gated admin
+    // routes (T2/T3) and the server-side send service only. EmailSettings:
+    // per-event sender identity — admin-route CRUD only; a client-writable
+    // from-address would allow header forgery. DENY ALL.
+    // ------------------------------------------------------------------
+    match /EmailMessage/{messageId} {
+      allow read, write: if false;
+    }
+
+    match /EmailSettings/{eventId} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------
     // Server-only collections (no production client-SDK access exists):
     // Form authoring, registration submissions (PII), form templates, Puck
     // pages and promotion templates are all read AND written through admin

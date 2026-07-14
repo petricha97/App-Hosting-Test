@@ -208,11 +208,7 @@ export interface EventDoc {
 // TicketTypes/EventPromotions). At most one of each per form; fixed keys
 // "ticket" / "promo_code". See src/features/form/schema.ts.
 export type FormFieldType =
-  | "text"
-  | "email"
-  | "textarea"
-  | "ticket-selector"
-  | "promo-code";
+  "text" | "email" | "textarea" | "ticket-selector" | "promo-code";
 export type FormFieldOrigin = "mandatory" | "template" | "event";
 
 export type FormStatus = "draft" | "published";
@@ -417,11 +413,7 @@ export interface TaxDoc {
 
 export type PaymentMethod = "card" | "invoice" | "comp" | "none";
 export type PaymentStatus =
-  | "pending"
-  | "paid"
-  | "outstanding"
-  | "comped"
-  | "failed";
+  "pending" | "paid" | "outstanding" | "comped" | "failed";
 
 // Server-computed integer amounts, all in OrderDoc.currency minor units.
 export interface OrderAmounts {
@@ -531,10 +523,7 @@ export interface RegistrationPathDoc {
 // ticket_options -> "Ticket & Options", summary -> "Registration Summary",
 // payment -> "Payment".
 export type RegistrationDraftStep =
-  | "personal_info"
-  | "ticket_options"
-  | "summary"
-  | "payment";
+  "personal_info" | "ticket_options" | "summary" | "payment";
 
 // An in-progress public registration. Doubles as the abandoned-registration
 // record (M3-T5): completed drafts are DELETED at finalize (only after Order
@@ -674,6 +663,101 @@ export interface CheckinTeamMemberDoc {
   isActive: boolean;
   // Bumped on session exchange and on each resolve/confirm; null = never used.
   lastSeenAt: Timestamp | FieldValue | null;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+// ============================================================================
+// M6 — Email infrastructure (spec: agents/docs/specs/m6-email-infrastructure.md)
+//
+// Both are ROOT collections and BOTH are SERVER-ONLY: no client repo pairs
+// exist and firestore.rules denies all client access (EmailMessage carries
+// recipient PII + rendered message bodies).
+// ============================================================================
+
+// Status flow: queued -> sent | failed; failed -> queued (explicit retry,
+// src/lib/db/adminEmailMessage.ts) -> sent | failed. "sent" is TERMINAL —
+// a sent doc is never re-sent or mutated (a re-send is a NEW logical send
+// under a new dedupeKey). No "sending" state in T1: the dev transport is
+// synchronous; a real async provider may add one later (documented seam).
+export type EmailMessageStatus = "queued" | "sent" | "failed";
+
+export interface EmailRecipient {
+  name: string;
+  // Stored lowercased (Zod-normalized at enqueue) — matches the lowercased
+  // form hashed into the deterministic doc id (emailMessageId.ts).
+  email: string;
+}
+
+// Resolved sender identity SNAPSHOT frozen at enqueue (from EmailSettings or
+// the read-time defaults) — never merge-rendered, never client-supplied.
+export interface EmailFromIdentity {
+  name: string;
+  address: string;
+}
+
+// Last transport failure — message is TRUNCATED (bounded length, no stack
+// traces / PII; see EMAIL_LAST_ERROR_MAX_CHARS in adminEmailMessage.ts).
+export interface EmailMessageLastError {
+  message: string;
+  at: Timestamp | FieldValue;
+}
+
+// Root collection `EmailMessage` — the outbox / send log, one doc per
+// recipient per logical send. Doc id is DETERMINISTIC:
+// emailMessageId(org, event, kind, recipientEmailLower, dedupeKey)
+// (src/lib/db/emailMessageId.ts) — replayed hooks / double-clicked "send"
+// collapse onto exactly one doc via create-if-absent (never double-send by
+// construction). Stores the RENDERED snapshot (audit parity with
+// OrderSnapshot: later template edits never rewrite what was sent).
+export interface EmailMessageDoc {
+  organizationId: string;
+  eventId: string;
+  // null until M6-T2 ships the EmailDefinition entity; kind is the free-text
+  // join key T2 uses to attach history to definitions without a T1 schema
+  // change (e.g. "confirmation-paid", "manual").
+  definitionId: string | null;
+  kind: string;
+  // Caller-supplied per logical send (e.g. submissionId for a confirmation,
+  // an ISO date for a scheduled blast, a client-minted uuid for ad-hoc
+  // manual sends). Part of the deterministic doc id.
+  dedupeKey: string;
+  recipient: EmailRecipient;
+  attendeeId: string | null;
+  submissionId: string | null;
+  from: EmailFromIdentity;
+  replyTo: string | null;
+  // Rendered snapshot, frozen at enqueue — the transport receives these
+  // exact strings; templates live with definitions (T2/T4).
+  subject: string;
+  bodyHtml: string;
+  bodyText: string;
+  status: EmailMessageStatus;
+  // Completed transport attempts (incremented when an attempt lands
+  // sent/failed — see adminEmailMessage.ts).
+  attemptCount: number;
+  lastError: EmailMessageLastError | null;
+  providerMessageId: string | null;
+  provider: "dev-outbox";
+  queuedAt: Timestamp | FieldValue;
+  sentAt: Timestamp | FieldValue | null;
+  failedAt: Timestamp | FieldValue | null;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+// Root collection `EmailSettings`, DOC ID = eventId (1:1 per event, lazy —
+// CheckinConfig pattern: no doc until the first save; reads without a doc
+// resolve the documented defaults IN MEMORY, zero writes — see
+// src/lib/email/sender-identity.ts). Zod-validated at write AND re-checked
+// at send (src/lib/email/schemas.ts).
+export interface EmailSettingsDoc {
+  organizationId: string;
+  eventId: string;
+  fromName: string;
+  // Lowercased RFC-shape email, <= 254 chars, no control characters.
+  fromAddress: string;
+  replyTo: string | null;
   createdAt: Timestamp | FieldValue;
   updatedAt: Timestamp | FieldValue;
 }
