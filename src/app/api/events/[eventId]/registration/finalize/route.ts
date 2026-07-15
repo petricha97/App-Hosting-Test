@@ -18,6 +18,7 @@ import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { z } from "zod";
 
+import { fireApprovalPendingEmail } from "@/features/emails/server/fire-on-submit-email";
 import {
   loadDraftByToken,
   loadPublicRegistrationContext,
@@ -100,7 +101,10 @@ export async function POST(request: Request, context: RouteContext) {
   if (!rate.allowed) {
     return NextResponse.json(
       { error: "Too many attempts — please wait a moment." },
-      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rate.retryAfterSeconds) },
+      },
     );
   }
 
@@ -113,7 +117,10 @@ export async function POST(request: Request, context: RouteContext) {
 
   const parsed = FinalizeRequestSchema.safeParse(rawBody.body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request body." },
+      { status: 400 },
+    );
   }
 
   const draft = await loadDraftByToken({ eventId, token: parsed.data.token });
@@ -129,7 +136,10 @@ export async function POST(request: Request, context: RouteContext) {
     pathId: draft.pathId,
   });
   if (!loaded.ok) {
-    return NextResponse.json({ error: loaded.error }, { status: loaded.status });
+    return NextResponse.json(
+      { error: loaded.error },
+      { status: loaded.status },
+    );
   }
   const { context: ctx } = loaded;
 
@@ -205,6 +215,28 @@ export async function POST(request: Request, context: RouteContext) {
     pathId: ctx.path.id,
     ticketLabel,
   });
+
+  // --- M6-T3: on-submit trigger — fires ONLY when THIS call actually wrote
+  // a brand-new "new" submission (replay safety per spec §1: a network-
+  // retried finalize that lands on `created: false` must not re-fire).
+  // Isolated from the response — an email problem here must never surface
+  // as a finalize failure (the Order + FormData already committed above).
+  if (formDataResult.created) {
+    try {
+      await fireApprovalPendingEmail({
+        organizationId: ctx.organizationId,
+        eventId,
+        event: ctx.event,
+        submissionId: formDataResult.formDataId,
+        submission: formDataResult.formData.submission,
+      });
+    } catch (error) {
+      console.error(
+        `[finalize] on-submit approval-pending email crashed for submission ${formDataResult.formDataId}`,
+        error,
+      );
+    }
+  }
 
   // --- 3. Draft delete — only now that Order AND FormData both exist. ---
   await deleteAdminRegistrationDraft(draft.id);

@@ -35,6 +35,7 @@
 // labels) instead of crashing — a submission must never become
 // un-checkinable because a denorm source vanished.
 
+import { fireOnAcceptConfirmationEmail } from "@/features/emails/server/fire-on-accept-email";
 import { createAdminAttendeeIfAbsent } from "@/lib/db/adminAttendee";
 import { markAdminFormDataAttendeeCreated } from "@/lib/db/adminFormData";
 import { getAdminOrderForEvent } from "@/lib/db/adminOrder";
@@ -123,7 +124,7 @@ export async function onSubmissionAccepted(
       : ATTENDEE_LABEL_FALLBACK;
 
   // 3. Create-if-absent at the deterministic id (idempotent replay).
-  await createAdminAttendeeIfAbsent({
+  const attendeeResult = await createAdminAttendeeIfAbsent({
     organizationId,
     eventId,
     submissionId: submission.id,
@@ -142,4 +143,25 @@ export async function onSubmissionAccepted(
     formDataId: submission.id,
     qrTokenHash: storedHash === null ? qrTokenHash : undefined,
   });
+
+  // 5. M6-T3 on-accept trigger — fires in the SAME at-most-once envelope as
+  // the attendee create above (dedupeKey = attendeeId, so a healing
+  // re-invoke of this whole hook, S-1's documented path, is also replay-
+  // safe). fireOnAcceptConfirmationEmail never throws by contract, but this
+  // try/catch is a second, independent guarantee (defense in depth) that a
+  // regression there can NEVER retroactively turn this already-committed
+  // accept + attendeeCreated:true into a reported "accept hook failure".
+  try {
+    await fireOnAcceptConfirmationEmail({
+      organizationId,
+      eventId,
+      submissionId: submission.id,
+      attendee: attendeeResult.attendee,
+    });
+  } catch (error) {
+    console.error(
+      `[on-submission-accepted] M6-T3 confirmation email crashed for attendee ${attendeeResult.attendeeId}; accept + attendeeCreated already committed`,
+      error,
+    );
+  }
 }

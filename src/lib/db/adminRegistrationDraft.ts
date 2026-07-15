@@ -18,7 +18,7 @@
 // reach this module (promotionId only).
 import "server-only";
 
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { adminDb } from "@/app/lib/firestore";
 import { constantTimeStringEqual } from "@/lib/draft-token";
@@ -188,17 +188,21 @@ export async function updateAdminRegistrationDraftStep(
 export async function incrementAdminRegistrationDraftAttempt(
   draftId: string,
 ): Promise<void> {
-  await registrationDraftCol().doc(draftId).update({
-    attempt: FieldValue.increment(1),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
+  await registrationDraftCol()
+    .doc(draftId)
+    .update({
+      attempt: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
 }
 
 // Hard delete. Two callers: (1) finalize — ONLY after the Order AND the
 // FormData doc both exist (T3 AC-11); (2) the manual admin purge route
 // (write:events). No auto-delete/TTL job exists in M3 (retention is an
 // M6-T3/M8 decision).
-export async function deleteAdminRegistrationDraft(draftId: string): Promise<void> {
+export async function deleteAdminRegistrationDraft(
+  draftId: string,
+): Promise<void> {
   await registrationDraftCol().doc(draftId).delete();
 }
 
@@ -212,16 +216,28 @@ export type AdminRegistrationDraftListItem = WithId<RegistrationDraftDoc> & {
 // composite index RegistrationDraft: eventId ASC, organizationId ASC,
 // updatedAt DESC. isAbandoned = now - updatedAt > ABANDONED_AFTER_MS,
 // computed per item (nowMs injectable for tests).
+//
+// startAfterUpdatedAtMs (M6-T3 addition): cursor for the abandoned-24h
+// trigger's paged sweep (agents/docs/specs/m6-lifecycle-triggers.md §8
+// volume safety) — same "load more" convention as every other admin list's
+// cursor param, added here rather than forked into a parallel query.
 export async function getAdminRegistrationDraftsForEvent(input: {
   eventId: string;
   organizationId: string;
   limit?: number;
   nowMs?: number;
+  startAfterUpdatedAtMs?: number;
 }): Promise<AdminRegistrationDraftListItem[]> {
-  const snap = await registrationDraftCol()
+  let query = registrationDraftCol()
     .where("eventId", "==", input.eventId)
     .where("organizationId", "==", input.organizationId)
-    .orderBy("updatedAt", "desc")
+    .orderBy("updatedAt", "desc");
+
+  if (input.startAfterUpdatedAtMs !== undefined) {
+    query = query.startAfter(Timestamp.fromMillis(input.startAfterUpdatedAtMs));
+  }
+
+  const snap = await query
     .limit(input.limit ?? REGISTRATION_DRAFT_LIST_LIMIT)
     .get();
 

@@ -144,24 +144,17 @@ describe("QA — LifecycleEmailsTab: default rows + row-open (spec §1 AC-1, row
   });
 });
 
-describe("QA — TriggerCell M6-T3 tooltip affordance (spec §1 AC-4)", () => {
-  it("shows the automation-not-built affordance on every non-manual row", () => {
+describe("QA — TriggerCell M6-T3 tooltip retirement (spec: m6-lifecycle-triggers.md)", () => {
+  it("no row renders the M6-T3-not-built affordance — every trigger type is live now", () => {
     renderTab();
-    // 7 of the 8 defaults are non-manual (all but "invitation").
-    expect(
-      screen.getAllByText("Automation not yet built", { selector: ".sr-only" }),
-    ).toHaveLength(7);
+    expect(screen.queryByText("Automation not yet built")).toBeNull();
   });
 
-  it("renders no automation affordance on the Manual-trigger row", () => {
-    renderTab([
-      def({
-        kind: "invitation",
-        name: "Invitation",
-        trigger: { type: "manual" },
-      }),
-    ]);
-    expect(screen.queryByText("Automation not yet built")).toBeNull();
+  it("still renders the canonical trigger label on both manual and automated rows", () => {
+    renderTab();
+    expect(screen.getByText("Manual")).toBeTruthy();
+    expect(screen.getByText("Auto · on submit")).toBeTruthy();
+    expect(screen.getByText("Auto · 24h after drop-off")).toBeTruthy();
   });
 });
 

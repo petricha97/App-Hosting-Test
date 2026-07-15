@@ -139,15 +139,6 @@ export function triggerDisplayLabel(
   }
 }
 
-// Non-manual rows carry the M6-T3-not-built info affordance (spec §1
-// AC-4 / design trigger-cell.tsx) — manual rows are honest as-is (a real
-// per-definition test send exists).
-export function isAutomatedTrigger(
-  trigger: SerializedEmailDefinitionTrigger,
-): boolean {
-  return trigger.type !== "manual";
-}
-
 // Resolves a send-log row's "Email" column: the definition's name when its
 // kind matches a known definition, else the raw kind chip (spec §8-4 —
 // deleted/unknown kinds NEVER hide the row or crash the resolver).

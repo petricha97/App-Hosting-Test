@@ -34,6 +34,7 @@ const {
   createAdminFormDataForDraft,
   getAdminTicketTypeForEvent,
   placeOrder,
+  fireApprovalPendingEmail,
 } = vi.hoisted(() => {
   const callOrder: string[] = [];
   return {
@@ -51,6 +52,9 @@ const {
     createAdminFormDataForDraft: vi.fn(),
     getAdminTicketTypeForEvent: vi.fn(),
     placeOrder: vi.fn(),
+    fireApprovalPendingEmail: vi.fn(async () => {
+      callOrder.push("fireApprovalPendingEmail");
+    }),
   };
 });
 
@@ -67,6 +71,12 @@ vi.mock("@/lib/db/adminRegistrationDraft", () => ({
 vi.mock("@/lib/db/adminFormData", () => ({ createAdminFormDataForDraft }));
 vi.mock("@/lib/db/adminTicketType", () => ({ getAdminTicketTypeForEvent }));
 vi.mock("@/lib/orders/place-order", () => ({ placeOrder }));
+// M6-T3: the on-submit trigger module — mocked at the boundary so these
+// finalize-contract tests stay DAL-free (the real module would otherwise
+// touch Firestore for real, since this file never mocks the email DAL).
+vi.mock("@/features/emails/server/fire-on-submit-email", () => ({
+  fireApprovalPendingEmail,
+}));
 
 import { POST } from "@/app/api/events/[eventId]/registration/finalize/route";
 
@@ -120,7 +130,11 @@ function makeDraft(overrides: Record<string, unknown> = {}) {
     formId: "form-1",
     draftTokenHash: hashDraftToken(token),
     lastStepReached: "summary",
-    stepAnswers: { first_name: "Ada", last_name: "Lovelace", email: "ada@x.co" },
+    stepAnswers: {
+      first_name: "Ada",
+      last_name: "Lovelace",
+      email: "ada@x.co",
+    },
     ticketTypeId: "tick-1",
     registrationTypeId: "rt-1",
     promotionId: "promo-1",
@@ -212,18 +226,30 @@ beforeEach(() => {
     callOrder.push("createFormData");
     return {
       formDataId: FORM_DATA_ID,
-      formData: { id: FORM_DATA_ID },
+      formData: {
+        id: FORM_DATA_ID,
+        submission: {
+          first_name: "Ada",
+          last_name: "Lovelace",
+          email: "ada@x.co",
+        },
+      },
       created: true,
     };
   });
 });
 
 describe("POST finalize — happy path + contractual order", () => {
-  it("runs placeOrder → createFormData → deleteDraft in exactly that order", async () => {
+  it("runs placeOrder → createFormData → on-submit email → deleteDraft in exactly that order", async () => {
     const response = await POST(makeRequest({ token }), makeContext());
 
     expect(response.status).toBe(200);
-    expect(callOrder).toEqual(["placeOrder", "createFormData", "deleteDraft"]);
+    expect(callOrder).toEqual([
+      "placeOrder",
+      "createFormData",
+      "fireApprovalPendingEmail",
+      "deleteDraft",
+    ]);
 
     const expectedSvg = await QRCode.toString(QR_TOKEN, {
       type: "svg",
@@ -333,8 +359,18 @@ describe("POST finalize — happy path + contractual order", () => {
     getAdminTicketTypeForEvent.mockImplementation(
       async ({ ticketTypeId }: { ticketTypeId: string }) =>
         ticketTypeId === "tick-1"
-          ? { id: "tick-1", organizationId: ORG_ID, eventId: EVENT_ID, name: "General Admission" }
-          : { id: "tick-2", organizationId: ORG_ID, eventId: EVENT_ID, name: "VIP" },
+          ? {
+              id: "tick-1",
+              organizationId: ORG_ID,
+              eventId: EVENT_ID,
+              name: "General Admission",
+            }
+          : {
+              id: "tick-2",
+              organizationId: ORG_ID,
+              eventId: EVENT_ID,
+              name: "VIP",
+            },
     );
 
     const response = await POST(makeRequest({ token }), makeContext());
@@ -377,6 +413,53 @@ describe("POST finalize — happy path + contractual order", () => {
   });
 });
 
+describe("POST finalize — M6-T3 on-submit trigger (spec m6-lifecycle-triggers §1)", () => {
+  it("fires approval-pending exactly once with submissionId as dedupe input, when created:true", async () => {
+    await POST(makeRequest({ token }), makeContext());
+
+    expect(fireApprovalPendingEmail).toHaveBeenCalledTimes(1);
+    expect(fireApprovalPendingEmail).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      eventId: EVENT_ID,
+      event: publishedEvent,
+      submissionId: FORM_DATA_ID,
+      submission: {
+        first_name: "Ada",
+        last_name: "Lovelace",
+        email: "ada@x.co",
+      },
+    });
+  });
+
+  it("a network-retried finalize (createFormData returns created:false) fires ZERO emails (replay safety, AC-1)", async () => {
+    createAdminFormDataForDraft.mockImplementation(async () => {
+      callOrder.push("createFormData");
+      return {
+        formDataId: FORM_DATA_ID,
+        formData: { id: FORM_DATA_ID },
+        created: false,
+      };
+    });
+
+    const response = await POST(makeRequest({ token }), makeContext());
+    expect(response.status).toBe(200);
+    expect(fireApprovalPendingEmail).not.toHaveBeenCalled();
+  });
+
+  it("an email-hook crash never fails the finalize response (isolation)", async () => {
+    fireApprovalPendingEmail.mockRejectedValueOnce(new Error("boom"));
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const response = await POST(makeRequest({ token }), makeContext());
+
+    expect(response.status).toBe(200);
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+});
+
 describe("POST finalize — typed errors", () => {
   it("PAYMENT_FAILED → 402 and attempt++ (ONLY failure that bumps it)", async () => {
     placeOrder.mockImplementation(async () => {
@@ -393,7 +476,9 @@ describe("POST finalize — typed errors", () => {
     await expect(response.json()).resolves.toMatchObject({
       code: "PAYMENT_FAILED",
     });
-    expect(incrementAdminRegistrationDraftAttempt).toHaveBeenCalledWith(DRAFT_ID);
+    expect(incrementAdminRegistrationDraftAttempt).toHaveBeenCalledWith(
+      DRAFT_ID,
+    );
     expect(createAdminFormDataForDraft).not.toHaveBeenCalled();
     expect(deleteAdminRegistrationDraft).not.toHaveBeenCalled();
   });
@@ -478,7 +563,9 @@ describe("POST finalize — gates", () => {
     );
     const response = await POST(makeRequest({ token }), makeContext());
     expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toMatchObject({ code: "OUT_OF_ORDER" });
+    await expect(response.json()).resolves.toMatchObject({
+      code: "OUT_OF_ORDER",
+    });
     expect(placeOrder).not.toHaveBeenCalled();
   });
 

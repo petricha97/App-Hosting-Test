@@ -18,18 +18,29 @@ import { vi } from "vitest";
 
 import { formFieldSchema } from "@/features/form/schema";
 
-const { getAdminPublishedEventById, getAdminPublishedFormForPublicEvent, createAdminFormData } =
-  vi.hoisted(() => ({
-    getAdminPublishedEventById: vi.fn(),
-    getAdminPublishedFormForPublicEvent: vi.fn(),
-    createAdminFormData: vi.fn(),
-  }));
+const {
+  getAdminPublishedEventById,
+  getAdminPublishedFormForPublicEvent,
+  createAdminFormData,
+  fireApprovalPendingEmail,
+} = vi.hoisted(() => ({
+  getAdminPublishedEventById: vi.fn(),
+  getAdminPublishedFormForPublicEvent: vi.fn(),
+  createAdminFormData: vi.fn(),
+  fireApprovalPendingEmail: vi.fn(),
+}));
 
 vi.mock("@/lib/db/adminEvent", () => ({ getAdminPublishedEventById }));
 vi.mock("@/lib/db/adminForm", () => ({ getAdminPublishedFormForPublicEvent }));
 vi.mock("@/lib/db/adminFormData", () => ({ createAdminFormData }));
 vi.mock("firebase-admin/firestore", () => ({
   FieldValue: { serverTimestamp: () => "SERVER_TIMESTAMP" },
+}));
+// M6-T3: the on-submit trigger module — mocked at the boundary (the real
+// module would otherwise touch Firestore for real, since this file never
+// mocks the email DAL).
+vi.mock("@/features/emails/server/fire-on-submit-email", () => ({
+  fireApprovalPendingEmail,
 }));
 
 import { POST } from "@/app/api/events/[eventId]/register/route";
@@ -95,6 +106,7 @@ beforeEach(() => {
   getAdminPublishedEventById.mockReset();
   getAdminPublishedFormForPublicEvent.mockReset();
   createAdminFormData.mockReset();
+  fireApprovalPendingEmail.mockReset();
 });
 
 describe("POST /api/events/[eventId]/register — gates", () => {
@@ -214,5 +226,57 @@ describe("POST /api/events/[eventId]/register — happy path", () => {
         organizationId: "org-1",
       }),
     );
+  });
+});
+
+describe("POST /api/events/[eventId]/register — M6-T3 on-submit trigger (spec m6-lifecycle-triggers §1)", () => {
+  const validSubmission = {
+    firstName: "  Ada  ",
+    lastName: "Lovelace",
+    email: "ada@example.com",
+  };
+
+  it("fires approval-pending exactly once, keyed on the fresh submissionId (legacy flow has no replay path)", async () => {
+    getAdminPublishedEventById.mockResolvedValue(publishedEvent);
+    getAdminPublishedFormForPublicEvent.mockResolvedValue(makeForm());
+    createAdminFormData.mockResolvedValue("sub-1");
+
+    const response = await POST(
+      makeRequest({ submission: validSubmission }),
+      makeContext(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fireApprovalPendingEmail).toHaveBeenCalledTimes(1);
+    expect(fireApprovalPendingEmail).toHaveBeenCalledWith({
+      organizationId: "org-form",
+      eventId: EVENT_ID,
+      event: publishedEvent,
+      submissionId: "sub-1",
+      submission: {
+        firstName: "Ada",
+        lastName: "Lovelace",
+        email: "ada@example.com",
+      },
+    });
+  });
+
+  it("an email-hook crash never fails the registration response (isolation)", async () => {
+    getAdminPublishedEventById.mockResolvedValue(publishedEvent);
+    getAdminPublishedFormForPublicEvent.mockResolvedValue(makeForm());
+    createAdminFormData.mockResolvedValue("sub-1");
+    fireApprovalPendingEmail.mockRejectedValueOnce(new Error("boom"));
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const response = await POST(
+      makeRequest({ submission: validSubmission }),
+      makeContext(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

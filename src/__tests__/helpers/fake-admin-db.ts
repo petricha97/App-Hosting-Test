@@ -68,8 +68,13 @@ export function createFakeAdminDb() {
         q.filters.every(([field, op, value]) => {
           if (op === "==") return data[field] === value;
           if (op === "array-contains") {
-            return Array.isArray(data[field]) &&
-              (data[field] as unknown[]).includes(value);
+            return (
+              Array.isArray(data[field]) &&
+              (data[field] as unknown[]).includes(value)
+            );
+          }
+          if (op === "in") {
+            return Array.isArray(value) && value.includes(data[field]);
           }
           throw new Error(`fake-admin-db: unsupported operator "${op}"`);
         }),
@@ -138,7 +143,13 @@ export function createFakeAdminDb() {
         );
       },
       limit(n) {
-        return makeQuery(collectionPath, filters, orderBys, n, startAfterValues);
+        return makeQuery(
+          collectionPath,
+          filters,
+          orderBys,
+          n,
+          startAfterValues,
+        );
       },
       startAfter(...values) {
         return makeQuery(collectionPath, filters, orderBys, limitN, values);
@@ -162,7 +173,11 @@ export function createFakeAdminDb() {
     __isRef: true;
     id: string;
     path: string;
-    get(): Promise<{ exists: boolean; id: string; data: () => DocData | undefined }>;
+    get(): Promise<{
+      exists: boolean;
+      id: string;
+      data: () => DocData | undefined;
+    }>;
     create(data: DocData): Promise<void>;
     set(data: DocData): Promise<void>;
     update(data: DocData): Promise<void>;
@@ -180,7 +195,11 @@ export function createFakeAdminDb() {
       },
       async get() {
         const data = store.get(path);
-        return { exists: data !== undefined, id: path.split("/").pop()!, data: () => data };
+        return {
+          exists: data !== undefined,
+          id: path.split("/").pop()!,
+          data: () => data,
+        };
       },
       async create(data) {
         if (store.has(path)) throw new Error(`ALREADY_EXISTS: ${path}`);
