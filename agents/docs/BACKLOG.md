@@ -37,7 +37,7 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M5-F1 | D-1 fix: drop sold-out precheck blocking idempotent replay | M5 | Done (2026-07-13) | — | S5 |
 | M6-T1 | Email infrastructure (provider + outbox DAL) | M6 | Done (2026-07-14) | — | S6 |
 | M6-T2 | Emails admin screen | M6 | Done (2026-07-15) | — | S6 |
-| M6-T3 | Lifecycle triggers & audience segmentation | M6 | Todo | — | — |
+| M6-T3 | Lifecycle triggers & audience segmentation | M6 | Done (2026-07-16) | — | S6 |
 | M6-T4 | Email designer via shared block engine | M6 | Todo | — | — |
 | M7-T1 | Reporting aggregates + event report summaries | M7 | Todo | — | — |
 | M7-T2 | Report templates library | M7 | Todo | — | — |
@@ -141,6 +141,19 @@ M6-T1 is confirmed next in dependency order: it has no hard code dependency, blo
 - **Q2 (email provider)** remains open — proceed with the documented default (dev outbox transport + provider interface) so no blocking; real transport swaps in when Q2 is answered.
 - M5 merged into `prototype` first, so the M6 branch (`feat/m6-t1-email-infrastructure`) cuts from an integration branch that already contains attendee/QR code.
 - M6-T1 kicks off at **Research** (RL merge-tag catalog + send-log spec), per the standard sequence.
+
+### 2026-07-15 — M6-T3 Research complete; Design skipped (no new UI), Implement kicks off in parallel
+Research Lead produced `agents/docs/specs/m6-lifecycle-triggers.md`: exact firing conditions for all 6 trigger types (all already stored/displayed by T2 — this ticket only adds evaluation), 6 audience segment query definitions, a per-trigger-type deterministic `dedupeKey` scheme reusing T1's existing create-if-absent safety mechanism (no new "already sent" tracking), "Email all" wiring sharing the automation's exact dedupe key, and paging/volume-safety requirements for large events. Scheduling mechanism (Cloud Scheduler vs. Cloud Functions vs. opportunistic) is explicitly left as an open architecture question for Backend to resolve during Implement, not decided by Research. Spec's own Non-goals: **no new screens or UI components** — every affordance (trigger tooltips, "Email all" button) already shipped in T2; this ticket only makes them functional. Per the same precedent M6-T1 used (no UI → Design skipped), this ticket skips Design and moves straight to **In Dev**.
+
+Real-time hooks (§1 on-submit, §2 on-accept) have no dependency on the periodic evaluator's architecture, so **Backend and Full-Stack are dispatched in parallel**: Backend owns the periodic evaluator (audience segment queries, Order paymentStatus query + index, the internal scheduler-invocation entrypoint with shared-secret auth, paging/volume safety) and the scheduling-mechanism architecture decision; Full-Stack owns the real-time hooks, the "Email all" API route, and the small UI wiring (trigger-cell tooltip condition, abandoned-tab button enable + result copy).
+
+### 2026-07-16 — M6-T3 CLOSED (DoD verified)
+Full gate sequence, one fix cycle:
+- **Code Review:** APPROVED. 0 Blockers, 0 Should-fix, 4 Nits — one (N-3, missing rate-limiting on the new internal entrypoint) explicitly flagged for Security to make a deliberate call on. `agents/docs/reviews/m6-lifecycle-triggers.md`.
+- **Security:** PASS. 0 Critical/High, 1 Medium (the internal entrypoint's Zod ceilings permitted up to 200×500×200 per call with zero rate-limiting — fail-closed secret auth alone judged insufficient, different threat model than brute-force), 1 Low (`drafts/email-all/route.ts` failed its entire batch and echoed raw unmasked emails in error responses when any one recipient was invalid). Both fixed (rate limit 6/min + tightened ceilings to 50/200/40; per-recipient pre-validation isolating invalid entries) and independently re-verified. `agents/docs/security/m6-lifecycle-triggers.md`.
+- **QA:** SIGNED OFF, zero defects across all 9 spec sections. Verified dedupeKey formulas line-by-line for all 5 trigger types, the three-layer accept-hook failure isolation, per-page `enabled` re-check discipline, and the two-condition `accepted-invoice` eligibility against deliberately tricky fixtures. Two non-blocking observations disclosed (not defects): the `all-invitees` no-op has no organizer-facing UI signal — spec's own OQ-1 already classifies this as accepted/deferred; the Email-all double-click test is sequential not truly concurrent, disclosed honestly, no behavioral risk since the underlying dedupe is a real Firestore transaction. `agents/docs/qa/m6-lifecycle-triggers.md`.
+- **Checks:** lint clean, build exit 0, `npm test -- --run` 109 files / 1317 tests passing on the final working tree.
+- **Orchestrator note:** this ticket's implementation (Backend + Full-Stack) was dispatched in parallel for the first time this session, with strict disjoint file ownership — worked cleanly, no conflicts. Two of the three background-agent interruptions this ticket hit were a genuine account usage-limit error (not the recurring 600s stream-watchdog stall) — both recovered via resume with zero work lost, confirmed by direct working-tree inspection each time rather than trusting terminal status. A third stall (Code Review) also recovered cleanly with no report yet written, so nothing to lose.
 
 Rationale for reordering vs. the AGENT_LOOP.md seed:
 - The **Event shell** (grouped event-level sidebar seen in every `event-*.html`) must exist before any new event sub-screen, so it is M0, not part of "Events core".
