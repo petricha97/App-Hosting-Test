@@ -34,9 +34,9 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M5-T3 | Abandoned tab UI | M5 | Done (2026-07-13) | — | S5 |
 | M5-T4 | Check-in configuration screen | M5 | Done (2026-07-13) | — | S5 |
 | M5-T5 | Check-in scan flow | M5 | Done (2026-07-13) | — | S5 |
-| M5-F1 | D-1 fix: drop sold-out precheck blocking idempotent replay | M5 | In Dev | FS | S5 |
-| M6-T1 | Email infrastructure (provider + outbox DAL) | M6 | In Dev | BE+FS | S6 |
-| M6-T2 | Emails admin screen | M6 | Todo | — | — |
+| M5-F1 | D-1 fix: drop sold-out precheck blocking idempotent replay | M5 | Done (2026-07-13) | — | S5 |
+| M6-T1 | Email infrastructure (provider + outbox DAL) | M6 | Done (2026-07-14) | — | S6 |
+| M6-T2 | Emails admin screen | M6 | Done (2026-07-15) | — | S6 |
 | M6-T3 | Lifecycle triggers & audience segmentation | M6 | Todo | — | — |
 | M6-T4 | Email designer via shared block engine | M6 | Todo | — | — |
 | M7-T1 | Reporting aggregates + event report summaries | M7 | Todo | — | — |
@@ -71,6 +71,33 @@ All three gates completed on 2026-07-13 and the Definition of Done is met for M5
 - **Deployment prerequisite (human/owner):** create `DRAFT_TOKEN_SECRET`, `QR_TOKEN_SECRET`, `SCANNER_SESSION_SECRET` in App Hosting before production deploy.
 
 **M6 kickoff confirmed:** M6-T1 spec complete (`agents/docs/specs/m6-email-infrastructure.md`); RL determined T1 has no UI, so the Design step is skipped and the ticket moves straight to **In Dev** (BE + FS). The M6 branch (`feat/m6-t1-email-infrastructure`) cuts from `prototype` **after** the M5 merge lands.
+
+### 2026-07-14 — M6-T1 closed (DoD verified); M6-T2 enters Design
+M6-T1 (email infrastructure — transport abstraction, outbox DAL, merge-tag renderer) is **Done**: Code Review APPROVED incl. S-1/S-2/S-3 fix re-review (`agents/docs/reviews/m6-email-infrastructure.md`), Security PASS with 0 Critical/High/Medium (3 Low, `agents/docs/security/m6-email-infrastructure.md`), QA SIGNED OFF zero defects (`agents/docs/qa/m6-email-infrastructure.md`), lint clean / build exit 0 / 78 files / 1054 tests passing. Merged to `prototype` as `ae55bc9` (--no-ff), merge log `agents/docs/git/m6-email-infrastructure.md`. `main` untouched.
+
+M5-F1 (D-1 fix) is also **Done** — landed pre-merge with M5 per the 2026-07-13 sequencing decision above (commit `34becf4`); this table previously lagged reality and is now corrected.
+
+**M6-T2 (emails admin screen) kicks off:** Research Lead spec complete — `agents/docs/specs/m6-emails-admin.md` (8 sections: list screen, `EmailDefinition` entity + default catalog, compose/preview, confirmation preview card, send log + retry + test-send, sender settings, permissions/tenancy, cross-cutting states). Per the standard sequence (Research → **Design** → Implement), the ticket now moves to the UI/UX Designer for a design spec against `prototype/prototype/event-emails.html`.
+
+### 2026-07-14 — M6-T2 Design complete; Implement kicks off
+UI/UX Designer produced `agents/docs/design/m6-emails-admin.md`: screen shell + Tabs (Lifecycle emails / Send log), grouped `email-group-table.tsx` (4-col/3-col variants), `email-editor-dialog.tsx` (compose+preview two-column, merge-tag menu, sandboxed preview iframe, unsaved-changes guard), `confirmation-preview-card.tsx`, `send-log-table.tsx` (event-wide + per-definition History reuse), `sender-settings-dialog.tsx` — all built from existing `src/components/ui/*` primitives, no new base components. Ticket moves to **In Dev** (BE + FS): Backend Agent first (DAL: `adminEmailDefinition.ts`, `emailDefinitionId.ts`, firestore rules deny-all + composite index, data-model doc), then Full-Stack Developer (screen components, API routes, `src/features/emails/`).
+
+### 2026-07-14 — M6-T2 Backend + Full-Stack implementation complete; Code Review kicks off
+Backend Agent shipped the `EmailDefinition` DAL (transactional create-if-absent upsert, server-re-verified locked-field enforcement, 100/event cap, custom-only delete, audit retention) — 22 tests. Full-Stack Developer shipped all 16 design-doc components, 7 API routes, virtual default catalog, render pipeline, and the carried L-5 polish item (checkin admin-email masking for team scanners) — 88 more tests. Both independently re-verified by the Orchestrator (not just trusted the agent reports): lint clean, build exit 0, 89 files / 1164 tests passing, `tsc --noEmit` clean except 3 pre-existing unrelated errors. Spot-read confirmed route auth/tenancy correctness, XSS-safe render pipeline, and correct L-5 scoping.
+
+**Self-reported gaps to close before QA sign-off:** no component-level interaction tests (dialog/switch/preview), no visual/responsive verification at the four breakpoints, cross-org tests are DAL-mocked at the route level rather than fresh two-org fake-Firestore seeds. **Flagged for Code Reviewer:** FS added `deleteAdminEmailSettings()` to `src/lib/db/adminEmailSettings.ts` (outside its original dispatch scope) — needs Backend-convention sign-off during review.
+
+Ticket moves to **Review**.
+
+### 2026-07-15 — M6-T2 CLOSED (DoD verified)
+Full gate sequence, with two fix cycles along the way:
+- **Code Review:** APPROVED. Initial pass found 0 Blockers, 2 Should-fix (S-1: `email-editor-dialog.tsx` over 800-line cap; S-2: spec §5 AC-8's named cross-org dedupeKey regression test missing), 3 Nits. Both Should-fix items fixed (dialog split 818→592 lines into 3 sibling files; test added to `email-send-service.test.ts`) and re-reviewed APPROVED. `agents/docs/reviews/m6-emails-admin.md`.
+- **Security:** PASS. 0 Critical/High, 1 Medium (M-1: 4 mutating routes missing rate-limiting, contrary to spec §7), 2 Low. M-1 fixed (rate limits added matching sibling-route conventions) and independently re-verified. `agents/docs/security/m6-emails-admin.md`.
+- **QA:** SIGNED OFF. Found 1 Major defect (QA-D-1: unsaved-changes guard never fired — `form.formState.isDirty` read only inside a callback, never during render, so React Hook Form's Proxy never subscribed the field; editing an email and clicking Cancel silently discarded changes every time with zero warning). Fixed (destructured `isDirty` during render) and QA re-verified SIGNED OFF. QA also closed all previously-flagged coverage gaps: real component-interaction tests (47 assertions, this is how QA-D-1 was found), a genuine two-org fake-Firestore route-level isolation test, and DOM-level responsive/theme assertions (honestly disclosed as not a substitute for real browser screenshots — no browser tool/working local Firebase emulator available). `agents/docs/qa/m6-emails-admin.md`.
+- **Checks:** lint clean, build exit 0, `npm test -- --run` 94 files / 1215 tests passing on the final working tree.
+- **Orchestrator note (process learning, carried in `HANDOVER.md`):** three separate background-agent processes stalled mid-work this session (600s stream watchdog) — the design-doc dispatch (isolated worktree got auto-cleaned, losing the file entirely), the S-1/S-2 fix dispatch, and the first QA pass. In every case the actual work was recoverable by inspecting the working tree directly rather than trusting the terminal "failed" status, and resuming the same agent via message rather than restarting from scratch. Every claim from every agent in this ticket (file existence, test counts, fix correctness, security findings) was independently re-verified by the Orchestrator before being acted on — this caught nothing false in the end, but the design-doc file-loss incident would have shipped a phantom "done" state if not caught.
+
+DoD: all 7 items met (spec ACs, design spec, DAL boundary + data model + indexes, CR APPROVED, SEC no Critical/High, QA SIGNED OFF, lint/build/test green). Ready for GitHub Agent: commit on `feat/m6-t2-emails-admin`, merge to `prototype` (`--no-ff`), never `main`.
 
 ### 2026-07-13 — M5 status reconciliation
 M5-T1..T5 were fully implemented and shipped on branch `feat/m5-attendees-checkin` on 2026-07-11 (commit `2148ce8`, see `HANDOVER.md`), but this backlog was left stale at `Todo`. Per the loop rules ("code re-entering the pipeline resumes at Review, not from scratch"), all five tickets are now set to **Review** — specs (`agents/docs/specs/m5-attendees-checkin.md`), design (`agents/docs/design/m5-attendees-checkin.md`), and data-model (`agents/docs/data-models/m5-attendees-checkin.md`) docs exist; review/security/QA artifacts do **not** and must be produced before the tickets can close. At handover, `npm run lint`, `npm run build`, and `npm run test -- --run` all passed (72 files / 959 tests).
