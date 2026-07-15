@@ -42,7 +42,10 @@ export async function POST(request: Request, context: RouteContext) {
 
   const parsed = ConfirmRequestSchema.safeParse(rawBody.body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request body." },
+      { status: 400 },
+    );
   }
 
   const scope = await resolveScannerSessionScope({
@@ -69,7 +72,9 @@ export async function POST(request: Request, context: RouteContext) {
     qrToken: parsed.data.qrToken,
   });
   if (resolution.status !== "OK") {
-    return NextResponse.json({ status: resolution.status } satisfies ScanConfirmResponse);
+    return NextResponse.json({
+      status: resolution.status,
+    } satisfies ScanConfirmResponse);
   }
 
   const result = await checkInAdminAttendee({
@@ -95,12 +100,15 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   if (result.alreadyCheckedIn) {
+    // L-5: this is a TEAM-SESSION caller — mask an admin's email/userId
+    // behind a generic "Organizer" label (never disclose it to a door
+    // scanner).
     const body: ScanConfirmResponse = {
       status: "ALREADY_CHECKED_IN",
-      attendee: serializeScanAttendeeCard(result.attendee),
+      attendee: serializeScanAttendeeCard(result.attendee, true),
       // The ORIGINAL record — the first scanner's flip is never overwritten.
       checkedInAtIso: timestampToIso(result.checkedInAt),
-      checkedInByName: checkedInByName(result.checkedInBy),
+      checkedInByName: checkedInByName(result.checkedInBy, true),
     };
     return NextResponse.json(body);
   }

@@ -245,6 +245,61 @@ describe("duplicate suppression (§2 AC-1)", () => {
   });
 });
 
+describe("cross-org/cross-event dedupeKey scoping (M6-T2 spec §5 AC-8, promoted from T1 QA-1)", () => {
+  it("the same dedupeKey/kind/recipient tuple across org-2/event-2 creates a SEPARATE row and a SEPARATE transport call — dedupe never crosses tenants; a same-tuple control creates only one row/call", async () => {
+    const transport = stubTransport();
+
+    // Control: the identical (org, event, dedupeKey) tuple sent twice ->
+    // exactly one row, one transport call (the existing within-tenant
+    // dedupe behavior — proves the test below actually distinguishes the
+    // two cases rather than just always deduping or never deduping).
+    const controlFirst = await sendEventEmail(baseSend({ transport }));
+    const controlSecond = await sendEventEmail(baseSend({ transport }));
+    expect(controlFirst.outcome).toBe("sent");
+    expect(controlSecond).toMatchObject({ ok: true, outcome: "duplicate" });
+    expect(transport.send).toHaveBeenCalledTimes(1);
+    expect(storedMessages()).toHaveLength(1);
+
+    // Same dedupeKey + kind + recipient, but a different organizationId AND
+    // eventId (org-2/event-2) -> a second, independent row and a second,
+    // independent transport call.
+    const crossTenant = await sendEventEmail(
+      baseSend({
+        transport,
+        organizationId: "org-2",
+        eventId: "evt-2",
+      }),
+    );
+
+    expect(crossTenant.outcome).toBe("sent");
+    expect(transport.send).toHaveBeenCalledTimes(2);
+    expect(storedMessages()).toHaveLength(2);
+
+    const tenants = storedMessages().map(([, doc]) => ({
+      organizationId: doc.organizationId,
+      eventId: doc.eventId,
+      dedupeKey: doc.dedupeKey,
+      kind: doc.kind,
+    }));
+    expect(tenants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          organizationId: ORG_ID,
+          eventId: EVENT_ID,
+          dedupeKey: "submission-1",
+          kind: "confirmation-paid",
+        }),
+        expect.objectContaining({
+          organizationId: "org-2",
+          eventId: "evt-2",
+          dedupeKey: "submission-1",
+          kind: "confirmation-paid",
+        }),
+      ]),
+    );
+  });
+});
+
 describe("validation rejections — zero writes (§6 edge cases 3/4)", () => {
   it("rejects an invalid recipient as a typed INVALID_RECIPIENT with no outbox row", async () => {
     const transport = stubTransport();
