@@ -20,7 +20,6 @@ import {
   atMsToDateTimeLocalInput,
   dateTimeLocalInputToAtMs,
   EMAIL_MERGE_TAG_DISPLAY,
-  isAutomatedTrigger,
   triggerDisplayLabel,
 } from "@/features/emails/utils";
 import { EMAIL_MERGE_TAGS } from "@/lib/email/merge-tags";
@@ -61,21 +60,6 @@ describe("triggerDisplayLabel — spec §1 canonical strings", () => {
     expect(triggerDisplayLabel({ type: "scheduled", atMs: null }, "UTC")).toBe(
       "Not scheduled",
     );
-  });
-});
-
-describe("isAutomatedTrigger — the M6-T3-not-built info affordance gate", () => {
-  it("manual is NOT automated (no info icon, real test-send exists)", () => {
-    expect(isAutomatedTrigger({ type: "manual" })).toBe(false);
-  });
-  it("every other trigger type IS automated", () => {
-    expect(isAutomatedTrigger({ type: "on-submit" })).toBe(true);
-    expect(isAutomatedTrigger({ type: "on-accept" })).toBe(true);
-    expect(isAutomatedTrigger({ type: "abandoned-24h" })).toBe(true);
-    expect(
-      isAutomatedTrigger({ type: "unpaid-offsets", offsetsDays: [7] }),
-    ).toBe(true);
-    expect(isAutomatedTrigger({ type: "scheduled", atMs: null })).toBe(true);
   });
 });
 

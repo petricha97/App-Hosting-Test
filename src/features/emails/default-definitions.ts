@@ -63,7 +63,11 @@ type EventScheduleInput =
 // Legacy-tolerant first-period date lookup — same key fallbacks as
 // src/features/event/utils.ts's resolvePeriodSchedule (not exported there,
 // duplicated narrowly here rather than widening that module's surface).
-function firstPeriodDate(event: EventScheduleInput): string | null {
+// EXPORTED (M6-T3 addition): the lifecycle-trigger evaluator's "scheduled"
+// catch-up cutoff (spec agents/docs/specs/m6-lifecycle-triggers.md §5 —
+// "stops at the event's first period start") reuses this EXACT helper
+// rather than forking a second first-period lookup.
+export function firstPeriodDate(event: EventScheduleInput): string | null {
   const period = event?.periods?.[0];
   if (!period) return null;
   return period.date ?? period.start ?? period.startDate ?? null;

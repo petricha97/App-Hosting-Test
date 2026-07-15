@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 
+import { fireApprovalPendingEmail } from "@/features/emails/server/fire-on-submit-email";
 import { buildFormSubmissionSchema } from "@/features/form/schema";
 import { extractOrganizationIdFromPath } from "@/features/event/utils";
 import { getAdminPublishedFormForPublicEvent } from "@/lib/db/adminForm";
@@ -52,7 +53,9 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const submissionSchema = buildFormSubmissionSchema(form.fields);
-  const parsedSubmission = submissionSchema.safeParse(parsedRequest.data.submission);
+  const parsedSubmission = submissionSchema.safeParse(
+    parsedRequest.data.submission,
+  );
 
   if (!parsedSubmission.success) {
     return NextResponse.json(
@@ -68,6 +71,27 @@ export async function POST(request: Request, context: RouteContext) {
     submission: parsedSubmission.data,
     submittedAt: FieldValue.serverTimestamp(),
   });
+
+  // M6-T3: on-submit trigger. createAdminFormData has no replay path (every
+  // POST mints a fresh doc), so — unlike the stepper's create-if-absent
+  // finalize — this call site has no `created` flag to gate on; firing
+  // unconditionally here is still exactly-once per submission (spec §1).
+  // Isolated from the response — an email problem here must never surface
+  // as a registration failure (the FormData write already committed above).
+  try {
+    await fireApprovalPendingEmail({
+      organizationId: form.organizationId || organizationId,
+      eventId,
+      event,
+      submissionId,
+      submission: parsedSubmission.data,
+    });
+  } catch (error) {
+    console.error(
+      `[register] on-submit approval-pending email crashed for submission ${submissionId}`,
+      error,
+    );
+  }
 
   return NextResponse.json({ submissionId });
 }

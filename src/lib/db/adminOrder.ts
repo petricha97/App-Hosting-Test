@@ -36,6 +36,7 @@ import type {
   OrderAmounts,
   OrderDoc,
   PaymentMethod,
+  PaymentStatus,
   RegistrationTypeDoc,
   TaxDoc,
   TicketTypeDoc,
@@ -142,6 +143,49 @@ export async function getAdminOrdersReferencingTax(input: {
     .limit(input.limit ?? REFERENCING_ORDERS_LIMIT)
     .get();
 
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as OrderDoc) }));
+}
+
+// Payment-status-filtered list, oldest first (M6-T3 DAL gap, spec
+// agents/docs/specs/m6-lifecycle-triggers.md §6/§9): the `accepted-invoice`
+// audience and the `unpaid-offsets` debt-chase trigger both need "this
+// event's outstanding orders", and `accepted-paid` needs "paid or comped" —
+// `getAdminOrdersForEvent` above is unfiltered, so this closes that gap
+// rather than filtering an unbounded read in memory. Oldest-first ordering
+// matters for unpaid-offsets: the longest-overdue orders are the ones whose
+// 7/14/21-day offsets are due soonest. A single status uses `==`; multiple
+// (e.g. ["paid","comped"]) uses `in` — Firestore serves an `in` filter off
+// the SAME composite index as an equality on that field (no second index
+// registered). Bounded + cursor-paginated like every other admin list.
+// Index: Order eventId ASC, organizationId ASC, paymentStatus ASC, createdAt ASC.
+export async function listAdminOrdersForEventByPaymentStatus(input: {
+  eventId: string;
+  organizationId: string;
+  paymentStatus: PaymentStatus | PaymentStatus[];
+  limit?: number;
+  startAfterCreatedAtMs?: number;
+}): Promise<WithId<OrderDoc>[]> {
+  const statuses = Array.isArray(input.paymentStatus)
+    ? input.paymentStatus
+    : [input.paymentStatus];
+
+  let query = orderCol()
+    .where("eventId", "==", input.eventId)
+    .where("organizationId", "==", input.organizationId)
+    .where(
+      "paymentStatus",
+      statuses.length === 1 ? "==" : "in",
+      statuses.length === 1 ? statuses[0] : statuses,
+    );
+
+  let ordered = query.orderBy("createdAt", "asc");
+  if (input.startAfterCreatedAtMs !== undefined) {
+    ordered = ordered.startAfter(
+      Timestamp.fromMillis(input.startAfterCreatedAtMs),
+    );
+  }
+
+  const snap = await ordered.limit(input.limit ?? ORDER_LIST_LIMIT).get();
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as OrderDoc) }));
 }
 
@@ -367,7 +411,10 @@ export async function createAdminOrderWithFinalize(
 
       // Idempotent repeat: same key -> return the existing order untouched.
       if (orderSnap.exists) {
-        const existing = { id: orderSnap.id, ...(orderSnap.data() as OrderDoc) };
+        const existing = {
+          id: orderSnap.id,
+          ...(orderSnap.data() as OrderDoc),
+        };
         // The hash is scoped to (org, event, key) so a mismatch here means a
         // hash collision or manual doc tampering — refuse rather than leak.
         if (
@@ -375,7 +422,9 @@ export async function createAdminOrderWithFinalize(
           existing.eventId !== input.eventId ||
           existing.idempotencyKey !== input.idempotencyKey
         ) {
-          return invalid("Existing order does not match this idempotency scope.");
+          return invalid(
+            "Existing order does not match this idempotency scope.",
+          );
         }
         return { ok: true, orderId, order: existing, created: false };
       }
@@ -400,7 +449,10 @@ export async function createAdminOrderWithFinalize(
       }
       if (fee.status !== "active" || fee.currency !== input.currency) {
         // The offer the quote was based on is no longer purchasable as quoted.
-        return fail("PRICE_CHANGED", "The fee is no longer available as quoted.");
+        return fail(
+          "PRICE_CHANGED",
+          "The fee is no longer available as quoted.",
+        );
       }
 
       // --- Capacity: ticket type ---
@@ -412,7 +464,10 @@ export async function createAdminOrderWithFinalize(
       ) {
         return invalid("Ticket type does not belong to this event.");
       }
-      if (ticket.capacity !== null && ticket.registeredCount >= ticket.capacity) {
+      if (
+        ticket.capacity !== null &&
+        ticket.registeredCount >= ticket.capacity
+      ) {
         return fail("SOLD_OUT", "This ticket is sold out.");
       }
 
@@ -461,7 +516,10 @@ export async function createAdminOrderWithFinalize(
           return fail("PROMO_EXHAUSTED", "This promotion has been fully used.");
         }
         if (availability !== "available") {
-          return fail("PROMO_EXPIRED", "This promotion is not currently valid.");
+          return fail(
+            "PROMO_EXPIRED",
+            "This promotion is not currently valid.",
+          );
         }
       }
 
@@ -518,7 +576,9 @@ export async function createAdminOrderWithFinalize(
           feeName: fee.name,
           basePriceMinor: fee.basePriceMinor,
           promoCode:
-            pricingPromotion && promotion ? (promotion.promoCode ?? null) : null,
+            pricingPromotion && promotion
+              ? (promotion.promoCode ?? null)
+              : null,
           discountType: pricingPromotion?.discountType ?? null,
           discountValue: pricingPromotion?.discountValue ?? null,
           taxLines: totals.taxLines,

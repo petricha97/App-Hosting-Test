@@ -47,6 +47,21 @@ env:
     secret: scannerSessionSecret
     availability:
     - RUNTIME
+  # Shared secret for the internal, unattended lifecycle-email-trigger
+  # scheduler entrypoint (M6-T3, POST /api/internal/email-triggers/evaluate
+  # — src/lib/email/lifecycle/evaluator-auth.ts). Create it once with:
+  #   firebase apphosting:secrets:set emailTriggerEvaluatorSecret
+  # Then configure Cloud Scheduler (HUMAN TASK, create before prod deploy —
+  # same posture as the other secrets on this list) to call the route on a
+  # 15-30 minute cadence with header
+  #   x-email-trigger-secret: <the same secret value>
+  # Without it the route falls back to a DEV-ONLY secret in development and
+  # REJECTS EVERY REQUEST in production (fail-closed — never an
+  # unauthenticated trigger-evaluation endpoint in prod).
+  - variable: EMAIL_TRIGGER_EVALUATOR_SECRET
+    secret: emailTriggerEvaluatorSecret
+    availability:
+    - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     value: AIzaSyDvWOtA68Iq9svp9gFxuvsoWYHcYA56hT4
     availability:

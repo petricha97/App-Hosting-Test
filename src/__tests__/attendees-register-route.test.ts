@@ -18,6 +18,9 @@
  *   re-invoked directly, and a heal failure is a truthful 500, never a
  *   200 "Attendee registered" without an attendee.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { formDataIdFromDraftId } from "@/lib/db/formDataId";
@@ -688,5 +691,34 @@ describe("QA D-1 — sold-out read must not block idempotent replay (regression)
       registrationRef: FORM_DATA_ID,
       orderRef: "order-1",
     });
+  });
+});
+
+describe("M6-T3 — on-submit trigger does NOT fire for manual registration (spec §1 AC-2)", () => {
+  it("the route source never imports the on-submit email hook — FormData goes straight to accepted, skipping 'new' entirely", () => {
+    // Grounds the spec's firing-condition claim directly against the file:
+    // on-submit fires ONLY from the two call sites the finalize/register
+    // routes own (which import fireApprovalPendingEmail themselves); this
+    // route creates FormData via createAdminFormDataForDraft (mocked above)
+    // and immediately accepts it — it must never reach for that hook.
+    const source = readFileSync(
+      join(
+        process.cwd(),
+        "src/app/api/dashboard/events/[eventId]/attendees/register/route.ts",
+      ),
+      "utf8",
+    );
+    expect(source).not.toContain("fire-on-submit-email");
+    expect(source).not.toContain("fireApprovalPendingEmail");
+  });
+
+  it("a successful manual registration (default healthy-path mocks) completes without the on-submit hook ever being reachable", async () => {
+    const response = await POST(makeRequest(makeBody()), makeContext());
+
+    expect(response.status).toBe(200);
+    // The route's own accept-hook seam (onSubmissionAccepted) is only
+    // reached for HEALING (attendeeCreated still false) — not on this
+    // healthy path, and never as a stand-in for the on-submit trigger.
+    expect(onSubmissionAccepted).not.toHaveBeenCalled();
   });
 });

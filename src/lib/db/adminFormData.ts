@@ -147,6 +147,36 @@ export async function listAdminFormDataForOrganization(input: {
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as FormDataDoc) }));
 }
 
+// Multi-status list, newest first (M6-T3 `pending-approval` audience, spec
+// agents/docs/specs/m6-lifecycle-triggers.md §6: "submitted, not yet
+// accepted" = status IN ["new","pending","reviewed"]). Uses Firestore `in`
+// — served by the SAME composite index as a single status equality
+// (eventId ASC, organizationId ASC, status ASC, submittedAt DESC already
+// registered for M3-T4), no new index needed. Bounded + cursor-paginated
+// like listAdminFormDataForEvent above.
+export async function listAdminFormDataForEventByStatuses(input: {
+  eventId: string;
+  organizationId: string;
+  statuses: FormDataStatus[];
+  limit?: number;
+  startAfterSubmittedAtMs?: number;
+}): Promise<WithId<FormDataDoc>[]> {
+  let query = formDataCol()
+    .where("eventId", "==", input.eventId)
+    .where("organizationId", "==", input.organizationId)
+    .where("status", "in", input.statuses);
+
+  let ordered = query.orderBy("submittedAt", "desc");
+  if (input.startAfterSubmittedAtMs !== undefined) {
+    ordered = ordered.startAfter(
+      Timestamp.fromMillis(input.startAfterSubmittedAtMs),
+    );
+  }
+
+  const snap = await ordered.limit(input.limit ?? FORM_DATA_LIST_LIMIT).get();
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as FormDataDoc) }));
+}
+
 // Fetches a single response scoped to event + org. Returns null when the doc
 // does not exist OR belongs to another event/org — callers should 404 on
 // null (IDOR-safe).

@@ -1,9 +1,10 @@
 "use client";
 
-// "Abandoned" tab (M5-T3, design §2): abandoned-draft rows (>24h stale only —
-// the server already filtered), right-aligned amber count badge, disabled
-// "Email all" with the M6 tooltip (keyboard-reachable span wrapper), per-row
-// delete via the existing M3 purge route, helper copy under the table.
+// "Abandoned" tab (M5-T3 design §2, M6-T3 wiring): abandoned-draft rows
+// (>24h stale only — the server already filtered), right-aligned amber count
+// badge, "Email all" (M6-T3 — bulk-sends the abandoned-reminder definition,
+// spec m6-lifecycle-triggers.md §7), per-row delete via the existing M3
+// purge route, helper copy under the table.
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -12,14 +13,22 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import type { SerializedAbandonedDraft } from "@/features/attendees/abandoned";
 import { AbandonedTable } from "@/features/attendees/components/abandoned-table";
 import { EntityTableError } from "@/features/registration/components/entity-table-states";
+
+interface EmailAllResponse {
+  sent?: number;
+  alreadyEmailed?: number;
+  skippedNoEmail?: number;
+  // Recipients whose draft email failed send-time validation (malformed
+  // address) — pre-split out before batching (M6-T3 Security L-3) so they
+  // never block the rest of the batch. Not surfaced in the toast copy below
+  // (same minimal posture as skippedNoEmail) — a count-only field kept for
+  // callers/response-shape completeness.
+  skippedInvalidEmail?: number;
+  error?: string;
+}
 
 interface AbandonedTabProps {
   eventId: string;
@@ -40,6 +49,49 @@ export function AbandonedTab({
   // Cleared once a client-side retry through the drafts route succeeds —
   // the tab recovers without waiting on the server page's refresh.
   const [recovered, setRecovered] = useState(false);
+  // Client-side in-flight guard (spec §7's double-click safety rail) — the
+  // server-side dedupe (dedupeKey = draftId, shared with the automatic 24h
+  // trigger) is the real backstop regardless.
+  const [emailingAll, setEmailingAll] = useState(false);
+
+  const emailAll = async () => {
+    if (emailingAll) return;
+    setEmailingAll(true);
+    try {
+      const response = await fetch(
+        `/api/dashboard/events/${encodeURIComponent(eventId)}/drafts/email-all`,
+        { method: "POST" },
+      );
+      const data = (await response
+        .json()
+        .catch(() => null)) as EmailAllResponse | null;
+
+      if (!response.ok) {
+        toast.error(data?.error ?? "Failed to email abandoned registrants.");
+        return;
+      }
+
+      const sent = data?.sent ?? 0;
+      const alreadyEmailed = data?.alreadyEmailed ?? 0;
+      if (sent === 0 && alreadyEmailed > 0) {
+        toast.success(
+          alreadyEmailed === 1
+            ? "Already emailed — nothing new to send"
+            : `Already emailed everyone (${alreadyEmailed})`,
+        );
+      } else if (alreadyEmailed > 0) {
+        toast.success(`${sent} sent, ${alreadyEmailed} already emailed`);
+      } else {
+        toast.success(sent === 1 ? "1 email sent" : `${sent} emails sent`);
+      }
+    } catch {
+      toast.error("Failed to email abandoned registrants.", {
+        description: "Check your connection and try again.",
+      });
+    } finally {
+      setEmailingAll(false);
+    }
+  };
 
   // Error retry: re-fetch through the drafts list route (masked server-side)
   // without a full page reload; router.refresh() re-syncs the server page.
@@ -109,29 +161,19 @@ export function AbandonedTab({
               {drafts.length} abandoned
             </Badge>
           </span>
-          {/* Disabled buttons swallow pointer events — the tooltip trigger is
-              a keyboard-reachable span wrapper (design §2). */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span tabIndex={0} aria-describedby="email-all-m6" className="inline-flex">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled
-                  className="pointer-events-none"
-                >
-                  <Mail aria-hidden="true" />
-                  Email all
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              Email campaigns arrive with the Emails module (M6)
-            </TooltipContent>
-          </Tooltip>
-          <p id="email-all-m6" className="sr-only">
-            Email campaigns arrive with the Emails module (M6).
-          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={emailingAll || drafts.length === 0}
+            onClick={() => void emailAll()}
+          >
+            {emailingAll ? (
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+            ) : (
+              <Mail aria-hidden="true" />
+            )}
+            Email all
+          </Button>
           {retrying ? (
             <Loader2
               aria-hidden="true"
@@ -162,8 +204,8 @@ export function AbandonedTab({
       </div>
 
       <p className="mt-3 text-sm text-muted-foreground">
-        Knowing the last page reached tells you whether to nudge on info,
-        ticket choice, or payment.
+        Knowing the last page reached tells you whether to nudge on info, ticket
+        choice, or payment.
       </p>
     </div>
   );
