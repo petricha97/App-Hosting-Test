@@ -762,6 +762,74 @@ export interface EmailSettingsDoc {
   updatedAt: Timestamp | FieldValue;
 }
 
+// `EmailDefinition.group` — table the definition renders under on the M6-T2
+// lifecycle screen (prototype grouping, not a query dimension).
+export type EmailDefinitionGroup =
+  "pre-event" | "post-registration" | "debt-chase";
+
+// `EmailDefinition.trigger` — a discriminated union so "trigger type" (the
+// locked contract T3's hooks fire against, spec §2) is a single comparable
+// field (`trigger.type`), never a loose set of optional booleans/dates.
+// `offsetsDays` / `at` only exist on their own variant.
+export type EmailDefinitionTrigger =
+  | { type: "manual" }
+  | { type: "on-submit" }
+  | { type: "on-accept" }
+  | { type: "abandoned-24h" }
+  | { type: "unpaid-offsets"; offsetsDays: number[] }
+  // `at` is null when the event has no periods to derive a date from (spec
+  // §1 AC-3 "Not scheduled") or when an organizer clears a custom schedule.
+  | { type: "scheduled"; at: Timestamp | FieldValue | null };
+
+export type EmailDefinitionAudience =
+  | "all-invitees"
+  | "abandoned"
+  | "pending-approval"
+  | "accepted-paid"
+  | "accepted-invoice"
+  | "accepted-all";
+
+// Root collection `EmailDefinition`, DETERMINISTIC doc id:
+// emailDefinitionId(organizationId, eventId, kind) (src/lib/db/emailDefinitionId.ts)
+// — same tuple-hash family as emailMessageId.ts. SERVER-ONLY (firestore.rules
+// deny-all, no client repo pair): recipient-facing template content + org
+// data. `kind` is the join key EmailMessage.kind resolves against (M6-T1);
+// unique per event BY CONSTRUCTION (the doc id is derived from it).
+//
+// The eight default lifecycle emails (M6-T2 spec §2 catalog) are VIRTUAL —
+// defined in code, never seeded — so a fresh event has ZERO EmailDefinition
+// docs. A doc is materialized (create-if-absent at the deterministic id)
+// only on first edit; stored docs always win over the virtual defaults in
+// the merged list.
+//
+// Editability (spec §2): for `isSystem:true` docs, `name` / `group` /
+// `trigger.type` / `audience` are LOCKED — only `subject` / `body` /
+// `enabled` / (for scheduled kinds) `trigger.at` may change. `isSystem:false`
+// (custom) docs are fully editable, but `trigger.type` is restricted to
+// `"manual" | "scheduled"` in T2 (OQ-1 default). Enforced server-side in
+// src/lib/db/adminEmailDefinition.ts — never client-only.
+export interface EmailDefinitionDoc {
+  organizationId: string;
+  eventId: string;
+  kind: string;
+  name: string;
+  group: EmailDefinitionGroup;
+  trigger: EmailDefinitionTrigger;
+  audience: EmailDefinitionAudience;
+  enabled: boolean;
+  // Plain-text template with `{merge_tags}` (T2 scope decision — no raw HTML
+  // until the M6-T4 designer). bodyHtml/bodyText are DERIVED at send/preview
+  // time (src/features/emails/server, T2 FS slice) — never stored here.
+  subject: string;
+  body: string;
+  isSystem: boolean;
+  // Display ordering among custom definitions within a group (client-side
+  // tiebreak with createdAt — NOT part of the list index, spec §2).
+  sortOrder: number;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
 export interface EventPageDoc {
   eventId: string;
   organizationId: string;

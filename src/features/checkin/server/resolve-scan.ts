@@ -68,7 +68,9 @@ export async function resolveScanToken(input: {
   // Revocation seam: the stored hash is the source of truth — a re-minted
   // pass under a rotated field invalidates this token even though its
   // signature still verifies.
-  if (!constantTimeStringEqual(hashQrToken(input.qrToken), attendee.qrTokenHash)) {
+  if (
+    !constantTimeStringEqual(hashQrToken(input.qrToken), attendee.qrTokenHash)
+  ) {
     return { status: "INVALID" };
   }
 
@@ -77,15 +79,27 @@ export async function resolveScanToken(input: {
   return { status: "OK", attendee };
 }
 
+// L-5 (M6-T2 polish, carried from M5 backlog): the generic label shown to a
+// TEAM-SESSION scanner instead of the admin's email/userId on
+// ALREADY_CHECKED_IN — a door-side team member has no business reason to see
+// an organizer's email address, and userId IS the lowercased admin email
+// (see AttendeeCheckedInBy). The dashboard admin surface is unaffected (an
+// admin viewing their own dashboard already has that identity).
+export const ADMIN_CHECKED_IN_BY_TEAM_VIEWER_LABEL = "Organizer";
+
 // Scanner display name for a recorded check-in identity: team members carry
 // their denormalized name; the dashboard path records the admin's user id
-// (lowercased email) — shown as-is, it is staff-facing only.
+// (lowercased email). `viewerIsTeamSession` controls whether an admin
+// identity is masked to a generic label (team-session callers, L-5) or shown
+// as-is (dashboard admin callers, who are staff viewing their own tenant).
 export function checkedInByName(
   checkedInBy: AttendeeDoc["checkedInBy"],
+  viewerIsTeamSession = false,
 ): string | null {
   if (!checkedInBy) return null;
-  return checkedInBy.kind === "team-member"
-    ? checkedInBy.name
+  if (checkedInBy.kind === "team-member") return checkedInBy.name;
+  return viewerIsTeamSession
+    ? ADMIN_CHECKED_IN_BY_TEAM_VIEWER_LABEL
     : checkedInBy.userId;
 }
 
@@ -93,6 +107,7 @@ export function checkedInByName(
 // pill, ticket, check-in status — nothing else crosses to the door surface.
 export function serializeScanAttendeeCard(
   attendee: WithId<AttendeeDoc>,
+  viewerIsTeamSession = false,
 ): ScanAttendeeCard {
   const name = [attendee.firstName, attendee.lastName]
     .map((part) => (part ?? "").trim())
@@ -105,6 +120,6 @@ export function serializeScanAttendeeCard(
     ticketLabel: attendee.ticketLabel || "—",
     checkInState: attendee.checkInState ?? "not-arrived",
     checkedInAtIso: timestampToIso(attendee.checkedInAt),
-    checkedInByName: checkedInByName(attendee.checkedInBy),
+    checkedInByName: checkedInByName(attendee.checkedInBy, viewerIsTeamSession),
   };
 }

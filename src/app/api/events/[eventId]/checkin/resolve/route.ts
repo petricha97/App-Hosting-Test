@@ -40,7 +40,10 @@ export async function POST(request: Request, context: RouteContext) {
 
   const parsed = ResolveRequestSchema.safeParse(rawBody.body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request body." },
+      { status: 400 },
+    );
   }
 
   const scope = await resolveScannerSessionScope({
@@ -69,9 +72,15 @@ export async function POST(request: Request, context: RouteContext) {
 
   await touchAdminCheckinTeamMemberLastSeen(scope.member.id);
 
+  // L-5: TEAM-SESSION caller — mask an admin's email/userId (an attendee who
+  // is already checked in by an admin resolves straight to the "already"
+  // card, same disclosure risk as the confirm route).
   const body: ScanResolveResponse =
     resolution.status === "OK"
-      ? { status: "OK", attendee: serializeScanAttendeeCard(resolution.attendee) }
+      ? {
+          status: "OK",
+          attendee: serializeScanAttendeeCard(resolution.attendee, true),
+        }
       : { status: resolution.status };
 
   return NextResponse.json(body);

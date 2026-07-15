@@ -330,6 +330,18 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------
+    // M6-T2 — EmailDefinition (spec: agents/docs/specs/m6-emails-admin.md
+    // "Shared decisions"). SERVER-ONLY, same posture as EmailMessage /
+    // EmailSettings above: recipient-facing template content + org data,
+    // no client repo pair. All reads/writes go through write:events-gated
+    // admin routes (T2). The eight default lifecycle emails are VIRTUAL
+    // (defined in code, never seeded) — a fresh event has zero docs here.
+    // ------------------------------------------------------------------
+    match /EmailDefinition/{definitionId} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------
     // Server-only collections (no production client-SDK access exists):
     // Form authoring, registration submissions (PII), form templates, Puck
     // pages and promotion templates are all read AND written through admin

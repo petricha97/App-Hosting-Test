@@ -44,7 +44,11 @@ export const eventNavGroups: EventNavGroup[] = [
   {
     label: "Build",
     items: [
-      { title: "Website / Pages", segment: "page-builder", icon: LayoutTemplate },
+      {
+        title: "Website / Pages",
+        segment: "page-builder",
+        icon: LayoutTemplate,
+      },
       { title: "Registration Form", segment: "form", icon: ClipboardList },
     ],
   },
@@ -72,10 +76,6 @@ export const eventNavGroups: EventNavGroup[] = [
         title: "Emails",
         segment: "emails",
         icon: Mail,
-        comingSoon: true,
-        milestone: "M6",
-        description:
-          "Configure lifecycle emails, triggers, and audience segments.",
       },
       { title: "Attendees", segment: "attendees", icon: Users },
       { title: "Check-in", segment: "checkin", icon: QrCode },
@@ -85,8 +85,7 @@ export const eventNavGroups: EventNavGroup[] = [
         icon: BarChart3,
         comingSoon: true,
         milestone: "M7",
-        description:
-          "Run registration and finance reports for this event.",
+        description: "Run registration and finance reports for this event.",
       },
       { title: "Responses", segment: "responses", icon: Inbox },
     ],

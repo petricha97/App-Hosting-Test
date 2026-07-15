@@ -113,3 +113,39 @@ export async function upsertAdminEmailSettings(input: {
     };
   });
 }
+
+// ============================================================================
+// M6-T2 addition (Full-Stack slice, flagged for Backend review): "Reset to
+// platform default" (design §6 / spec §6 AC-3 — "BE picks delete-doc vs
+// sentinel, documented in the data model"). DELETE-DOC was chosen over a
+// sentinel: EmailSettings is already a lazy CheckinConfig-style doc (no row
+// = defaults resolved in memory by resolveEmailSenderIdentity), so removing
+// the doc is the natural "go back to inheriting platform defaults" operation
+// — no new field/sentinel value needed anywhere else in the model.
+// ============================================================================
+
+export type DeleteAdminEmailSettingsResult =
+  // ok:true covers BOTH "a doc existed and was deleted" and "no doc existed"
+  // — resetting an already-default event is a harmless no-op, not an error
+  // (idempotent, matches the lazy-doc read convention).
+  | { ok: true }
+  // CROSS_ORG: a doc exists at this eventId but belongs to another org
+  // (IDOR-safe, zero writes) — the route surfaces 404.
+  | { ok: false; code: "CROSS_ORG" };
+
+export async function deleteAdminEmailSettings(input: {
+  eventId: string;
+  organizationId: string;
+}): Promise<DeleteAdminEmailSettingsResult> {
+  const ref = emailSettingsCol().doc(input.eventId);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: true };
+
+  const existing = snap.data() as EmailSettingsDoc;
+  if (existing.organizationId !== input.organizationId) {
+    return { ok: false, code: "CROSS_ORG" };
+  }
+
+  await ref.delete();
+  return { ok: true };
+}
