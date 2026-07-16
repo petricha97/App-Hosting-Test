@@ -10,7 +10,8 @@
 // 7/14/21 offset that is currently due for that order).
 import "server-only";
 
-import { deriveBodyHtmlTemplate } from "@/features/emails/server/render";
+import { deriveBodyForDefinition } from "@/features/emails/server/render";
+import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
 import { buildEmailMergeContext } from "@/lib/email/merge-context";
 import { emailRecipientSchema } from "@/lib/email/schemas";
 import {
@@ -19,7 +20,7 @@ import {
   type SendEventEmailBatchRecipient,
 } from "@/lib/email/send-service";
 import type { EmailTransport } from "@/lib/email/transport";
-import type { EventDoc, WithId } from "@/types/collection";
+import type { EmailPuckBlock, EventDoc, WithId } from "@/types/collection";
 import { isDefinitionCurrentlyEnabled } from "./definition-enabled";
 import { mintAttendeeQrSvg, templateUsesQrCode } from "./qr";
 import type {
@@ -39,7 +40,14 @@ export interface RunPagedLifecycleTriggerInput {
   eventName: string;
   event: LifecycleEventInput;
   definitionId: string | null;
-  template: { subject: string; body: string };
+  template: {
+    subject: string;
+    body: string;
+    // M6-T4 — optional, additive (spec Shared decisions): a caller that
+    // omits these reproduces the exact pre-T4 plain-text behavior.
+    bodyMode?: "text" | "blocks";
+    bodyBlocks?: EmailPuckBlock[];
+  };
   transport?: EmailTransport;
   pageSize: number;
   maxPages: number;
@@ -88,8 +96,36 @@ export async function runPagedLifecycleTrigger(
   input: RunPagedLifecycleTriggerInput,
 ): Promise<TriggerEvalOutcome> {
   const outcome = outcomeFrom();
-  const needsQrCode = templateUsesQrCode(input.template);
-  const bodyHtml = deriveBodyHtmlTemplate(input.template.body);
+  // M6-T4: bodyMode/bodyBlocks may be set (block-designed periodic email) —
+  // derive ONCE per tick (the assembled HTML/text is identical for every
+  // recipient page; only the per-recipient MERGE-TAG substitution differs,
+  // which sendEventEmail/sendEventEmailBatch already apply downstream).
+  //
+  // M6-T4 B-1 fix: resolveEmailBlockRenderContext wires live
+  // TicketPricingTable/RegistrationEmbed/CountdownTimer data, also resolved
+  // ONCE per tick — the same snapshot semantics as bodyHtml/bodyText above,
+  // never re-fetched per page or per recipient (spec §1 AC-9). It never
+  // throws on its own (every sub-resolution is independently failure-
+  // isolated), so a lookup failure here can only ever degrade to an empty
+  // context, never abort the tick.
+  const blockContext = await resolveEmailBlockRenderContext({
+    eventId: input.eventId,
+    organizationId: input.organizationId,
+  });
+  const { bodyHtml, bodyText } = deriveBodyForDefinition(
+    input.template,
+    blockContext,
+  );
+  // {qr_code} usage is checked against the DERIVED plain-text body — this
+  // generalizes correctly to block mode without templateUsesQrCode needing
+  // to know about blocks: a block-designed email that embeds {qr_code} in
+  // any text-bearing field still appears in bodyText (spec §3.3's own
+  // "walks block props directly" derivation), so the pre-check remains
+  // accurate whether the definition is plain-text or block-authored.
+  const needsQrCode = templateUsesQrCode({
+    subject: input.template.subject,
+    body: bodyText,
+  });
   let cursor: number | null = null;
 
   for (let page = 0; page < input.maxPages; page += 1) {
@@ -163,7 +199,7 @@ export async function runPagedLifecycleTrigger(
           template: {
             subject: input.template.subject,
             bodyHtml,
-            bodyText: input.template.body,
+            bodyText,
           },
           // sendEventEmail rejects an invalid recipient at step 1, BEFORE
           // context is ever used — an empty context avoids paying for QR
@@ -185,7 +221,7 @@ export async function runPagedLifecycleTrigger(
         template: {
           subject: input.template.subject,
           bodyHtml,
-          bodyText: input.template.body,
+          bodyText,
         },
         recipients: validRecipients,
         transport: input.transport,

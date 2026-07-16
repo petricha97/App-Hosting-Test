@@ -24,6 +24,23 @@ export const emailAudienceOptionSchema = z.enum([
   "accepted-all",
 ]);
 
+// M6-T4 (spec §2): the RHF-side mirror of EmailPuckBlock — a stable id, one
+// of the 8 email-safe types (see EMAIL_SAFE_BLOCK_TYPES,
+// src/features/emails/types.ts), and an opaque props bag. This is a SHAPE
+// check only (fast client feedback, same posture as every other schema in
+// this file) — the server's per-type prop schemas (src/lib/email/schemas.ts,
+// Backend scope) remain the authoritative validation, re-run at both write
+// and render time per spec §3.1.
+export const EMAIL_EDITOR_BODY_BLOCKS_MAX = 20;
+
+export const emailEditorBodyBlockSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  props: z.record(z.string(), z.unknown()),
+});
+
+export const emailBodyModeSchema = z.enum(["text", "blocks"]);
+
 export const emailEditorFormSchema = z.object({
   name: z
     .string()
@@ -46,6 +63,16 @@ export const emailEditorFormSchema = z.object({
       `Subject must be ${EMAIL_EDITOR_SUBJECT_MAX} characters or fewer.`,
     ),
   body: z.string(),
+  // M6-T4 — additive fields (spec §2 "join the same editability bucket as
+  // subject/body"). Default "text"/[] so buildDefaultValues never needs a
+  // definition to carry them (legacy docs / Backend-not-landed-yet gap).
+  bodyMode: emailBodyModeSchema,
+  bodyBlocks: z
+    .array(emailEditorBodyBlockSchema)
+    .max(
+      EMAIL_EDITOR_BODY_BLOCKS_MAX,
+      `A block-designed email may hold at most ${EMAIL_EDITOR_BODY_BLOCKS_MAX} blocks.`,
+    ),
 });
 
 export type EmailEditorFormValues = z.infer<typeof emailEditorFormSchema>;

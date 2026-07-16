@@ -20,6 +20,7 @@ import {
 } from "./paged-trigger-runner";
 import type { AudienceCandidate, TriggerEvalOutcome } from "./types";
 import type { EmailTransport } from "@/lib/email/transport";
+import type { EmailPuckBlock } from "@/types/collection";
 
 export const PAYMENT_REMINDER_KIND = "payment-reminder";
 
@@ -31,7 +32,13 @@ export interface EvaluateUnpaidOffsetsInput {
   eventName: string;
   event: LifecycleEventInput;
   definitionId: string | null;
-  template: { subject: string; body: string };
+  template: {
+    subject: string;
+    body: string;
+    // M6-T4 — optional, additive (spec Shared decisions).
+    bodyMode?: "text" | "blocks";
+    bodyBlocks?: EmailPuckBlock[];
+  };
   // Fixed system-catalog data (spec §4: "system definitions cannot edit
   // trigger.offsetsDays") — [7, 14, 21] today, passed in rather than
   // hardcoded so a future catalog change is a one-line default-definitions

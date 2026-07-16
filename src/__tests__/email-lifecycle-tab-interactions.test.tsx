@@ -43,6 +43,8 @@ function def(
     sortOrder: 0,
     materialized: false,
     createdAtMs: null,
+    bodyMode: "text",
+    bodyBlocks: [],
     ...overrides,
   };
 }

@@ -305,6 +305,13 @@ export async function upsertAdminEmailDefinition(input: {
           enabled: parsedPatch.data.enabled ?? parsedIfAbsent.data.enabled,
           subject: parsedPatch.data.subject ?? parsedIfAbsent.data.subject,
           body: parsedPatch.data.body ?? parsedIfAbsent.data.body,
+          // M6-T4: bodyMode/bodyBlocks join the SAME editable-on-create
+          // bucket as subject/body above — editable for isSystem:true and
+          // custom alike (spec §2; SYSTEM_LOCKED_SCALAR_FIELDS below
+          // deliberately never lists either field).
+          bodyMode: parsedPatch.data.bodyMode ?? parsedIfAbsent.data.bodyMode,
+          bodyBlocks:
+            parsedPatch.data.bodyBlocks ?? parsedIfAbsent.data.bodyBlocks,
           isSystem: input.isSystem,
           sortOrder: parsedIfAbsent.data.sortOrder,
           createdAt: FieldValue.serverTimestamp(),
@@ -346,6 +353,14 @@ export async function upsertAdminEmailDefinition(input: {
       }
       if (parsedPatch.data.body !== undefined) {
         updatePatch.body = parsedPatch.data.body;
+      }
+      // M6-T4: unlocked for isSystem too — see the create-branch comment
+      // above (spec §2, adminEmailDefinition.ts gap analysis item).
+      if (parsedPatch.data.bodyMode !== undefined) {
+        updatePatch.bodyMode = parsedPatch.data.bodyMode;
+      }
+      if (parsedPatch.data.bodyBlocks !== undefined) {
+        updatePatch.bodyBlocks = parsedPatch.data.bodyBlocks;
       }
 
       tx.update(ref, updatePatch);

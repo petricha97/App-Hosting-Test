@@ -18,8 +18,9 @@
 // approval-pending email, ever").
 import "server-only";
 
-import { deriveBodyHtmlTemplate } from "@/features/emails/server/render";
+import { deriveBodyForDefinition } from "@/features/emails/server/render";
 import { resolveEffectiveEmailDefinition } from "@/features/emails/server/resolve-definition";
+import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
 import { buildEmailMergeContext } from "@/lib/email/merge-context";
 import { sendEventEmail } from "@/lib/email/send-service";
 import type { EventDoc, WithId } from "@/types/collection";
@@ -60,6 +61,28 @@ export async function fireApprovalPendingEmail(
       submission: input.submission,
     });
 
+    // M6-T4: definition may be Plain-text or Block-designer authored —
+    // deriveBodyForDefinition is the ONE place that branches on bodyMode,
+    // reused unchanged by every real-time trigger (Shared decisions: "every
+    // existing caller... gets block-designer support for free").
+    //
+    // M6-T4 B-1 fix: resolveEmailBlockRenderContext wires the live
+    // TicketPricingTable/RegistrationEmbed/CountdownTimer data (resolved
+    // ONCE for this single send, spec §1 AC-9's snapshot semantics) — it
+    // never throws on its own (every sub-resolution is independently
+    // failure-isolated internally), and this whole function is already
+    // wrapped in the outer try/catch below, so a lookup failure here can
+    // only ever degrade to an empty context, never block or crash this
+    // send.
+    const blockContext = await resolveEmailBlockRenderContext({
+      eventId: input.eventId,
+      organizationId: input.organizationId,
+    });
+    const { bodyHtml, bodyText } = deriveBodyForDefinition(
+      definition,
+      blockContext,
+    );
+
     const result = await sendEventEmail({
       organizationId: input.organizationId,
       eventId: input.eventId,
@@ -71,8 +94,8 @@ export async function fireApprovalPendingEmail(
       submissionId: input.submissionId,
       template: {
         subject: definition.subject,
-        bodyHtml: deriveBodyHtmlTemplate(definition.body),
-        bodyText: definition.body,
+        bodyHtml,
+        bodyText,
       },
       context,
     });

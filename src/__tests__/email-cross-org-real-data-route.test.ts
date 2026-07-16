@@ -390,6 +390,101 @@ describe("QA — real two-org data through the actual route handlers (unmocked D
     expect(org2Body.settings.fromAddress).toBe("events@org2.example.com");
   });
 
+  it("QA (M6-T4 spec §7 AC-2): a bodyBlocks payload PATCHed for org-1's definition through the real route is never readable via org-2's session", async () => {
+    const { org1CustomKind, org2CustomKind } = await seedTwoOrgTenants();
+
+    actingAs(ORG_1, EVENT_1);
+    const patchRes = await PATCH_DEFINITION(
+      jsonRequest(
+        "PATCH",
+        EVENT_1.id,
+        `/emails/definitions/${org1CustomKind}`,
+        {
+          bodyMode: "blocks",
+          bodyBlocks: [
+            {
+              id: "hero-1",
+              type: "Hero",
+              props: {
+                eyebrow: "ORG1_SECRET_EYEBROW",
+                heading: "ORG1_SECRET_HEADING",
+                body: "ORG1_SECRET_BODY",
+                primaryCtaLabel: "",
+                secondaryCtaLabel: "",
+                imageUrl: "",
+              },
+            },
+          ],
+        },
+      ),
+      ctxWithKind(EVENT_1.id, org1CustomKind),
+    );
+    expect(patchRes.status).toBe(200);
+
+    // Org-1 itself reads its own bodyBlocks back correctly (sanity check the
+    // write actually landed before proving it's isolated).
+    const org1Res = await GET_DEFINITIONS(
+      getRequest(EVENT_1.id),
+      ctx(EVENT_1.id),
+    );
+    const org1Body = await org1Res.json();
+    const org1Def = org1Body.definitions.find(
+      (d: { kind: string }) => d.kind === org1CustomKind,
+    );
+    expect(org1Def.bodyMode).toBe("blocks");
+    expect(org1Def.bodyBlocks[0].props.heading).toBe("ORG1_SECRET_HEADING");
+
+    // Org-2's own definition list never contains org-1's kind at all, so its
+    // bodyBlocks content (the "ORG1_SECRET_*" tokens) can never surface —
+    // confirmed by asserting the whole serialized response never mentions
+    // the secret token anywhere (not just "the kind is absent").
+    actingAs(ORG_2, EVENT_2);
+    const org2Res = await GET_DEFINITIONS(
+      getRequest(EVENT_2.id),
+      ctx(EVENT_2.id),
+    );
+    const org2Body = await org2Res.json();
+    const org2Kinds = org2Body.definitions.map((d: { kind: string }) => d.kind);
+    expect(org2Kinds).not.toContain(org1CustomKind);
+    expect(JSON.stringify(org2Body)).not.toContain("ORG1_SECRET");
+
+    // Org-2 cannot PATCH org-1's kind directly either (same 404-IDOR
+    // mechanism already proven for `enabled` above, re-confirmed for
+    // bodyBlocks specifically since it's a new field on the same route).
+    const crossOrgPatch = await PATCH_DEFINITION(
+      jsonRequest(
+        "PATCH",
+        EVENT_1.id,
+        `/emails/definitions/${org1CustomKind}`,
+        { bodyMode: "text", bodyBlocks: [] },
+      ),
+      ctxWithKind(EVENT_1.id, org1CustomKind),
+    );
+    // org-2's session is still active from actingAs(ORG_2, EVENT_2) above —
+    // event-1 does not belong to org-2, so this must 404, never touch org-1's
+    // stored bodyBlocks.
+    expect(crossOrgPatch.status).toBe(404);
+
+    // org-1's content is provably untouched by the rejected cross-org PATCH.
+    actingAs(ORG_1, EVENT_1);
+    const org1ResAfter = await GET_DEFINITIONS(
+      getRequest(EVENT_1.id),
+      ctx(EVENT_1.id),
+    );
+    const org1BodyAfter = await org1ResAfter.json();
+    const org1DefAfter = org1BodyAfter.definitions.find(
+      (d: { kind: string }) => d.kind === org1CustomKind,
+    );
+    expect(org1DefAfter.bodyMode).toBe("blocks");
+    expect(org1DefAfter.bodyBlocks[0].props.heading).toBe(
+      "ORG1_SECRET_HEADING",
+    );
+
+    // Keep both custom kinds referenced so this test also documents (not
+    // just implies) that org-2's own custom definition is unaffected.
+    expect(org2Kinds).toContain(org2CustomKind);
+  });
+
   it("a fresh event (no prior writes) renders the 8 virtual defaults with literally zero Firestore writes recorded by the real DAL", async () => {
     actingAs(ORG_1, EVENT_1);
     const res = await GET_DEFINITIONS(getRequest(EVENT_1.id), ctx(EVENT_1.id));

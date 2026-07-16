@@ -2,11 +2,26 @@
 // server page / API routes hand to the client components is serialized
 // through these shapes (no Firestore Timestamp ever crosses the boundary).
 // PURE module — no Firebase, no server imports (safe for client components).
-import type {
-  EmailDefinitionAudience,
-  EmailDefinitionGroup,
-  EmailMessageStatus,
+import {
+  EMAIL_SAFE_BLOCK_TYPES,
+  type EmailDefinitionAudience,
+  type EmailDefinitionGroup,
+  type EmailMessageStatus,
+  type EmailPuckBlock,
+  type EmailSafeBlockType,
 } from "@/types/collection";
+
+// M6-T4 — re-exported (not re-declared) from src/types/collection.ts, which
+// is the SINGLE source of truth for the block allowlist (shared with the
+// write-time Zod schema and the render-time membership re-check, Backend
+// scope). Client components import these from THIS module (the established
+// "features/emails client surface" convention), not directly from
+// @/types/collection, so the client-vs-server import boundary stays legible
+// at a glance.
+export { EMAIL_SAFE_BLOCK_TYPES };
+export type { EmailPuckBlock, EmailSafeBlockType };
+
+export type EmailBodyMode = "text" | "blocks";
 
 export type SerializedEmailDefinitionTrigger =
   | { type: "manual" }
@@ -36,6 +51,12 @@ export interface SerializedEmailDefinition {
   sortOrder: number;
   materialized: boolean;
   createdAtMs: number | null;
+  // M6-T4 (spec §2 AC-5) — always populated by both
+  // default-definitions.ts's serializeStoredDefinition/serializeVirtualDefault
+  // (Backend-landed, defaults to "text"/[] for legacy docs and virtual
+  // defaults alike), never optional here.
+  bodyMode: EmailBodyMode;
+  bodyBlocks: EmailPuckBlock[];
 }
 
 export interface SerializedEmailRecipient {

@@ -8,17 +8,14 @@ import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { EmailDefinitionPickerMenu } from "@/features/emails/components/email-definition-picker-menu";
 import { EmailEditorDialog } from "@/features/emails/components/email-editor-dialog";
 import { EmailsMetaBar } from "@/features/emails/components/emails-meta-bar";
 import { LifecycleEmailsTab } from "@/features/emails/components/lifecycle-emails-tab";
 import { SenderSettingsDialog } from "@/features/emails/components/sender-settings-dialog";
 import { SendLogTab } from "@/features/emails/components/send-log-tab";
 import type {
+  EmailBodyMode,
   RenderedEmailPreview,
   SerializedEmailDefinition,
   SerializedEmailMessage,
@@ -62,6 +59,9 @@ export function EmailsWorkspace({
   const [settings, setSettings] = useState(initialSettings);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingKind, setEditingKind] = useState<string | null>(null);
+  const [forceInitialMode, setForceInitialMode] = useState<
+    EmailBodyMode | undefined
+  >(undefined);
   const [senderSettingsOpen, setSenderSettingsOpen] = useState(false);
 
   const handleTabChange = (value: string) => {
@@ -72,11 +72,22 @@ export function EmailsWorkspace({
 
   const openEditor = (kind: string) => {
     setEditingKind(kind);
+    setForceInitialMode(undefined);
     setEditorOpen(true);
   };
 
   const openCreate = () => {
     setEditingKind(null);
+    setForceInitialMode(undefined);
+    setEditorOpen(true);
+  };
+
+  // M6-T4 (design §1) — the ONLY entry point that forces the mode toggle to
+  // "Block designer"; ordinary row-click editing (openEditor above) keeps
+  // defaulting to the definition's persisted bodyMode.
+  const openBlockDesigner = (kind: string) => {
+    setEditingKind(kind);
+    setForceInitialMode("blocks");
     setEditorOpen(true);
   };
 
@@ -98,16 +109,11 @@ export function EmailsWorkspace({
           </p>
         </div>
         <div className="flex gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span tabIndex={0}>
-                <Button variant="outline" disabled>
-                  Open Email Designer
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Email designer arrives with M6-T4</TooltipContent>
-          </Tooltip>
+          <EmailDefinitionPickerMenu
+            definitions={definitions}
+            timeZone={timeZone}
+            onSelect={openBlockDesigner}
+          />
           <Button onClick={openCreate}>
             <Plus aria-hidden="true" />
             Create email
@@ -158,6 +164,7 @@ export function EmailsWorkspace({
         definitionsByKind={definitionsByKind}
         definition={isCreateMode ? null : editingDefinition}
         onSaved={() => router.refresh()}
+        forceInitialMode={forceInitialMode}
       />
 
       <SenderSettingsDialog

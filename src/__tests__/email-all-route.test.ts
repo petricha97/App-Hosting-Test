@@ -34,6 +34,7 @@ const {
   getAdminEmailDefinitionByKind,
   getAdminRegistrationDraftsForEvent,
   sendEventEmailBatch,
+  resolveEmailBlockRenderContext,
 } = vi.hoisted(() => ({
   cookies: vi.fn(),
   decodeUser: vi.fn(),
@@ -42,6 +43,7 @@ const {
   getAdminEmailDefinitionByKind: vi.fn(),
   getAdminRegistrationDraftsForEvent: vi.fn(),
   sendEventEmailBatch: vi.fn(),
+  resolveEmailBlockRenderContext: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies }));
@@ -55,6 +57,11 @@ vi.mock("@/lib/db/adminRegistrationDraft", () => ({
   getAdminRegistrationDraftsForEvent,
 }));
 vi.mock("@/lib/email/send-service", () => ({ sendEventEmailBatch }));
+// M6-T4 B-1: mocked at its own module boundary (covered directly by
+// email-block-render-context.test.ts, plus a pass-through assertion below).
+vi.mock("@/features/emails/server/resolve-block-context", () => ({
+  resolveEmailBlockRenderContext,
+}));
 
 import { resetRateLimits } from "@/lib/rate-limit";
 
@@ -114,6 +121,7 @@ beforeEach(() => {
   });
   getAdminEventForOrganization.mockResolvedValue(EVENT);
   getAdminEmailDefinitionByKind.mockResolvedValue(null); // virtual default, enabled:true
+  resolveEmailBlockRenderContext.mockResolvedValue({});
   getAdminRegistrationDraftsForEvent.mockResolvedValue([draft()]);
   sendEventEmailBatch.mockResolvedValue({
     ok: true,
@@ -269,6 +277,75 @@ describe("POST email-all — happy path", () => {
       attempted: 0,
       sent: 0,
     });
+  });
+});
+
+describe("POST email-all — M6-T4 B-1: live block-render context reaches the rendered HTML", () => {
+  it("resolves the block context ONCE for the whole batch (snapshot, spec §1 AC-9) and a TicketPricingTable block renders REAL prices, not the empty-state message", async () => {
+    getAdminRegistrationDraftsForEvent.mockResolvedValue([
+      draft({ id: "d1" }),
+      draft({ id: "d2" }),
+    ]);
+    resolveEmailBlockRenderContext.mockResolvedValue({
+      pricing: {
+        currencies: ["USD"],
+        tickets: [
+          {
+            name: "General Admission",
+            code: "GA",
+            soldOut: false,
+            audienceNames: [],
+            prices: [{ currency: "USD", minPriceMinor: 5000, isFrom: false }],
+          },
+        ],
+      },
+    });
+    getAdminEmailDefinitionByKind.mockResolvedValue({
+      id: "def-1",
+      kind: "abandoned-reminder",
+      subject: "s",
+      body: "b",
+      enabled: true,
+      isSystem: true,
+      bodyMode: "blocks",
+      bodyBlocks: [
+        { id: "tp-1", type: "TicketPricingTable", props: { title: "Tickets" } },
+      ],
+    });
+    sendEventEmailBatch.mockResolvedValue({
+      ok: true,
+      enqueued: 2,
+      results: [
+        {
+          email: "ada@example.com",
+          ok: true,
+          outcome: "sent",
+          messageId: "m1",
+        },
+        {
+          email: "ada@example.com",
+          ok: true,
+          outcome: "sent",
+          messageId: "m2",
+        },
+      ],
+    });
+
+    const response = await POST(makeRequest(), makeContext());
+    expect(response.status).toBe(200);
+
+    expect(resolveEmailBlockRenderContext).toHaveBeenCalledTimes(1);
+    expect(resolveEmailBlockRenderContext).toHaveBeenCalledWith({
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+    });
+
+    const input = sendEventEmailBatch.mock.calls[0][0];
+    expect(input.template.bodyHtml).toContain("General Admission");
+    expect(input.template.bodyHtml).toContain("$50.00");
+    expect(input.template.bodyHtml).not.toContain(
+      "Tickets will be announced soon.",
+    );
   });
 });
 

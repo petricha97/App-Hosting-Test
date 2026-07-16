@@ -21,8 +21,9 @@ import "server-only";
 
 import QRCode from "qrcode";
 
-import { deriveBodyHtmlTemplate } from "@/features/emails/server/render";
+import { deriveBodyForDefinition } from "@/features/emails/server/render";
 import { resolveEffectiveEmailDefinition } from "@/features/emails/server/resolve-definition";
+import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
 import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
 import { getAdminOrderForEvent } from "@/lib/db/adminOrder";
 import { buildEmailMergeContext } from "@/lib/email/merge-context";
@@ -94,6 +95,21 @@ export async function fireOnAcceptConfirmationEmail(
       .join(" ")
       .trim();
 
+    // M6-T4 B-1 fix: see fire-on-submit-email.ts's identical comment — one
+    // shared branch function, now with live TicketPricingTable/
+    // RegistrationEmbed/CountdownTimer data resolved once for this send
+    // (never blocks/crashes on a lookup failure — resolveEmailBlockRenderContext
+    // degrades to an empty context internally, and this whole function is
+    // already wrapped in the outer try/catch below).
+    const blockContext = await resolveEmailBlockRenderContext({
+      eventId: input.eventId,
+      organizationId: input.organizationId,
+    });
+    const { bodyHtml, bodyText } = deriveBodyForDefinition(
+      definition,
+      blockContext,
+    );
+
     const result = await sendEventEmail({
       organizationId: input.organizationId,
       eventId: input.eventId,
@@ -106,8 +122,8 @@ export async function fireOnAcceptConfirmationEmail(
       submissionId: input.submissionId,
       template: {
         subject: definition.subject,
-        bodyHtml: deriveBodyHtmlTemplate(definition.body),
-        bodyText: definition.body,
+        bodyHtml,
+        bodyText,
       },
       context,
     });

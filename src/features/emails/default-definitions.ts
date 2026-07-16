@@ -370,6 +370,12 @@ export function serializeStoredDefinition(
     sortOrder: doc.sortOrder,
     materialized: true,
     createdAtMs: timestampToMillis(doc.createdAt),
+    // M6-T4 (spec §2 AC-5): a doc written before this ticket shipped lacks
+    // these fields entirely — reads as "text" / [] here, the exact same
+    // "schema default proven by loading a legacy doc unmodified" pattern
+    // used everywhere else in this fallback (?? defaults, no backfill).
+    bodyMode: doc.bodyMode ?? "text",
+    bodyBlocks: doc.bodyBlocks ?? [],
   };
 }
 
@@ -393,6 +399,10 @@ function serializeVirtualDefault(
     sortOrder: entry.sortOrder,
     materialized: false,
     createdAtMs: null,
+    // A virtual default has never been materialized/edited — it starts in
+    // Plain-text mode with an empty design, by definition (spec §2).
+    bodyMode: "text",
+    bodyBlocks: [],
   };
 }
 

@@ -177,20 +177,31 @@ interface EmailEditorTestSendButtonProps {
   state: EmailEditorTestSendState;
   enabled: boolean;
   isCreate: boolean;
+  // M6-T4 (design §5): a second, independent disable reason — the
+  // empty-canvas warning blocks Test-send (never Save) via this exact
+  // disabled-button-plus-tooltip mechanism. `null`/omitted preserves the
+  // pre-T4 behavior for every other caller.
+  disabledReason?: string | null;
 }
 
 // The footer's "Send test" trigger (or its disabled/tooltip variant when the
-// definition is off) — hidden once the row above is open.
+// definition is off, or a mode-specific reason applies) — hidden once the
+// row above is open.
 export function EmailEditorTestSendButton({
   state,
   enabled,
   isCreate,
+  disabledReason = null,
 }: EmailEditorTestSendButtonProps) {
   const { testSendOpen, setTestSendOpen } = state;
 
   if (testSendOpen) return null;
 
-  if (!enabled) {
+  const blockedReason = !enabled
+    ? "This email is off — turn it on to send a test"
+    : disabledReason;
+
+  if (blockedReason) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -201,9 +212,7 @@ export function EmailEditorTestSendButton({
             </Button>
           </span>
         </TooltipTrigger>
-        <TooltipContent>
-          This email is off — turn it on to send a test
-        </TooltipContent>
+        <TooltipContent>{blockedReason}</TooltipContent>
       </Tooltip>
     );
   }

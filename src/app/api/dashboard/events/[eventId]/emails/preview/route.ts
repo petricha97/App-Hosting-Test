@@ -7,9 +7,12 @@ import { z } from "zod";
 
 import { renderEmailDefinitionPreview } from "@/features/emails/server/render";
 import { readEmailRouteJsonBody } from "@/features/emails/server/read-json-body";
+import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
 import { loadSampleEmailContext } from "@/features/emails/server/sample-context";
 import { resolveRegistrationRouteScope } from "@/features/registration/server/route-scope";
 import {
+  emailBodyBlocksSchema,
+  emailBodyModeSchema,
   emailDefinitionBodySchema,
   emailDefinitionSubjectSchema,
 } from "@/lib/email/schemas";
@@ -19,9 +22,17 @@ interface RouteContext {
   params: Promise<{ eventId: string }>;
 }
 
+// M6-T4 (spec §4 "no new API route" — this one's request/response shape is
+// only WIDENED): bodyMode/bodyBlocks are optional so a Plain-text-mode
+// caller's existing {subject, body} payload keeps working unmodified.
+// renderEmailDefinitionPreview (src/features/emails/server/render.ts,
+// Backend scope) already absorbs both branches internally — this route only
+// threads the extra fields through.
 const PreviewSchema = z.object({
   subject: emailDefinitionSubjectSchema,
   body: emailDefinitionBodySchema,
+  bodyMode: emailBodyModeSchema.optional(),
+  bodyBlocks: emailBodyBlocksSchema.optional(),
 });
 
 export async function POST(request: Request, context: RouteContext) {
@@ -59,16 +70,30 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const sample = await loadSampleEmailContext({
-    eventId,
-    organizationId: scope.organizationId,
-    event: scope.event,
-  });
+  // M6-T4 B-1 fix: the editor's own live preview — per spec §3.2 the
+  // "authoritative" surface an organizer is told to trust — resolves real
+  // pricing/registration/countdown data (once per request, never per
+  // recipient) so RegistrationEmbed/TicketPricingTable/CountdownTimer show
+  // real content here instead of always falling back to their empty state.
+  const [sample, blockContext] = await Promise.all([
+    loadSampleEmailContext({
+      eventId,
+      organizationId: scope.organizationId,
+      event: scope.event,
+    }),
+    resolveEmailBlockRenderContext({
+      eventId,
+      organizationId: scope.organizationId,
+    }),
+  ]);
 
   const rendered = renderEmailDefinitionPreview({
     subjectTemplate: parsed.data.subject,
     bodyTemplate: parsed.data.body,
     context: sample.context,
+    bodyMode: parsed.data.bodyMode,
+    bodyBlocks: parsed.data.bodyBlocks,
+    blockContext,
   });
 
   return NextResponse.json({

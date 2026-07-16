@@ -1,10 +1,13 @@
 "use client";
 
-// Compose / edit dialog (design §3) — the ONE surface for both system
-// (isSystem:true) and custom definitions, plus "+ Create email" (blank
-// custom). Wide (`sm:max-w-4xl`, deliberate divergence from the app's usual
-// `sm:max-w-lg` — the compose/preview grid needs the room, design §3 note).
-import { useEffect, useId, useRef, useState } from "react";
+// Compose / edit dialog (M6-T2 design §3, extended by M6-T4 design §3) — the
+// ONE surface for both system (isSystem:true) and custom definitions, plus
+// "+ Create email" (blank custom). Width is now MODE-CONDITIONAL
+// (`sm:max-w-4xl` Plain-text / `sm:max-w-6xl` Block-designer, M6-T4 design
+// §3.1 — a further, explicitly-flagged divergence on top of T2's own
+// already-flagged `sm:max-w-4xl` divergence from the app's usual
+// `sm:max-w-lg`).
+import { useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -51,7 +54,9 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { applyApiFormError } from "@/features/registration/components/form-errors";
+import { EmailBlockDesigner } from "@/features/emails/components/email-block-designer";
 import { EmailEditorLockedRow } from "@/features/emails/components/email-editor-locked-row";
+import { EmailEditorModeToggle } from "@/features/emails/components/email-editor-mode-toggle";
 import {
   EmailEditorTestSendButton,
   EmailEditorTestSendRow,
@@ -66,6 +71,8 @@ import {
   type EmailEditorFormValues,
 } from "@/features/emails/schemas";
 import type {
+  EmailBodyMode,
+  EmailPuckBlock,
   RenderedEmailPreview,
   SerializedEmailDefinition,
 } from "@/features/emails/types";
@@ -77,6 +84,7 @@ import {
   atMsToDateTimeLocalInput,
   dateTimeLocalInputToAtMs,
 } from "@/features/emails/utils";
+import { cn } from "@/lib/utils";
 
 const PREVIEW_DEBOUNCE_MS = 400;
 
@@ -89,11 +97,19 @@ interface EmailEditorDialogProps {
   // null = "+ Create email" (blank custom definition).
   definition: SerializedEmailDefinition | null;
   onSaved: () => void;
+  // M6-T4 (design §1) — set ONLY by the definition-picker menu's entry
+  // point: forces the mode toggle's INITIAL state to "Block designer" for
+  // this open. Ordinary row-click editing (email-group-table.tsx) omits
+  // this and keeps defaulting to the definition's persisted bodyMode.
+  // Forcing the default value (not calling setValue after reset) means this
+  // never marks the freshly-opened form dirty on its own.
+  forceInitialMode?: EmailBodyMode;
 }
 
 function buildDefaultValues(
   definition: SerializedEmailDefinition | null,
   timeZone: string,
+  forceInitialMode?: EmailBodyMode,
 ): EmailEditorFormValues {
   if (!definition) {
     return {
@@ -105,6 +121,8 @@ function buildDefaultValues(
       enabled: true,
       subject: "",
       body: "",
+      bodyMode: forceInitialMode ?? "text",
+      bodyBlocks: [],
     };
   }
   return {
@@ -120,6 +138,8 @@ function buildDefaultValues(
     enabled: definition.enabled,
     subject: definition.subject,
     body: definition.body,
+    bodyMode: forceInitialMode ?? definition.bodyMode ?? "text",
+    bodyBlocks: definition.bodyBlocks ?? [],
   };
 }
 
@@ -139,15 +159,15 @@ export function EmailEditorDialog({
   definitionsByKind,
   definition,
   onSaved,
+  forceInitialMode,
 }: EmailEditorDialogProps) {
   const isCreate = definition === null;
   const isSystem = definition?.isSystem ?? false;
-  const groupLabelId = useId();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const form = useForm<EmailEditorFormValues>({
     resolver: zodResolver(emailEditorFormSchema),
-    defaultValues: buildDefaultValues(definition, timeZone),
+    defaultValues: buildDefaultValues(definition, timeZone, forceInitialMode),
   });
   const testSend = useEmailEditorTestSend(eventId, definition, open);
 
@@ -158,14 +178,16 @@ export function EmailEditorDialog({
 
   useEffect(() => {
     if (open) {
-      form.reset(buildDefaultValues(definition, timeZone));
+      form.reset(buildDefaultValues(definition, timeZone, forceInitialMode));
       setPreview(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, definition, timeZone]);
+  }, [open, definition, timeZone, forceInitialMode]);
 
   const subject = form.watch("subject");
   const body = form.watch("body");
+  const bodyMode = form.watch("bodyMode");
+  const bodyBlocks = form.watch("bodyBlocks") as EmailPuckBlock[];
   const triggerType = form.watch("triggerType");
   const enabled = form.watch("enabled");
   // Must be read synchronously during render (not only inside a callback)
@@ -173,8 +195,23 @@ export function EmailEditorDialog({
   // otherwise attemptClose() below sees a stale, always-false value.
   const { isDirty } = form.formState;
 
+  const isBlocksMode = bodyMode === "blocks";
+  const isEmptyBlockCanvas = isBlocksMode && bodyBlocks.length === 0;
+  // Stable dependency for the preview effect below — bodyBlocks' array
+  // reference can change without its content changing; comparing the
+  // serialized form avoids re-fetching the preview on no-op re-renders.
+  const bodyBlocksKey = JSON.stringify(bodyBlocks);
+
   // Debounced live preview (design §3) — re-renders through the SAME
-  // server-side pipeline as the confirmation card / test send.
+  // server-side pipeline as the confirmation card / test send. M6-T4:
+  // widened to also send bodyMode/bodyBlocks — but `bodyBlocks` is included
+  // ONLY while actually in Block-designer mode. A definition's stored
+  // bodyBlocks can reference a since-removed block type that the RENDER
+  // pipeline gracefully skips (spec §1 AC-8) but the WRITE-time schema
+  // (reused here for request validation) rejects outright; sending it
+  // unconditionally would break the preview for a Plain-text-mode edit on
+  // such a definition even though bodyBlocks is completely irrelevant to a
+  // "text" mode render.
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
@@ -185,7 +222,12 @@ export function EmailEditorDialog({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ subject, body }),
+          body: JSON.stringify({
+            subject,
+            body,
+            bodyMode,
+            bodyBlocks: bodyMode === "blocks" ? bodyBlocks : undefined,
+          }),
         },
       )
         .then((response) => (response.ok ? response.json() : Promise.reject()))
@@ -206,7 +248,8 @@ export function EmailEditorDialog({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [open, eventId, subject, body]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, eventId, subject, body, bodyMode, bodyBlocksKey]);
 
   const attemptClose = () => {
     if (isDirty) {
@@ -224,7 +267,23 @@ export function EmailEditorDialog({
       enabled: values.enabled,
       subject: values.subject,
       body: values.body,
+      // M6-T4 (spec §2 AC-1) — join the same editable bucket as
+      // subject/body for BOTH system and custom definitions. `bodyMode` is
+      // a plain enum with no cross-field validation risk, so — like
+      // subject/body above — it's always sent. `bodyBlocks` is sent ONLY
+      // when the canvas was actually touched this session
+      // (form.formState.dirtyFields): a stored bodyBlocks array may
+      // reference a since-removed block type that the RENDER pipeline
+      // gracefully skips (spec §1 AC-8) but the WRITE-time schema rejects
+      // outright (a discriminated union with no matching member) —
+      // re-submitting it unconditionally on every unrelated plain-text
+      // edit would make such a definition permanently unsavable, even for
+      // a one-word Subject tweak.
+      bodyMode: values.bodyMode,
     };
+    if (form.formState.dirtyFields.bodyBlocks) {
+      patchBody.bodyBlocks = values.bodyBlocks;
+    }
     if (!isSystem) {
       patchBody.name = values.name;
       patchBody.group = values.group;
@@ -248,6 +307,8 @@ export function EmailEditorDialog({
                 enabled: values.enabled,
                 subject: values.subject,
                 body: values.body,
+                bodyMode: values.bodyMode,
+                bodyBlocks: values.bodyBlocks,
                 trigger,
               }),
             },
@@ -292,7 +353,12 @@ export function EmailEditorDialog({
           onOpenChange(next);
         }}
       >
-        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-4xl">
+        <DialogContent
+          className={cn(
+            "max-h-[88vh] overflow-y-auto",
+            isBlocksMode ? "sm:max-w-6xl" : "sm:max-w-4xl",
+          )}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {title}
@@ -317,64 +383,67 @@ export function EmailEditorDialog({
                   onSubmit={form.handleSubmit(onSubmit)}
                   className="space-y-4"
                 >
-                  <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                    <div className="space-y-4">
-                      {!isSystem ? (
-                        <FormField
-                          control={form.control}
-                          name="name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Name</FormLabel>
+                  {/* M6-T4 design §3.2: metadata fields move into a
+                      full-width strip shared by BOTH modes, so the top of
+                      the dialog looks identical when switching modes. */}
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {!isSystem ? (
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Name</FormLabel>
+                            <FormControl>
+                              <Input maxLength={120} {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    ) : (
+                      <EmailEditorLockedRow
+                        label="Name"
+                        value={definition!.name}
+                      />
+                    )}
+
+                    {!isSystem ? (
+                      <FormField
+                        control={form.control}
+                        name="group"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Group</FormLabel>
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                            >
                               <FormControl>
-                                <Input maxLength={120} {...field} />
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
                               </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      ) : (
-                        <EmailEditorLockedRow
-                          label="Name"
-                          value={definition!.name}
-                        />
-                      )}
+                              <SelectContent>
+                                {EMAIL_GROUP_OPTIONS.map((group) => (
+                                  <SelectItem key={group} value={group}>
+                                    {EMAIL_GROUP_LABELS[group]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    ) : (
+                      <EmailEditorLockedRow
+                        label="Group"
+                        value={EMAIL_GROUP_LABELS[definition!.group]}
+                      />
+                    )}
 
-                      {!isSystem ? (
-                        <FormField
-                          control={form.control}
-                          name="group"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Group</FormLabel>
-                              <Select
-                                value={field.value}
-                                onValueChange={field.onChange}
-                              >
-                                <FormControl>
-                                  <SelectTrigger className="w-full">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {EMAIL_GROUP_OPTIONS.map((group) => (
-                                    <SelectItem key={group} value={group}>
-                                      {EMAIL_GROUP_LABELS[group]}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      ) : (
-                        <EmailEditorLockedRow
-                          label="Group"
-                          value={EMAIL_GROUP_LABELS[definition!.group]}
-                        />
-                      )}
-
+                    <div className="space-y-4">
                       <EmailEditorTriggerFields
                         isSystem={isSystem}
                         definitionTrigger={definition?.trigger ?? null}
@@ -382,46 +451,48 @@ export function EmailEditorDialog({
                         triggerType={triggerType}
                         form={form}
                       />
+                    </div>
 
-                      {!isSystem ? (
-                        <FormField
-                          control={form.control}
-                          name="audience"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Audience</FormLabel>
-                              <Select
-                                value={field.value}
-                                onValueChange={field.onChange}
-                              >
-                                <FormControl>
-                                  <SelectTrigger className="w-full">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {EMAIL_AUDIENCE_OPTIONS.map((audience) => (
-                                    <SelectItem key={audience} value={audience}>
-                                      {EMAIL_AUDIENCE_LABELS[audience]}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormDescription>
-                                Used for display only — audience targeting
-                                arrives with M6-T3.
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      ) : (
-                        <EmailEditorLockedRow
-                          label="Audience"
-                          value={EMAIL_AUDIENCE_LABELS[definition!.audience]}
-                        />
-                      )}
+                    {!isSystem ? (
+                      <FormField
+                        control={form.control}
+                        name="audience"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Audience</FormLabel>
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {EMAIL_AUDIENCE_OPTIONS.map((audience) => (
+                                  <SelectItem key={audience} value={audience}>
+                                    {EMAIL_AUDIENCE_LABELS[audience]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              Used for display only — audience targeting arrives
+                              with M6-T3.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    ) : (
+                      <EmailEditorLockedRow
+                        label="Audience"
+                        value={EMAIL_AUDIENCE_LABELS[definition!.audience]}
+                      />
+                    )}
 
+                    <div className="space-y-3 sm:col-span-2 lg:col-span-4">
                       {isSystem ? (
                         <p className="text-xs text-muted-foreground">
                           This is a default lifecycle email — its name, group,
@@ -460,21 +531,38 @@ export function EmailEditorDialog({
                           automations arrive.
                         </p>
                       ) : null}
+                    </div>
+                  </div>
 
-                      <FormField
-                        control={form.control}
-                        name="subject"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Subject</FormLabel>
-                            <FormControl>
-                              <Input maxLength={255} {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                  <FormField
+                    control={form.control}
+                    name="subject"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Subject</FormLabel>
+                        <FormControl>
+                          <Input
+                            maxLength={255}
+                            className="max-w-xl"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
+                  <EmailEditorModeToggle form={form} />
+
+                  {isBlocksMode ? (
+                    <EmailBlockDesigner
+                      form={form}
+                      preview={preview}
+                      previewLoading={previewLoading}
+                      previewError={previewError}
+                    />
+                  ) : (
+                    <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                       <FormField
                         control={form.control}
                         name="body"
@@ -503,19 +591,19 @@ export function EmailEditorDialog({
                           </FormItem>
                         )}
                       />
-                    </div>
 
-                    <div>
-                      <EmailPreviewFrame
-                        subject={preview?.subject ?? subject}
-                        bodyHtml={preview?.bodyHtml ?? ""}
-                        missingTags={preview?.missingTags ?? []}
-                        unknownTags={preview?.unknownTags ?? []}
-                        loading={previewLoading}
-                        error={previewError}
-                      />
+                      <div>
+                        <EmailPreviewFrame
+                          subject={preview?.subject ?? subject}
+                          bodyHtml={preview?.bodyHtml ?? ""}
+                          missingTags={preview?.missingTags ?? []}
+                          unknownTags={preview?.unknownTags ?? []}
+                          loading={previewLoading}
+                          error={previewError}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <EmailEditorTestSendRow state={testSend} />
 
@@ -525,6 +613,11 @@ export function EmailEditorDialog({
                         state={testSend}
                         enabled={enabled}
                         isCreate={isCreate}
+                        disabledReason={
+                          isEmptyBlockCanvas
+                            ? "Add at least one content block before sending a test"
+                            : null
+                        }
                       />
                     </div>
                     <div className="flex gap-2">

@@ -15,13 +15,25 @@ vi.mock("sonner", () => ({
 
 // jsdom has no ResizeObserver; Radix's Switch (via @radix-ui/react-use-size)
 // requires one to mount. Minimal no-op stub, same shape every other
-// jsdom-based Radix test suite in the ecosystem uses.
+// jsdom-based Radix test suite in the ecosystem uses. (Also registered
+// globally via vitest.config.mts's setupFiles for @dnd-kit/dom's
+// module-top-level usage — this local stub stays too, for defense in depth
+// and to match every other jsdom-based Radix suite in this app.)
 class ResizeObserverStub {
   observe() {}
   unobserve() {}
   disconnect() {}
 }
 vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+
+// M6-T4: the real <Puck> canvas cannot mount in jsdom (iframe canvas / DnD) —
+// same precedent as event-page-editor-discard.test.tsx. The Block-designer
+// tests below exercise the SURROUNDING dialog chrome (mode toggle dirty
+// tracking, empty-canvas Test-send gating), never the canvas's own
+// drag-and-drop, so a placeholder is the correct-fidelity stub here.
+vi.mock("@measured/puck", () => ({
+  Puck: () => <div data-testid="puck-editor" />,
+}));
 
 import { EmailEditorDialog } from "@/features/emails/components/email-editor-dialog";
 import type { SerializedEmailDefinition } from "@/features/emails/types";
@@ -40,6 +52,8 @@ const SYSTEM_DEFINITION: SerializedEmailDefinition = {
   sortOrder: 0,
   materialized: false,
   createdAtMs: null,
+  bodyMode: "text",
+  bodyBlocks: [],
 };
 
 const CUSTOM_DEFINITION: SerializedEmailDefinition = {
@@ -49,6 +63,15 @@ const CUSTOM_DEFINITION: SerializedEmailDefinition = {
   name: "VIP reminder",
   isSystem: false,
   materialized: true,
+};
+
+// M6-T4: a block-mode definition whose canvas has never had a block dragged
+// in (design §5's "empty canvas" state).
+const EMPTY_BLOCKS_DEFINITION: SerializedEmailDefinition = {
+  ...CUSTOM_DEFINITION,
+  kind: "custom-blocks-empty",
+  bodyMode: "blocks",
+  bodyBlocks: [],
 };
 
 function fetchOk(body: unknown = {}) {
@@ -264,5 +287,78 @@ describe("QA — unsaved-changes guard (spec §3 AC-7, design 'attemptClose')", 
 
     expect(screen.queryByText("Discard changes?")).toBeNull();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("QA — M6-T4 mode toggle dirty-tracking (design §2, the exact QA-D-1 bug class)", () => {
+  // QA-D-1's bug was "isDirty read only inside a callback, never during
+  // render, so RHF's formState Proxy never subscribed the field." The mode
+  // toggle writes through `form.setValue("bodyMode", next, { shouldDirty:
+  // true })` on the SAME form instance (not a parallel useState) — this
+  // test proves a MODE-ONLY switch, with no other field touched, is enough
+  // to trip the existing guard.
+  it("switching to Block designer with no other edits trips the unsaved-changes guard on Cancel", () => {
+    const { onOpenChange } = renderDialog(CUSTOM_DEFINITION);
+
+    fireEvent.click(screen.getByRole("button", { name: "Block designer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByText("Discard changes?")).toBeTruthy();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("opens already in Block-designer mode (aria-pressed) when forceInitialMode is set, without marking the form dirty", () => {
+    const onOpenChangeSpy = vi.fn();
+    render(
+      <EmailEditorDialog
+        open
+        onOpenChange={onOpenChangeSpy}
+        eventId="evt-1"
+        timeZone="America/New_York"
+        definitionsByKind={new Map()}
+        definition={CUSTOM_DEFINITION}
+        onSaved={vi.fn()}
+        forceInitialMode="blocks"
+      />,
+    );
+
+    expect(
+      screen
+        .getByRole("button", { name: "Block designer" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+
+    // forceInitialMode only changes the INITIAL default value snapshot the
+    // form resets to — it must not itself count as a user edit.
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("Discard changes?")).toBeNull();
+    expect(onOpenChangeSpy).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("QA — M6-T4 empty block canvas (design §5): blocks Test-send, never Save", () => {
+  it("disables Test-send with a tooltip reason but leaves Save enabled", () => {
+    renderDialog(EMPTY_BLOCKS_DEFINITION);
+
+    const testSendButton = screen.getByRole("button", {
+      name: "Send test",
+    }) as HTMLButtonElement;
+    expect(testSendButton.disabled).toBe(true);
+
+    const saveButton = screen.getByRole("button", {
+      name: "Save",
+    }) as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(false);
+  });
+
+  it("shows the block-designer canvas region and the empty-canvas warning copy", () => {
+    renderDialog(EMPTY_BLOCKS_DEFINITION);
+
+    expect(
+      screen.getByText(
+        "This email has no content blocks yet — drag a block from the panel to add content.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByTestId("puck-editor")).toBeTruthy();
   });
 });

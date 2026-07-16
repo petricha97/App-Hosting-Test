@@ -25,6 +25,7 @@ const {
   getAdminEmailDefinitionByKind,
   listAdminAttendeesForEvent,
   sendEventEmail,
+  resolveEmailBlockRenderContext,
 } = vi.hoisted(() => ({
   cookies: vi.fn(),
   decodeUser: vi.fn(),
@@ -33,6 +34,7 @@ const {
   getAdminEmailDefinitionByKind: vi.fn(),
   listAdminAttendeesForEvent: vi.fn(),
   sendEventEmail: vi.fn(),
+  resolveEmailBlockRenderContext: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies }));
@@ -44,6 +46,11 @@ vi.mock("@/lib/db/adminEmailDefinition", () => ({
 }));
 vi.mock("@/lib/db/adminAttendee", () => ({ listAdminAttendeesForEvent }));
 vi.mock("@/lib/email/send-service", () => ({ sendEventEmail }));
+// M6-T4 B-1: mocked at its own module boundary (covered directly by
+// email-block-render-context.test.ts, plus a pass-through assertion below).
+vi.mock("@/features/emails/server/resolve-block-context", () => ({
+  resolveEmailBlockRenderContext,
+}));
 
 import { resetRateLimits } from "@/lib/rate-limit";
 
@@ -95,12 +102,66 @@ beforeEach(() => {
   getAdminEventForOrganization.mockResolvedValue(EVENT);
   listAdminAttendeesForEvent.mockResolvedValue([]);
   getAdminEmailDefinitionByKind.mockResolvedValue(null); // fall back to the virtual default
+  resolveEmailBlockRenderContext.mockResolvedValue({});
   sendEventEmail.mockResolvedValue({
     ok: true,
     outcome: "sent",
     messageId: "msg-1",
     providerMessageId: "dev-1",
     renderReport: { usedTags: [], missingTags: [], unknownTags: [] },
+  });
+});
+
+describe("POST test-send — M6-T4 B-1: live block-render context reaches the rendered HTML", () => {
+  it("passes eventId/organizationId to resolveEmailBlockRenderContext and a RegistrationEmbed block renders the REAL open-state link, not the empty-state fallback", async () => {
+    resolveEmailBlockRenderContext.mockResolvedValue({
+      registrationCta: {
+        state: "open",
+        registerHref: "https://app.example.com/events/evt-1/register",
+      },
+    });
+    getAdminEmailDefinitionByKind.mockResolvedValue({
+      id: "doc-1",
+      organizationId: ORG_ID,
+      eventId: EVENT_ID,
+      kind: "confirmation-paid",
+      subject: "s",
+      body: "b",
+      enabled: true,
+      isSystem: true,
+      bodyMode: "blocks",
+      bodyBlocks: [
+        {
+          id: "reg-1",
+          type: "RegistrationEmbed",
+          props: {
+            title: "Register",
+            body: "Join us",
+            buttonLabel: "Register now",
+          },
+        },
+      ],
+    });
+
+    await POST(
+      testSendRequest({
+        kind: "confirmation-paid",
+        recipientEmail: "you@example.com",
+      }),
+      makeContext(),
+    );
+
+    expect(resolveEmailBlockRenderContext).toHaveBeenCalledWith({
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+    });
+    const call = sendEventEmail.mock.calls[0][0];
+    expect(call.template.bodyHtml).toContain(
+      "https://app.example.com/events/evt-1/register",
+    );
+    expect(call.template.bodyHtml).not.toContain(
+      "Registration isn&#39;t set up on this page yet",
+    );
   });
 });
 

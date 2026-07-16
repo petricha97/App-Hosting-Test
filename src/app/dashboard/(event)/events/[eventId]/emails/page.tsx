@@ -10,6 +10,7 @@ import { notFound } from "next/navigation";
 import { mergeEmailDefinitions } from "@/features/emails/default-definitions";
 import { EmailsWorkspace } from "@/features/emails/components/emails-workspace";
 import { renderEmailDefinitionPreview } from "@/features/emails/server/render";
+import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
 import { loadSampleEmailContext } from "@/features/emails/server/sample-context";
 import { serializeEmailMessage } from "@/features/emails/server/serialize";
 import type {
@@ -84,6 +85,7 @@ export default async function EventEmailsPage({
       sample,
       logRows,
       logCount,
+      blockContext,
     ] = await Promise.all([
       listAdminEmailDefinitionsForEvent({
         eventId,
@@ -111,6 +113,15 @@ export default async function EventEmailsPage({
         eventId,
         organizationId: scope.organizationId,
       }),
+      // M6-T4 B-1 fix: same live pricing/registration/countdown data the
+      // editor's own preview route now resolves — this confirmation-preview
+      // card renders through the SAME render pipeline, so it needs the same
+      // context to show real RegistrationEmbed/TicketPricingTable/
+      // CountdownTimer content rather than always the empty-state fallback.
+      resolveEmailBlockRenderContext({
+        eventId,
+        organizationId: scope.organizationId,
+      }),
     ]);
 
     definitions = mergeEmailDefinitions({
@@ -132,10 +143,16 @@ export default async function EventEmailsPage({
       (definition) => definition.kind === "confirmation-paid",
     );
     if (confirmationDefinition) {
+      // M6-T4: a block-designed confirmation-paid definition renders its
+      // block-assembled HTML here too — otherwise this card would show the
+      // stale plain-text body even though the definition is block-authored.
       const rendered = renderEmailDefinitionPreview({
         subjectTemplate: confirmationDefinition.subject,
         bodyTemplate: confirmationDefinition.body,
         context: sample.context,
+        bodyMode: confirmationDefinition.bodyMode,
+        bodyBlocks: confirmationDefinition.bodyBlocks,
+        blockContext,
       });
       confirmationPreview = {
         ...rendered,

@@ -19,6 +19,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createFakeAdminDb } from "./helpers/fake-admin-db";
 import { emailDefinitionId } from "@/lib/db/emailDefinitionId";
+import type { SendEmailInput } from "@/lib/email/transport";
 
 const fake = createFakeAdminDb();
 vi.mock("@/app/lib/firestore", () => ({ adminDb: fake.db }));
@@ -43,7 +44,7 @@ const DEFINITION_ID = emailDefinitionId({
 
 function stubTransport() {
   return {
-    send: vi.fn(async () => ({
+    send: vi.fn(async (_input: SendEmailInput) => ({
       status: "sent" as const,
       providerMessageId: "dev-1",
     })),
@@ -262,6 +263,69 @@ describe("bounded pages / interruption + resumption", () => {
     expect(calls).toBe(3);
     expect(outcome.pagesProcessed).toBe(3);
     expect(outcome.stoppedReason).toBe("budget");
+  });
+});
+
+describe("M6-T4 B-1: live block-render context reaches the rendered HTML", () => {
+  it("resolves the block context ONCE per tick (snapshot, spec §1 AC-9) and a TicketPricingTable block renders REAL prices, not the empty-state message", async () => {
+    seedDefinition({ enabled: true });
+    fake.store.set(`Event/${EVENT_ID}`, {
+      organizationId: ORG_ID,
+      name: EVENT.name,
+      periods: [],
+      timezone: "UTC",
+      formPath: "",
+    });
+    fake.store.set("TicketType/tt-1", {
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+      name: "General Admission",
+      code: "GA",
+      capacity: null,
+      registeredCount: 0,
+      isOpen: true,
+      salesStart: null,
+      salesEnd: null,
+      registrationTypeIds: [],
+      createdAt: { seconds: 1 },
+    });
+    fake.store.set("Fee/fee-1", {
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+      ticketTypeId: "tt-1",
+      registrationTypeId: null,
+      currency: "USD",
+      basePriceMinor: 5000,
+      status: "active",
+      createdAt: { seconds: 1 },
+    });
+    const transport = stubTransport();
+
+    const outcome = await runPagedLifecycleTrigger(
+      baseInput({
+        transport,
+        template: {
+          subject: "Finish up",
+          body: "Come back",
+          bodyMode: "blocks",
+          bodyBlocks: [
+            {
+              id: "tp-1",
+              type: "TicketPricingTable",
+              props: { title: "Tickets" },
+            },
+          ],
+        },
+        fetchPage: async () =>
+          candidatesPage([{ key: "d-1", email: "a@example.com" }]),
+      }),
+    );
+
+    expect(outcome.enqueued).toBe(1);
+    const sent = transport.send.mock.calls[0][0];
+    expect(sent.bodyHtml).toContain("General Admission");
+    expect(sent.bodyHtml).toContain("$50.00");
+    expect(sent.bodyHtml).not.toContain("Tickets will be announced soon.");
   });
 });
 
