@@ -392,6 +392,160 @@ describe("countAdminAttendeesForEvent — aggregate counts (T2 AC-2 / T4 AC-1)",
   });
 });
 
+describe("countAdminAttendeesForEvent — ticketTypeId filter (M7-T1 §1/§3)", () => {
+  it("counts accepted attendees per ticket type, including a ticket type with zero", async () => {
+    seedAttendee("att-1", { submissionId: "s1", ticketTypeId: "tt-early" });
+    seedAttendee("att-2", { submissionId: "s2", ticketTypeId: "tt-early" });
+    seedAttendee("att-3", { submissionId: "s3", ticketTypeId: "tt-vip" });
+    // "tt-super-early" exists as a TicketType but has zero attendees — the
+    // caller still issues the count call and must get back 0, not a crash.
+
+    expect(
+      await countAdminAttendeesForEvent({
+        eventId: EVENT_ID,
+        organizationId: ORG_ID,
+        status: "accepted",
+        ticketTypeId: "tt-early",
+      }),
+    ).toBe(2);
+    expect(
+      await countAdminAttendeesForEvent({
+        eventId: EVENT_ID,
+        organizationId: ORG_ID,
+        status: "accepted",
+        ticketTypeId: "tt-vip",
+      }),
+    ).toBe(1);
+    expect(
+      await countAdminAttendeesForEvent({
+        eventId: EVENT_ID,
+        organizationId: ORG_ID,
+        status: "accepted",
+        ticketTypeId: "tt-super-early",
+      }),
+    ).toBe(0);
+  });
+
+  it("buckets legacy null-ticketTypeId attendees via an explicit null filter", async () => {
+    seedAttendee("att-1", { submissionId: "s1", ticketTypeId: "tt-early" });
+    seedAttendee("att-2", { submissionId: "s2", ticketTypeId: null });
+    seedAttendee("att-3", { submissionId: "s3", ticketTypeId: null });
+
+    expect(
+      await countAdminAttendeesForEvent({
+        eventId: EVENT_ID,
+        organizationId: ORG_ID,
+        status: "accepted",
+        ticketTypeId: null,
+      }),
+    ).toBe(2);
+    // Omitting the filter entirely (undefined) must NOT behave like null —
+    // it means "no ticketTypeId filter at all" (every attendee counts).
+    expect(
+      await countAdminAttendeesForEvent({
+        eventId: EVENT_ID,
+        organizationId: ORG_ID,
+        status: "accepted",
+      }),
+    ).toBe(3);
+  });
+
+  it("excludes cancelled attendees and non-accepted submissions from every row (T1 AC-3/AC-4 parity)", async () => {
+    seedAttendee("att-1", { submissionId: "s1", ticketTypeId: "tt-early" });
+    seedAttendee("att-2", {
+      submissionId: "s2",
+      ticketTypeId: "tt-early",
+      status: "cancelled",
+    });
+
+    expect(
+      await countAdminAttendeesForEvent({
+        eventId: EVENT_ID,
+        organizationId: ORG_ID,
+        status: "accepted",
+        ticketTypeId: "tt-early",
+      }),
+    ).toBe(1);
+  });
+
+  it("never leaks cross-org or cross-event attendees into a ticket-type count", async () => {
+    seedAttendee("att-1", { submissionId: "s1", ticketTypeId: "tt-early" });
+    seedAttendee("att-other-org", {
+      submissionId: "s2",
+      ticketTypeId: "tt-early",
+      organizationId: "org-other",
+    });
+    seedAttendee("att-other-event", {
+      submissionId: "s3",
+      ticketTypeId: "tt-early",
+      eventId: "evt-other",
+    });
+
+    expect(
+      await countAdminAttendeesForEvent({
+        eventId: EVENT_ID,
+        organizationId: ORG_ID,
+        status: "accepted",
+        ticketTypeId: "tt-early",
+      }),
+    ).toBe(1);
+  });
+
+  it("issues ZERO full-document reads — every call is an aggregate count() (M7-T1 §1 AC-7)", async () => {
+    seedAttendee("att-1", { submissionId: "s1", ticketTypeId: "tt-early" });
+
+    fake.reset();
+    seedAttendee("att-1", { submissionId: "s1", ticketTypeId: "tt-early" });
+
+    await countAdminAttendeesForEvent({
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+      status: "accepted",
+      ticketTypeId: "tt-early",
+    });
+
+    expect(fake.queryDocReads).toBe(0);
+  });
+
+  it("matches a brute-force in-memory reduction across 200 attendees / 5 ticket types (M7-T1 §3 AC-3)", async () => {
+    const ticketTypeIds = ["tt-a", "tt-b", "tt-c", "tt-d", "tt-e"];
+    const expectedCounts: Record<string, number> = {};
+    for (const id of ticketTypeIds) expectedCounts[id] = 0;
+
+    for (let i = 0; i < 200; i += 1) {
+      const ticketTypeId = ticketTypeIds[i % ticketTypeIds.length];
+      expectedCounts[ticketTypeId] += 1;
+      seedAttendee(`att-${i}`, {
+        submissionId: `sub-${i}`,
+        ticketTypeId,
+      });
+    }
+
+    for (const ticketTypeId of ticketTypeIds) {
+      const aggregateCount = await countAdminAttendeesForEvent({
+        eventId: EVENT_ID,
+        organizationId: ORG_ID,
+        status: "accepted",
+        ticketTypeId,
+      });
+      expect(aggregateCount).toBe(expectedCounts[ticketTypeId]);
+    }
+
+    // Brute-force cross-check: reduce every seeded doc in memory and compare.
+    const bruteForce: Record<string, number> = {};
+    for (const [path, data] of fake.store.entries()) {
+      if (!path.startsWith("Attendee/")) continue;
+      const doc = data as { ticketTypeId: string | null; status: string };
+      if (doc.status !== "accepted") continue;
+      const key = doc.ticketTypeId ?? "null";
+      bruteForce[key] = (bruteForce[key] ?? 0) + 1;
+    }
+    for (const ticketTypeId of ticketTypeIds) {
+      expect(bruteForce[ticketTypeId]).toBe(expectedCounts[ticketTypeId]);
+    }
+  });
+});
+
 describe("checkInAdminAttendee — idempotent transactional flip (T5 AC-5/AC-6)", () => {
   const ADMIN_SCANNER = { kind: "admin", userId: "ada@dentsu.com" } as const;
   const TEAM_SCANNER = {

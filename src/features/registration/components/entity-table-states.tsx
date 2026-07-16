@@ -5,6 +5,7 @@
 // an inline retryable panel in the table region (the shell stays interactive).
 import type { LucideIcon } from "lucide-react";
 import { AlertTriangle } from "lucide-react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -84,18 +85,26 @@ export function EntityTableError({
 // this shell only carries the icon, copy, and the create CTA. The action is
 // optional (M2 design §4): CTA-less empty states (e.g. Service Fees) omit
 // both actionLabel and onAction and render no button.
+//
+// M7-T1 (design §1): `href` is an additive, backward-compatible action mode —
+// when present, the CTA navigates (`Button asChild><Link href={href}>`)
+// instead of firing an in-page `onAction` callback. Every pre-existing
+// caller keeps using `onAction` and is unaffected; `href` takes precedence
+// over `onAction` when both are somehow passed.
 export function EntityEmptyState({
   icon: Icon,
   title,
   description,
   actionLabel,
   onAction,
+  href,
 }: {
   icon: LucideIcon;
   title: string;
   description: string;
   actionLabel?: string;
   onAction?: () => void;
+  href?: string;
 }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-10 text-center">
@@ -108,7 +117,11 @@ export function EntityEmptyState({
           {description}
         </p>
       </div>
-      {actionLabel && onAction ? (
+      {actionLabel && href ? (
+        <Button asChild>
+          <Link href={href}>{actionLabel}</Link>
+        </Button>
+      ) : actionLabel && onAction ? (
         <Button onClick={onAction}>{actionLabel}</Button>
       ) : null}
     </div>
