@@ -14,7 +14,10 @@ import {
   type LifecycleEventInput,
 } from "./paged-trigger-runner";
 import type { TriggerEvalOutcome } from "./types";
-import type { EmailDefinitionAudience } from "@/types/collection";
+import type {
+  EmailDefinitionAudience,
+  EmailPuckBlock,
+} from "@/types/collection";
 import type { EmailTransport } from "@/lib/email/transport";
 
 export interface ScheduledDefinitionInput {
@@ -29,6 +32,9 @@ export interface ScheduledDefinitionInput {
   atMs: number | null;
   subject: string;
   body: string;
+  // M6-T4 — optional, additive (spec Shared decisions).
+  bodyMode?: "text" | "blocks";
+  bodyBlocks?: EmailPuckBlock[];
 }
 
 export interface EvaluateScheduledDefinitionInput {
@@ -84,7 +90,12 @@ export async function evaluateScheduledDefinitionTrigger(
     eventName: input.eventName,
     event: input.event,
     definitionId: definition.id,
-    template: { subject: definition.subject, body: definition.body },
+    template: {
+      subject: definition.subject,
+      body: definition.body,
+      bodyMode: definition.bodyMode,
+      bodyBlocks: definition.bodyBlocks,
+    },
     pageSize: input.pageSize,
     maxPages: input.maxPages,
     transport: input.transport,

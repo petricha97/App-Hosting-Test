@@ -20,8 +20,9 @@
 // rate-limited.
 import { NextResponse } from "next/server";
 
-import { deriveBodyHtmlTemplate } from "@/features/emails/server/render";
+import { deriveBodyForDefinition } from "@/features/emails/server/render";
 import { resolveEffectiveEmailDefinition } from "@/features/emails/server/resolve-definition";
+import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
 import { resolveRegistrationRouteScope } from "@/features/registration/server/route-scope";
 import { getAdminRegistrationDraftsForEvent } from "@/lib/db/adminRegistrationDraft";
 import { buildEmailMergeContext } from "@/lib/email/merge-context";
@@ -132,6 +133,20 @@ export async function POST(_request: Request, context: RouteContext) {
     });
   }
 
+  // M6-T4 B-1 fix: definition may be Plain-text or Block-designer authored —
+  // same shared branch every real-time trigger uses, now resolved ONCE for
+  // this whole batch (spec §1 AC-9's snapshot semantics — every recipient
+  // in this click gets the identical assembled HTML, matching every other
+  // paged/batch sender in this module).
+  const blockContext = await resolveEmailBlockRenderContext({
+    eventId,
+    organizationId: scope.organizationId,
+  });
+  const { bodyHtml, bodyText } = deriveBodyForDefinition(
+    definition,
+    blockContext,
+  );
+
   const result = await sendEventEmailBatch({
     organizationId: scope.organizationId,
     eventId,
@@ -140,8 +155,8 @@ export async function POST(_request: Request, context: RouteContext) {
     definitionId: definition.definitionId,
     template: {
       subject: definition.subject,
-      bodyHtml: deriveBodyHtmlTemplate(definition.body),
-      bodyText: definition.body,
+      bodyHtml,
+      bodyText,
     },
     recipients: validRecipients,
   });

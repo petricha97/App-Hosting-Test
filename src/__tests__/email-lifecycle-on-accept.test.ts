@@ -22,11 +22,13 @@ const {
   getAdminEventForOrganization,
   getAdminEmailDefinitionByKind,
   sendEventEmail,
+  resolveEmailBlockRenderContext,
 } = vi.hoisted(() => ({
   getAdminOrderForEvent: vi.fn(),
   getAdminEventForOrganization: vi.fn(),
   getAdminEmailDefinitionByKind: vi.fn(),
   sendEventEmail: vi.fn(),
+  resolveEmailBlockRenderContext: vi.fn(),
 }));
 
 vi.mock("@/lib/db/adminOrder", () => ({ getAdminOrderForEvent }));
@@ -35,6 +37,11 @@ vi.mock("@/lib/db/adminEmailDefinition", () => ({
   getAdminEmailDefinitionByKind,
 }));
 vi.mock("@/lib/email/send-service", () => ({ sendEventEmail }));
+// M6-T4 B-1: mocked at its own module boundary (covered directly by
+// email-block-render-context.test.ts) — see email-lifecycle-on-submit.test.ts.
+vi.mock("@/features/emails/server/resolve-block-context", () => ({
+  resolveEmailBlockRenderContext,
+}));
 
 import { fireOnAcceptConfirmationEmail } from "@/features/emails/server/fire-on-accept-email";
 import type { AttendeeDoc, WithId } from "@/types/collection";
@@ -101,6 +108,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getAdminEventForOrganization.mockResolvedValue(EVENT);
   getAdminEmailDefinitionByKind.mockResolvedValue(null); // virtual defaults
+  resolveEmailBlockRenderContext.mockResolvedValue({});
   sendEventEmail.mockResolvedValue({
     ok: true,
     outcome: "sent",
@@ -217,6 +225,60 @@ describe("fireOnAcceptConfirmationEmail — enabled gate, no cross-kind fallback
     });
 
     expect(sendEventEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("fireOnAcceptConfirmationEmail — M6-T4 B-1: live block-render context reaches the rendered HTML", () => {
+  it("resolves the block context once per send and a TicketPricingTable block renders REAL prices, not the empty-state message", async () => {
+    getAdminOrderForEvent.mockResolvedValue(order("paid"));
+    resolveEmailBlockRenderContext.mockResolvedValue({
+      pricing: {
+        currencies: ["USD"],
+        tickets: [
+          {
+            name: "VIP Pass",
+            code: "VIP",
+            soldOut: false,
+            audienceNames: [],
+            prices: [{ currency: "USD", minPriceMinor: 25000, isFrom: false }],
+          },
+        ],
+      },
+    });
+    getAdminEmailDefinitionByKind.mockResolvedValue({
+      id: "def-paid",
+      kind: "confirmation-paid",
+      subject: "s",
+      body: "b",
+      enabled: true,
+      isSystem: true,
+      bodyMode: "blocks",
+      bodyBlocks: [
+        {
+          id: "tp-1",
+          type: "TicketPricingTable",
+          props: { title: "Your ticket" },
+        },
+      ],
+    });
+
+    await fireOnAcceptConfirmationEmail({
+      organizationId: ORG_ID,
+      eventId: EVENT_ID,
+      submissionId: SUBMISSION_ID,
+      attendee: attendee(),
+    });
+
+    expect(resolveEmailBlockRenderContext).toHaveBeenCalledWith({
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+    });
+    const call = sendEventEmail.mock.calls[0][0];
+    expect(call.template.bodyHtml).toContain("VIP Pass");
+    expect(call.template.bodyHtml).toContain("$250.00");
+    expect(call.template.bodyHtml).not.toContain(
+      "Tickets will be announced soon.",
+    );
   });
 });
 

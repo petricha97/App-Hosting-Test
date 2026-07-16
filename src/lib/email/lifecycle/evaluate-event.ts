@@ -91,6 +91,8 @@ export async function evaluateEventLifecycleTriggers(
       template: {
         subject: abandonedDefinition.subject,
         body: abandonedDefinition.body,
+        bodyMode: abandonedDefinition.bodyMode,
+        bodyBlocks: abandonedDefinition.bodyBlocks,
       },
       nowMs,
       pageSize,
@@ -120,6 +122,8 @@ export async function evaluateEventLifecycleTriggers(
       template: {
         subject: paymentReminderDefinition.subject,
         body: paymentReminderDefinition.body,
+        bodyMode: paymentReminderDefinition.bodyMode,
+        bodyBlocks: paymentReminderDefinition.bodyBlocks,
       },
       offsetsDays,
       nowMs,
@@ -146,6 +150,8 @@ export async function evaluateEventLifecycleTriggers(
       atMs: trigger.type === "scheduled" ? trigger.atMs : null,
       subject: definition.subject,
       body: definition.body,
+      bodyMode: definition.bodyMode,
+      bodyBlocks: definition.bodyBlocks,
     };
 
     const outcome = await evaluateScheduledDefinitionTrigger({

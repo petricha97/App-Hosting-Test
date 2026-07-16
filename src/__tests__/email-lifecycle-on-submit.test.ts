@@ -16,15 +16,28 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getAdminEmailDefinitionByKind, sendEventEmail } = vi.hoisted(() => ({
+const {
+  getAdminEmailDefinitionByKind,
+  sendEventEmail,
+  resolveEmailBlockRenderContext,
+} = vi.hoisted(() => ({
   getAdminEmailDefinitionByKind: vi.fn(),
   sendEventEmail: vi.fn(),
+  resolveEmailBlockRenderContext: vi.fn(),
 }));
 
 vi.mock("@/lib/db/adminEmailDefinition", () => ({
   getAdminEmailDefinitionByKind,
 }));
 vi.mock("@/lib/email/send-service", () => ({ sendEventEmail }));
+// M6-T4 B-1: this hook now resolves live block-render context (pricing/
+// registrationCta/countdown) before deriving the body — mocked at its own
+// module boundary here (covered directly by
+// email-block-render-context.test.ts) so this file stays focused on the
+// trigger-firing behavior it already locks.
+vi.mock("@/features/emails/server/resolve-block-context", () => ({
+  resolveEmailBlockRenderContext,
+}));
 
 import { fireApprovalPendingEmail } from "@/features/emails/server/fire-on-submit-email";
 
@@ -48,6 +61,7 @@ const SUBMISSION = {
 beforeEach(() => {
   vi.clearAllMocks();
   getAdminEmailDefinitionByKind.mockResolvedValue(null); // virtual default
+  resolveEmailBlockRenderContext.mockResolvedValue({});
   sendEventEmail.mockResolvedValue({
     ok: true,
     outcome: "sent",
@@ -187,6 +201,49 @@ describe("fireApprovalPendingEmail — enabled gate (spec §1 AC-3)", () => {
       submission: SUBMISSION,
     });
     expect(sendEventEmail).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("fireApprovalPendingEmail — M6-T4 B-1: live block-render context reaches the rendered HTML", () => {
+  it("resolves the block context once per send and a CountdownTimer block renders the REAL target, not the completedMessage fallback", async () => {
+    resolveEmailBlockRenderContext.mockResolvedValue({
+      countdown: {
+        eventStartIso: "2099-01-01T09:00:00.000Z",
+        timezone: "UTC",
+      },
+    });
+    getAdminEmailDefinitionByKind.mockResolvedValue({
+      id: "def-1",
+      kind: "approval-pending",
+      subject: "s",
+      body: "b",
+      enabled: true,
+      isSystem: true,
+      bodyMode: "blocks",
+      bodyBlocks: [
+        {
+          id: "cd-1",
+          type: "CountdownTimer",
+          props: { completedMessage: "The event has started." },
+        },
+      ],
+    });
+
+    await fireApprovalPendingEmail({
+      organizationId: ORG_ID,
+      eventId: EVENT_ID,
+      event: EVENT,
+      submissionId: SUBMISSION_ID,
+      submission: SUBMISSION,
+    });
+
+    expect(resolveEmailBlockRenderContext).toHaveBeenCalledWith({
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+    });
+    const call = sendEventEmail.mock.calls[0][0];
+    expect(call.template.bodyHtml).toContain("January 1, 2099");
+    expect(call.template.bodyHtml).not.toContain("The event has started.");
   });
 });
 

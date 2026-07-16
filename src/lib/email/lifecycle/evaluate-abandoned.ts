@@ -11,6 +11,7 @@ import {
 } from "./paged-trigger-runner";
 import type { AudienceCandidate, TriggerEvalOutcome } from "./types";
 import type { EmailTransport } from "@/lib/email/transport";
+import type { EmailPuckBlock } from "@/types/collection";
 
 export const ABANDONED_REMINDER_KIND = "abandoned-reminder";
 
@@ -20,7 +21,13 @@ export interface EvaluateAbandonedReminderInput {
   eventName: string;
   event: LifecycleEventInput;
   definitionId: string | null;
-  template: { subject: string; body: string };
+  template: {
+    subject: string;
+    body: string;
+    // M6-T4 — optional, additive (spec Shared decisions).
+    bodyMode?: "text" | "blocks";
+    bodyBlocks?: EmailPuckBlock[];
+  };
   nowMs: number;
   pageSize: number;
   maxPages: number;

@@ -16,6 +16,11 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    globals: true
+    globals: true,
+    // M6-T4: @measured/puck's <Puck> pulls in @dnd-kit/dom, which touches
+    // `ResizeObserver` at module top-level import time — earlier than any
+    // single test file's own `vi.stubGlobal` call can run. See
+    // src/__tests__/stubs/resize-observer-setup.ts.
+    setupFiles: ['./src/__tests__/stubs/resize-observer-setup.ts'],
   },
 })

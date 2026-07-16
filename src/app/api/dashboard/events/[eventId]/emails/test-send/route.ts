@@ -11,8 +11,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getDefaultEmailDefinition } from "@/features/emails/default-definitions";
-import { deriveBodyHtmlTemplate } from "@/features/emails/server/render";
+import { deriveBodyForDefinition } from "@/features/emails/server/render";
 import { readEmailRouteJsonBody } from "@/features/emails/server/read-json-body";
+import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
 import { loadSampleEmailContext } from "@/features/emails/server/sample-context";
 import { resolveRegistrationRouteScope } from "@/features/registration/server/route-scope";
 import { getAdminEmailDefinitionByKind } from "@/lib/db/adminEmailDefinition";
@@ -76,12 +77,24 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Email not found" }, { status: 404 });
   }
 
+  // M6-T4: bodyMode/bodyBlocks carried through so a block-designed
+  // definition's test-send renders the same block-assembled HTML the
+  // editor's own preview already shows — a stored doc predating this ticket
+  // (or a still-virtual default) falls back to "text"/[] (spec §2 AC-5).
   const effective = stored
-    ? { subject: stored.subject, body: stored.body, enabled: stored.enabled }
+    ? {
+        subject: stored.subject,
+        body: stored.body,
+        enabled: stored.enabled,
+        bodyMode: stored.bodyMode ?? ("text" as const),
+        bodyBlocks: stored.bodyBlocks ?? [],
+      }
     : {
         subject: defaultEntry!.subject,
         body: defaultEntry!.body,
         enabled: true,
+        bodyMode: "text" as const,
+        bodyBlocks: [],
       };
 
   if (!effective.enabled) {
@@ -91,17 +104,31 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const sample = await loadSampleEmailContext({
-    eventId,
-    organizationId: scope.organizationId,
-    event: scope.event,
-  });
+  // M6-T4 B-1 fix: a test-send is a real send — RegistrationEmbed/
+  // TicketPricingTable/CountdownTimer must render real data here, not the
+  // empty-state fallback, for a test recipient to actually verify them.
+  const [sample, blockContext] = await Promise.all([
+    loadSampleEmailContext({
+      eventId,
+      organizationId: scope.organizationId,
+      event: scope.event,
+    }),
+    resolveEmailBlockRenderContext({
+      eventId,
+      organizationId: scope.organizationId,
+    }),
+  ]);
 
   const definitionId = emailDefinitionId({
     organizationId: scope.organizationId,
     eventId,
     kind,
   });
+
+  const { bodyHtml, bodyText } = deriveBodyForDefinition(
+    effective,
+    blockContext,
+  );
 
   const result = await sendEventEmail({
     organizationId: scope.organizationId,
@@ -115,8 +142,8 @@ export async function POST(request: Request, context: RouteContext) {
     submissionId: sample.attendee?.submissionId ?? null,
     template: {
       subject: effective.subject,
-      bodyHtml: deriveBodyHtmlTemplate(effective.body),
-      bodyText: effective.body,
+      bodyHtml,
+      bodyText,
     },
     context: sample.context,
   });

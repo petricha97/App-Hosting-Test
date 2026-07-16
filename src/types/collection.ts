@@ -808,6 +808,45 @@ export type EmailDefinitionAudience =
 // (custom) docs are fully editable, but `trigger.type` is restricted to
 // `"manual" | "scheduled"` in T2 (OQ-1 default). Enforced server-side in
 // src/lib/db/adminEmailDefinition.ts — never client-only.
+// M6-T4 — the shared block-engine authoring mode. Spec:
+// agents/docs/specs/m6-email-designer.md (§1/§2). `EMAIL_SAFE_BLOCK_TYPES` is
+// the SINGLE source of truth for the finite, server-validated allowlist —
+// referenced by both the write-time Zod schema (src/lib/email/schemas.ts)
+// and the render-time membership re-check (src/features/emails/server/
+// blocks) — never duplicated. `CallToAction` (the web page builder's 9th
+// block) is deliberately excluded (spec §1: no real destination) and must
+// NEVER be added here without a fresh security review (spec Non-goals: "no
+// raw-HTML / custom-code / embed block type, ever").
+export const EMAIL_SAFE_BLOCK_TYPES = [
+  "Hero",
+  "Highlights",
+  "Story",
+  "Schedule",
+  "Faq",
+  "RegistrationEmbed",
+  "TicketPricingTable",
+  "CountdownTimer",
+] as const;
+
+export type EmailSafeBlockType = (typeof EMAIL_SAFE_BLOCK_TYPES)[number];
+
+// One Puck block in a block-mode EmailDefinition's `bodyBlocks` array (spec
+// §2). `type` is typed to the CURRENT allowlist for authoring convenience,
+// but stored Firestore data is loaded via an untyped cast (repo convention,
+// e.g. `snap.data() as EmailDefinitionDoc`) — a doc can legitimately contain
+// a `type` string no longer in `EMAIL_SAFE_BLOCK_TYPES` (a removed type, or
+// a future migration artifact). The render pipeline re-checks membership at
+// RUNTIME regardless of what this type claims (spec §1 AC-8 / §3.1 step 1) —
+// never trust the compile-time type alone for untrusted stored data.
+// `props` is deliberately a loose bag (not a per-type shape) — the per-type
+// Zod schemas (schemas.ts) are the shape authority at both write time and
+// render time; this interface only describes the storage envelope.
+export interface EmailPuckBlock {
+  id: string;
+  type: EmailSafeBlockType;
+  props: Record<string, unknown>;
+}
+
 export interface EmailDefinitionDoc {
   organizationId: string;
   eventId: string;
@@ -822,6 +861,20 @@ export interface EmailDefinitionDoc {
   // time (src/features/emails/server, T2 FS slice) — never stored here.
   subject: string;
   body: string;
+  // --- M6-T4 additive fields (BOTH optional for migration safety: a
+  // definition written before this ticket shipped lacks them entirely and
+  // reads as bodyMode "text" / bodyBlocks [] via schema defaults — spec §2
+  // AC-5, same "schema default proven by loading a legacy doc unmodified"
+  // pattern as M4-T2 AC-27; no backfill, never rewritten on load). ---
+  // Which authored body the render pipeline uses (spec Shared decisions):
+  // "text" -> subject/body above (unchanged in shape/meaning); "blocks" ->
+  // bodyBlocks below. Both fields persist independently — switching modes
+  // and saving never deletes the other mode's content.
+  bodyMode?: "text" | "blocks";
+  // Only meaningful when bodyMode === "blocks". Editable in the SAME bucket
+  // as subject/body (isSystem:true and custom definitions alike) — NOT a
+  // new locked-field category (src/lib/db/adminEmailDefinition.ts).
+  bodyBlocks?: EmailPuckBlock[];
   isSystem: boolean;
   // Display ordering among custom definitions within a group (client-side
   // tiebreak with createdAt — NOT part of the list index, spec §2).

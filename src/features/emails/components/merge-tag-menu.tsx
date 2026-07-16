@@ -2,8 +2,16 @@
 
 // "Insert merge tag" dropdown (design §3) — lists all 14 T1 catalog tags
 // with human labels + source hints; selecting inserts `{tag}` at the
-// textarea's tracked cursor position and refocuses with the cursor placed
-// after the inserted tag.
+// tracked cursor position and refocuses with the cursor placed after the
+// inserted tag.
+//
+// M6-T4 (design §3.4): generalized `textareaRef` to accept
+// `HTMLInputElement | HTMLTextAreaElement` (not forked into a second
+// component) so the SAME menu can be reused, scoped to whichever Puck block
+// field currently has focus, inside the block designer — not just the
+// dialog's single plain-text Body textarea. Added an optional `disabled`
+// prop for the block-designer's "no field focused yet" state (design §3.4:
+// disabled-with-tooltip, the same convention already used app-wide).
 import type { RefObject } from "react";
 import { Braces } from "lucide-react";
 
@@ -14,40 +22,63 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { EMAIL_MERGE_TAG_DISPLAY } from "@/features/emails/utils";
 
 interface MergeTagMenuProps {
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  textareaRef: RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
   value: string;
   onChange: (next: string) => void;
+  disabled?: boolean;
 }
 
 export function MergeTagMenu({
   textareaRef,
   value,
   onChange,
+  disabled = false,
 }: MergeTagMenuProps) {
   const insertTag = (tag: string) => {
-    const textarea = textareaRef.current;
+    const field = textareaRef.current;
     const token = `{${tag}}`;
 
-    if (!textarea) {
+    if (!field) {
       onChange(`${value}${token}`);
       return;
     }
 
-    const start = textarea.selectionStart ?? value.length;
-    const end = textarea.selectionEnd ?? value.length;
+    const start = field.selectionStart ?? value.length;
+    const end = field.selectionEnd ?? value.length;
     const next = `${value.slice(0, start)}${token}${value.slice(end)}`;
     onChange(next);
 
     // Refocus with the cursor placed after the inserted tag (design §3).
     requestAnimationFrame(() => {
-      textarea.focus();
+      field.focus();
       const cursor = start + token.length;
-      textarea.setSelectionRange(cursor, cursor);
+      field.setSelectionRange(cursor, cursor);
     });
   };
+
+  if (disabled) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span tabIndex={0}>
+            <Button type="button" variant="outline" size="sm" disabled>
+              <Braces aria-hidden="true" />
+              Insert merge tag
+            </Button>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>Click into a text field first</TooltipContent>
+      </Tooltip>
+    );
+  }
 
   return (
     <DropdownMenu>

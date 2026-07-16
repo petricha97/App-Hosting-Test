@@ -17,12 +17,23 @@ import "server-only";
 import { getDefaultEmailDefinition } from "@/features/emails/default-definitions";
 import { getAdminEmailDefinitionByKind } from "@/lib/db/adminEmailDefinition";
 import { emailDefinitionId } from "@/lib/db/emailDefinitionId";
+import type { EmailPuckBlock } from "@/types/collection";
 
 export interface EffectiveEmailDefinition {
   definitionId: string;
   subject: string;
   body: string;
   enabled: boolean;
+  // M6-T4 (spec Shared decisions): carried through so every real-time
+  // trigger call site can pass this straight into
+  // deriveBodyForDefinition/renderEmailDefinitionPreview instead of
+  // re-deriving bodyHtml from the plain-text `body` unconditionally — a
+  // definition materialized before this ticket (or never edited in block
+  // mode) has bodyMode "text" / bodyBlocks [] here too (spec §2 AC-5),
+  // reproducing the exact pre-T4 behavior for every caller that doesn't
+  // check bodyMode itself.
+  bodyMode: "text" | "blocks";
+  bodyBlocks: EmailPuckBlock[];
 }
 
 // null = the kind matches neither a stored doc nor a catalog default. Not
@@ -47,6 +58,8 @@ export async function resolveEffectiveEmailDefinition(input: {
       subject: stored.subject,
       body: stored.body,
       enabled: stored.enabled,
+      bodyMode: stored.bodyMode ?? "text",
+      bodyBlocks: stored.bodyBlocks ?? [],
     };
   }
 
@@ -55,5 +68,10 @@ export async function resolveEffectiveEmailDefinition(input: {
     subject: defaultEntry!.subject,
     body: defaultEntry!.body,
     enabled: true,
+    // A virtual (never-materialized) default has never been designed in
+    // blocks — by definition it starts Plain-text-mode with an empty design
+    // (same posture as default-definitions.ts's serializeVirtualDefault).
+    bodyMode: "text",
+    bodyBlocks: [],
   };
 }
