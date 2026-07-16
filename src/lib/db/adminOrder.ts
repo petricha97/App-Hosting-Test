@@ -14,7 +14,11 @@
 // increments.
 import "server-only";
 
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import {
+  AggregateField,
+  FieldValue,
+  Timestamp,
+} from "firebase-admin/firestore";
 
 import { adminDb } from "@/app/lib/firestore";
 import {
@@ -187,6 +191,58 @@ export async function listAdminOrdersForEventByPaymentStatus(input: {
 
   const snap = await ordered.limit(input.limit ?? ORDER_LIST_LIMIT).get();
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as OrderDoc) }));
+}
+
+// ============================================================================
+// M7-T1 — Finance summary aggregates (reports)
+// Spec: agents/docs/specs/m7-reporting-summaries.md §2/§3.
+// ============================================================================
+
+// Which amounts.* column to sum — "totalMinor" for Paid/Outstanding,
+// "subtotalMinor" for Comped value (never totalMinor, which is always 0 for
+// a comped order by construction — spec §2's central call, restated here so
+// a future caller can't accidentally pick the wrong field).
+export type OrderAmountSumField = "totalMinor" | "subtotalMinor";
+
+// Per-(paymentStatus, currency) money sum for the finance summary card, via
+// Firestore's server-side sum() AGGREGATE query — never a full-document read
+// and never in-memory reduction: the aggregation is computed from index
+// entries, same cost model as countAdminAttendeesForEvent. Equality-only
+// filters (eventId, organizationId, paymentStatus, currency): no new
+// composite index required — confirmed empirically against a live Firestore
+// emulator during Implement (4 equality filters resolve via automatic
+// single-field index merging, zero index errors) — see OQ-2's resolution in
+// agents/docs/data-models/m7-reporting-summaries.md.
+//
+// The nested dotted field path (`amounts.totalMinor` / `amounts.subtotalMinor`)
+// IS accepted by AggregateField.sum() in this firebase-admin version — same
+// emulator confirmation, OQ-2 resolved positively; no denormalized top-level
+// field was needed.
+//
+// An empty result set (no orders match the filter) sums to 0, never
+// null/undefined/NaN — confirmed against the emulator, so callers never need
+// a null-coalesce here.
+//
+// Callers run one call per (paymentStatus, currency) pair actually in use
+// (bounded by the event's distinct currency count, spec §4) — this DAL stays
+// a single-query primitive; the report loader owns the Promise.all fan-out
+// across currencies/statuses.
+export async function sumAdminOrderTotalsForEvent(input: {
+  eventId: string;
+  organizationId: string;
+  paymentStatus: PaymentStatus;
+  currency: Currency;
+  field: OrderAmountSumField;
+}): Promise<number> {
+  const snap = await orderCol()
+    .where("eventId", "==", input.eventId)
+    .where("organizationId", "==", input.organizationId)
+    .where("paymentStatus", "==", input.paymentStatus)
+    .where("currency", "==", input.currency)
+    .aggregate({ total: AggregateField.sum(`amounts.${input.field}`) })
+    .get();
+
+  return snap.data().total;
 }
 
 // ============================================================================

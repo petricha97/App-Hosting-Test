@@ -259,11 +259,25 @@ export async function listAdminAttendeesForEvent(input: {
 // any roster size. Equality-only filters — served by index merging.
 // Usage: accepted total = { status: "accepted" }; checked-in =
 // { checkInState: "checked-in" }.
+//
+// M7-T1 (spec agents/docs/specs/m7-reporting-summaries.md §1/§3): extended
+// with an optional `ticketTypeId` filter for the "Registrations by ticket
+// type" chart — one call per ticket type (status: "accepted", ticketTypeId:
+// <id>), plus one more call with `ticketTypeId: null` for the "No ticket
+// type" bucket (Firestore supports equality against `null`; the field is
+// distinguished from "not provided" via `!== undefined`, same convention as
+// status/checkInState above). The report caller is responsible for the
+// Promise.all fan-out across ticket types (≤ TICKET_TYPE_LIST_LIMIT + 1
+// calls per §3) — this DAL stays a single-query primitive, not a batcher.
+// Still equality-only (eventId, organizationId, status, ticketTypeId): no
+// new composite index required (confirmed against a live Firestore emulator
+// during Implement — see agents/docs/data-models/m7-reporting-summaries.md).
 export async function countAdminAttendeesForEvent(input: {
   eventId: string;
   organizationId: string;
   status?: AttendeeStatus;
   checkInState?: AttendeeCheckInState;
+  ticketTypeId?: string | null;
 }): Promise<number> {
   let query = attendeeCol()
     .where("eventId", "==", input.eventId)
@@ -274,6 +288,9 @@ export async function countAdminAttendeesForEvent(input: {
   }
   if (input.checkInState !== undefined) {
     query = query.where("checkInState", "==", input.checkInState);
+  }
+  if (input.ticketTypeId !== undefined) {
+    query = query.where("ticketTypeId", "==", input.ticketTypeId);
   }
 
   const snap = await query.count().get();
