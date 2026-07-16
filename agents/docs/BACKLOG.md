@@ -39,7 +39,7 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M6-T2 | Emails admin screen | M6 | Done (2026-07-15) | — | S6 |
 | M6-T3 | Lifecycle triggers & audience segmentation | M6 | Done (2026-07-16) | — | S6 |
 | M6-T4 | Email designer via shared block engine | M6 | Done (2026-07-16) | — | S6 |
-| M7-T1 | Reporting aggregates + event report summaries | M7 | Todo | — | — |
+| M7-T1 | Reporting aggregates + event report summaries | M7 | Done (2026-07-17) | — | S7 |
 | M7-T2 | Report templates library | M7 | Todo | — | — |
 | M7-T3 | Scheduled report delivery | M7 | Todo | — | — |
 | M8-T1 | Real IAM (replace mock data) | M8 | Todo | — | — |
@@ -50,6 +50,14 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M8-T6 | Generic accept-hook repair path (retry attendee creation) | M8 | Todo | — | — |
 
 ---
+
+### 2026-07-17 — M7-T1 CLOSED (DoD verified) — first M7 ticket, zero fix cycles
+Full gate sequence, no fix cycles needed — a first for this session:
+- **Code Review:** APPROVED. 0 Blockers, 1 Should-fix (non-gating — missing dedicated concurrency-timing test around code already confirmed correct by direct read), 3 Nits. The two riskiest details (comped-value sums `subtotalMinor` not `totalMinor`, enforced by a required non-defaulted DAL parameter; the incidental `progress.tsx` a11y bug fix, confirmed as the only `<Progress>` caller in the codebase) both independently re-derived from source. `agents/docs/reviews/m7-reporting-summaries.md`.
+- **Security:** PASS, 0 findings of any severity. Explicitly confirmed org-membership-only gating (no `write:events`) is correct, not an oversight — verified the build manifest shows literally zero `/api/**` routes added, since this ticket has nothing to mutate. Cross-org isolation confirmed on both new DAL aggregate functions; `EntityEmptyState`'s new `href` prop confirmed not an open-redirect vector. `agents/docs/security/m7-reporting-summaries.md`.
+- **QA:** SIGNED OFF, zero defects. Hand-computed a realistic seeded fixture (3 ticket types, mixed attendee statuses, 2 currencies × every payment status, 3 discount codes) through the real DAL and orchestration layers with nothing mocked but the Firestore boundary — every stress point (comped-order-with-real-subtotal, cancelled-attendee exclusion, pending/failed-order exclusion, currency non-blending, distinct-codes-not-redemptions counting) matched the hand computation exactly. `agents/docs/qa/m7-reporting-summaries.md`.
+- **Checks:** lint clean, build exit 0, `npm test -- --run` 127 files / 1517 tests passing on the final working tree.
+- **Notable:** Backend empirically resolved the ticket's one open architecture question (does Firestore `sum()` work on a nested field path?) by installing a local JDK and running a real Firestore emulator, rather than assuming — this is the kind of verification discipline this whole session has aimed for, now coming from an implementing agent itself, not just the Orchestrator's review pass.
 
 ## Orchestrator Notes
 
