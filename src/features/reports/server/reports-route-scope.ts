@@ -29,6 +29,12 @@ export type ReportsRouteScope =
       ok: true;
       organizationId: string;
       event: WithId<EventDoc>;
+      // The User doc id (lowercased email) — additive field for M7-T3's
+      // schedule CRUD routes (ReportSchedule.createdBy, rate-limit bucket
+      // keys). Mirrors RegistrationRouteScope.userId
+      // (src/features/registration/server/route-scope.ts). Pre-M7-T3
+      // consumers ignore it.
+      userId: string;
     }
   | { ok: false; error: string; status: 401 | 403 | 404 };
 
@@ -75,5 +81,10 @@ export async function resolveReportsRouteScope(
     return { ok: false, error: "Event not found", status: 404 };
   }
 
-  return { ok: true, organizationId, event };
+  return {
+    ok: true,
+    organizationId,
+    event,
+    userId: decodedUser.email.toLowerCase(),
+  };
 }

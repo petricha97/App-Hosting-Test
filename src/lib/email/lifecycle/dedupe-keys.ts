@@ -44,3 +44,21 @@ export function scheduledDedupeKey(
 ): string {
   return `${definitionId}:${recipientKey}`;
 }
+
+// M7-T3 scheduled report delivery (spec
+// agents/docs/specs/m7-scheduled-reports.md D3): ONE dedupeKey is shared
+// across every currently-verified recipient of a given (schedule, period) —
+// no recipient component needed IN THE STRING ITSELF, because
+// emailMessageId() (src/lib/db/emailMessageId.ts) already hashes
+// recipientEmail as its own, separate tuple element. Two recipients sharing
+// this dedupeKey therefore land on two distinct outbox docs by
+// construction — the exact same property M6-T3's "Email all" (§7) already
+// relies on with `dedupeKey: draftId` shared across a batch of different
+// drafts, applied here to a batch of different recipients for the same
+// period instead.
+export function reportScheduleDedupeKey(
+  scheduleId: string,
+  periodKey: string,
+): string {
+  return `${scheduleId}:${periodKey}`;
+}

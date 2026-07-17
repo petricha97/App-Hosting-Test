@@ -53,3 +53,39 @@ export interface ReportPage {
   nextCursorMs: number | null;
   hasMore: boolean;
 }
+
+// ============================================================================
+// M7-T3 — Scheduled report delivery
+// Spec: agents/docs/specs/m7-scheduled-reports.md
+// ============================================================================
+
+// Client-safe (Timestamp -> ms) mirror of Backend's ReportScheduleDoc
+// (src/types/collection.ts) — the shape the schedule CRUD API routes return
+// (src/features/reports/server/serialize-report-schedule.ts).
+export interface SerializedReportScheduleRecipient {
+  email: string;
+  name: string;
+}
+
+export interface SerializedReportSchedule {
+  templateSlug: string;
+  frequency: "daily" | "weekly" | "monthly";
+  dayOfWeek: number | null;
+  dayOfMonth: number | null;
+  hour: number;
+  minute: number;
+  recipients: SerializedReportScheduleRecipient[];
+  enabled: boolean;
+  createdBy: string;
+  createdAtMs: number | null;
+  updatedAtMs: number | null;
+}
+
+// A single rejected recipient candidate (spec §2 AC-2/D2) — the API route's
+// error response carries ONE of these per email that failed
+// getAdminUserMembership, so the dialog can highlight the SPECIFIC chip that
+// was rejected rather than failing the whole submission opaquely.
+export interface ReportScheduleRecipientError {
+  email: string;
+  reason: string;
+}
