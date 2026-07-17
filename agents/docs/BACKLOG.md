@@ -41,7 +41,7 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M6-T4 | Email designer via shared block engine | M6 | Done (2026-07-16) | — | S6 |
 | M7-T1 | Reporting aggregates + event report summaries | M7 | Done (2026-07-17) | — | S7 |
 | M7-T2 | Report templates library | M7 | Done (2026-07-17) | — | S7 |
-| M7-T3 | Scheduled report delivery | M7 | Todo | — | — |
+| M7-T3 | Scheduled report delivery | M7 | Done | QA | S7 |
 | M8-T1 | Real IAM (replace mock data) | M8 | Todo | — | — |
 | M8-T2 | Workspace dashboard real metrics | M8 | Todo | — | — |
 | M8-T3 | Event overview parity | M8 | Todo | — | — |
@@ -481,11 +481,12 @@ Rationale for reordering vs. the AGENT_LOOP.md seed:
 - **Deps:** M7-T1, M3-T5, M5-T5, M6-T3 (data sources).
 - **Agents:** RL (column spec per template) · UX (run/output/export UX) · BE (paginated cross-collection readers) · FS (implement) · CR · SEC (export contains PII — role gate) · QA (each template against fixtures, CSV integrity).
 
-### M7-T3 — Scheduled report delivery
+### M7-T3 — Scheduled report delivery — **Done (2026-07-17)**
 - **Goal:** "Schedule" recurring report delivery via email.
 - **Deps:** M7-T2, M6-T1/T3 (transport + scheduler).
 - **Code:** `src/features/reports/`, scheduling via the M6-T3 architecture.
 - **Agents:** RL (frequency options, recipients) · BE (schedule model + job) · FS (UI + wiring) · CR · SEC (recipient validation — no exfiltration to arbitrary emails without role check) · QA (simulated schedule fire).
+- **Closure:** Code Review APPROVED (0 blockers, 1 non-blocking nit) → Security PASS (0 findings; adversarially re-verified that a forged `recipients` field cannot bypass Zod's key-stripping) → QA SIGNED OFF (0 defects in the implementation at any severity; wrote a real-route+real-DAL integration suite plus 12 new regression tests closing genuine coverage gaps — all five investigated gaps, incl. a departed-then-rejoined two-period catch-up interaction and a fractional-UTC-offset timezone boundary, were already correctly implemented). Orchestrator independently re-ran lint/tsc/build/full test suite (148 files / 1708 tests) and spot-checked the new two-period departed-member test directly — all matched QA's report exactly. Delivers recurring dashboard-link-only (never CSV/attachment) report notifications, folded into the M6-T3 periodic sweep, with recipient membership validated at write-time and re-verified fresh at every fire. **M7 (Reporting) milestone is now fully complete — M7-T1, M7-T2, M7-T3 all merged.**
 
 ---
 
