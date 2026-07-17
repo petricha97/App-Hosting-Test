@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   abandonedReminderDedupeKey,
+  reportScheduleDedupeKey,
   scheduledDedupeKey,
   unpaidOffsetDedupeKey,
 } from "@/lib/email/lifecycle/dedupe-keys";
@@ -66,6 +67,36 @@ describe("scheduledDedupeKey", () => {
   it("never collides across recipients for the same definition", () => {
     expect(scheduledDedupeKey("def-1", "att-1")).not.toBe(
       scheduledDedupeKey("def-1", "att-2"),
+    );
+  });
+});
+
+// M7-T3 D3: dedupeKey = scheduleId:periodKey, NO recipient component in the
+// string itself — emailMessageId() hashes recipientEmail as its own tuple
+// element, so a batch of recipients sharing this ONE dedupeKey still lands
+// on distinct outbox docs (spec agents/docs/specs/m7-scheduled-reports.md).
+describe("reportScheduleDedupeKey", () => {
+  it("combines scheduleId + periodKey", () => {
+    expect(reportScheduleDedupeKey("sched-1", "2026-07-20")).toBe(
+      "sched-1:2026-07-20",
+    );
+  });
+
+  it("never collides across schedules for the same period", () => {
+    expect(reportScheduleDedupeKey("sched-1", "2026-07-20")).not.toBe(
+      reportScheduleDedupeKey("sched-2", "2026-07-20"),
+    );
+  });
+
+  it("never collides across periods for the same schedule", () => {
+    expect(reportScheduleDedupeKey("sched-1", "2026-07-20")).not.toBe(
+      reportScheduleDedupeKey("sched-1", "2026-07-21"),
+    );
+  });
+
+  it("is stable/deterministic across repeated calls with the same inputs", () => {
+    expect(reportScheduleDedupeKey("sched-1", "2026-07")).toBe(
+      reportScheduleDedupeKey("sched-1", "2026-07"),
     );
   });
 });

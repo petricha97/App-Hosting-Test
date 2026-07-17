@@ -16,13 +16,19 @@ import { downloadCsvExport } from "@/features/responses/download";
 
 export interface ReportTemplatesSectionProps {
   eventId: string;
+  // M7-T3 spec §1 AC-3: initial accordion state from `?template=<slug>` —
+  // read server-side (page.tsx) and passed down as a plain prop (one-way,
+  // initial-state-only sync, same posture as every other ?param-driven
+  // initial state in this app, e.g. emails-workspace.tsx's initialTab).
+  initialTemplate?: ReportTemplateId | null;
 }
 
 export function ReportTemplatesSection({
   eventId,
+  initialTemplate = null,
 }: ReportTemplatesSectionProps) {
   const [activeTemplate, setActiveTemplate] = useState<ReportTemplateId | null>(
-    null,
+    initialTemplate,
   );
   const [exportingSlug, setExportingSlug] = useState<ReportTemplateId | null>(
     null,

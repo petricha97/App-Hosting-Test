@@ -61,7 +61,12 @@ describe("resolveReportsRouteScope — Run (default, no write:events required)",
   it("succeeds for an org member WITHOUT write:events (D1's central posture)", async () => {
     const scope = await resolveReportsRouteScope(EVENT_ID);
 
-    expect(scope).toEqual({ ok: true, organizationId: ORG_ID, event });
+    expect(scope).toEqual({
+      ok: true,
+      organizationId: ORG_ID,
+      event,
+      userId: "member@example.com",
+    });
   });
 
   it("returns 401 without a session cookie", async () => {
@@ -123,6 +128,11 @@ describe("resolveReportsRouteScope — export ({ requireWriteEvents: true })", (
       requireWriteEvents: true,
     });
 
-    expect(scope).toEqual({ ok: true, organizationId: ORG_ID, event });
+    expect(scope).toEqual({
+      ok: true,
+      organizationId: ORG_ID,
+      event,
+      userId: "member@example.com",
+    });
   });
 });

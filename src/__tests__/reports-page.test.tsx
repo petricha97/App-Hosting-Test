@@ -7,6 +7,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 const getDashboardScope = vi.fn();
 const getAdminEventForOrganization = vi.fn();
 const loadTicketTypeRegistrations = vi.fn();
@@ -39,13 +43,23 @@ const { default: EventReportsPage } =
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getDashboardScope.mockResolvedValue({ organizationId: "org-1" });
-  getAdminEventForOrganization.mockResolvedValue({ id: "evt-1" });
+  getDashboardScope.mockResolvedValue({
+    organizationId: "org-1",
+    userDoc: {
+      email: "organizer@example.com",
+      permissions: ["write:events"],
+    },
+  });
+  getAdminEventForOrganization.mockResolvedValue({
+    id: "evt-1",
+    timezone: "America/New_York",
+  });
 });
 
-function renderPage() {
+function renderPage(searchParams: Record<string, string> = {}) {
   return EventReportsPage({
     params: Promise.resolve({ eventId: "evt-1" }),
+    searchParams: Promise.resolve(searchParams),
   });
 }
 
@@ -127,5 +141,74 @@ describe("EventReportsPage — tenancy (spec §7)", () => {
     await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
     expect(loadTicketTypeRegistrations).not.toHaveBeenCalled();
     expect(loadFinanceSummary).not.toHaveBeenCalled();
+  });
+});
+
+describe("EventReportsPage — M7-T3 Schedule button permission gate (spec §1 AC-4)", () => {
+  it("renders an enabled Schedule button for a write:events holder", async () => {
+    const jsx = await renderPage();
+    render(jsx);
+
+    const button = screen.getByRole("button", { name: /schedule/i });
+    expect(button.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("renders a disabled Schedule button with a tooltip for a member WITHOUT write:events", async () => {
+    getDashboardScope.mockResolvedValue({
+      organizationId: "org-1",
+      userDoc: {
+        email: "viewer@example.com",
+        permissions: ["view:events"], // no write:events
+      },
+    });
+
+    const jsx = await renderPage();
+    render(jsx);
+
+    const button = screen.getByRole("button", { name: /schedule/i });
+    expect(button.hasAttribute("disabled")).toBe(true);
+  });
+});
+
+describe("EventReportsPage — M7-T3 ?template= deep link (spec §1 AC-3)", () => {
+  beforeEach(() => {
+    loadTicketTypeRegistrations.mockResolvedValue([]);
+    loadFinanceSummary.mockResolvedValue(null);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ rows: [], nextCursorMs: null, hasMore: false }),
+            { status: 200 },
+          ),
+        ),
+    );
+  });
+
+  it("opens the matching template's Run panel already expanded", async () => {
+    const jsx = await renderPage({ template: "registration-overview" });
+    render(jsx);
+
+    expect(
+      screen.getByRole("region", {
+        name: /registration overview — report output/i,
+      }),
+    ).toBeTruthy();
+  });
+
+  it("ignores an unknown ?template= value (no panel opens, no crash)", async () => {
+    const jsx = await renderPage({ template: "not-a-real-template" });
+    render(jsx);
+
+    expect(screen.queryByRole("region", { name: /report output/i })).toBeNull();
+  });
+
+  it("renders with no panel open when ?template= is absent", async () => {
+    const jsx = await renderPage();
+    render(jsx);
+
+    expect(screen.queryByRole("region", { name: /report output/i })).toBeNull();
   });
 });

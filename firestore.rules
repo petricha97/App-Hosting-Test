@@ -342,6 +342,18 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------
+    // M7-T3 — ReportSchedule (spec:
+    // agents/docs/specs/m7-scheduled-reports.md §4). SERVER-ONLY, same
+    // posture as EmailDefinition above: organizer-configured, PII-adjacent
+    // recipient list — no client repo pair. All reads/writes go through
+    // write:events-gated admin routes (schedule CRUD) and the internal
+    // lifecycle sweep (fail-closed shared-secret, unchanged from M6-T3).
+    // ------------------------------------------------------------------
+    match /ReportSchedule/{scheduleId} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------
     // Server-only collections (no production client-SDK access exists):
     // Form authoring, registration submissions (PII), form templates, Puck
     // pages and promotion templates are all read AND written through admin

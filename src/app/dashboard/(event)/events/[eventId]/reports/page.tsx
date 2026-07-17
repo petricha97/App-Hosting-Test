@@ -10,10 +10,12 @@ import { ReportsLoadError } from "@/features/reports/components/reports-load-err
 import { ReportsWorkspace } from "@/features/reports/components/reports-workspace";
 import { loadFinanceSummary } from "@/features/reports/server/load-finance-summary";
 import { loadTicketTypeRegistrations } from "@/features/reports/server/load-ticket-type-registrations";
+import { isReportTemplateId } from "@/features/reports/templates";
 import type {
   FinanceCardData,
   TicketTypeRegistrationRow,
 } from "@/features/reports/types";
+import { resolveEventTimeZone } from "@/features/registration/utils";
 import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
 
 export const metadata: Metadata = {
@@ -22,10 +24,30 @@ export const metadata: Metadata = {
 
 interface PageProps {
   params: Promise<{ eventId: string }>;
+  // M7-T3 spec §1 AC-3: `?template=<slug>` opens that template's Run panel
+  // already expanded (the emailed schedule-notification's own deep link) —
+  // same server-side searchParams-read convention as emails/page.tsx's
+  // `?tab=`.
+  searchParams?: Promise<{ template?: string | string[] }>;
 }
 
-export default async function EventReportsPage({ params }: PageProps) {
-  const { eventId } = await params;
+export default async function EventReportsPage({
+  params,
+  searchParams,
+}: PageProps) {
+  const [{ eventId }, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve<{ template?: string | string[] }>({}),
+  ]);
+  const templateParam = resolvedSearchParams?.template;
+  const templateValue = Array.isArray(templateParam)
+    ? templateParam[0]
+    : templateParam;
+  const initialTemplate =
+    typeof templateValue === "string" && isReportTemplateId(templateValue)
+      ? templateValue
+      : null;
+
   const scope = await getDashboardScope();
 
   // Whole-page fetch failure (design §0: "getDashboardScope() or the initial
@@ -74,6 +96,10 @@ export default async function EventReportsPage({ params }: PageProps) {
   return (
     <ReportsWorkspace
       eventId={eventId}
+      timeZone={resolveEventTimeZone(event.timezone)}
+      currentUserEmail={scope.userDoc.email}
+      canManageSchedules={scope.userDoc.permissions.includes("write:events")}
+      initialTemplate={initialTemplate}
       ticketTypeRows={ticketTypeRows}
       ticketTypeLoadError={ticketTypeLoadError}
       financeData={financeData}

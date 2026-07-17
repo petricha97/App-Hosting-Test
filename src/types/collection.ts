@@ -883,6 +883,87 @@ export interface EmailDefinitionDoc {
   updatedAt: Timestamp | FieldValue;
 }
 
+// ============================================================================
+// M7-T3 — scheduled report delivery (spec:
+// agents/docs/specs/m7-scheduled-reports.md §4). Folds into the M6-T3
+// periodic sweep (src/lib/email/lifecycle/*) rather than a parallel
+// mechanism (D5) — a ReportSchedule is NOT an EmailDefinition: it has no
+// audience query and no editable subject/body, only a small
+// organizer-configured recipient list (D5's "materially different, smaller
+// entity" call).
+// ============================================================================
+
+export const REPORT_SCHEDULE_FREQUENCIES = [
+  "daily",
+  "weekly",
+  "monthly",
+] as const;
+
+export type ReportScheduleFrequency =
+  (typeof REPORT_SCHEDULE_FREQUENCIES)[number];
+
+// The *matched* org member's real name (never a client-supplied display
+// label, spec §2 AC-1) — captured at add-time by
+// src/lib/db/adminReportSchedule.ts's verifyReportScheduleRecipient, and
+// RE-VERIFIED (membership only, this stored name is reused as-is) at every
+// fire by the evaluator (spec §2's "durability guarantee").
+export interface ReportScheduleRecipient {
+  email: string;
+  name: string;
+}
+
+// Root collection `ReportSchedule`. SERVER-ONLY (firestore.rules deny-all,
+// no client repo pair) — same posture as EmailDefinition/EmailMessage: this
+// carries organizer-configured, PII-adjacent recipient config. DETERMINISTIC
+// doc id: reportScheduleId(organizationId, eventId, templateSlug)
+// (src/lib/db/reportScheduleId.ts) — one schedule per (event, template) BY
+// CONSTRUCTION (spec §4's deliberate YAGNI scope call, OQ-4); "editing a
+// schedule" is an upsert onto this same id, matching EmailDefinition's own
+// materialize-on-first-edit pattern.
+//
+// `templateSlug` is deliberately typed as a plain `string` here (not the
+// feature-level `ReportTemplateId` union) — same "free-text join key,
+// narrowed at the validation layer" precedent as EmailMessageDoc.kind above,
+// so this pure types module never has to import from src/features/reports.
+// src/lib/db/adminReportSchedule.ts is the one place that checks membership
+// in the real 5-value set (isReportTemplateId).
+export interface ReportScheduleDoc {
+  organizationId: string;
+  eventId: string;
+  templateSlug: string;
+  frequency: ReportScheduleFrequency;
+  // 0–6 (JS Date convention, 0 = Sunday) — set only when frequency ===
+  // "weekly", null otherwise.
+  dayOfWeek: number | null;
+  // 1–31 — set only when frequency === "monthly", null otherwise. A value
+  // past the target month's real length clamps to that month's last day at
+  // evaluation time (spec D3) — never stored pre-clamped.
+  dayOfMonth: number | null;
+  // Fired in the EVENT's own timezone (no separate schedule-level tz field,
+  // spec §3) — 0–23 / 0–59.
+  hour: number;
+  minute: number;
+  // <= MAX_RECIPIENTS_PER_SCHEDULE (src/lib/db/adminReportSchedule.ts).
+  // Every entry independently membership-verified before this doc is
+  // written — never a client-trusted list (spec D2).
+  recipients: ReportScheduleRecipient[];
+  // Pause/resume (spec §4) — delete removes the doc entirely, no
+  // soft-delete/archive concept.
+  enabled: boolean;
+  // Creator's email — audit only, never re-derived/re-checked at fire time.
+  createdBy: string;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
+// NOTE (Backend Agent, reconciling a parallel-edit collision): a
+// Full-Stack-authored PROVISIONAL copy of ReportScheduleFrequency /
+// ReportScheduleRecipient / ReportScheduleDoc briefly landed here too
+// (identical shape, explicitly flagged "for Backend review"). Removed as a
+// duplicate — the canonical definitions are the ReportSchedule block above
+// this note. No call site referenced the provisional copy (grepped clean),
+// so this is a pure dedupe, not a breaking rename.
+
 export interface EventPageDoc {
   eventId: string;
   organizationId: string;

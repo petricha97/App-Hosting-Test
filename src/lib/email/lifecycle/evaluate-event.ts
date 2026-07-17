@@ -9,6 +9,7 @@
 import "server-only";
 
 import { listAdminEmailDefinitionsForEvent } from "@/lib/db/adminEmailDefinition";
+import { listAdminReportSchedulesForEvent } from "@/lib/db/adminReportSchedule";
 import { mergeEmailDefinitions } from "@/features/emails/default-definitions";
 import type { EmailTransport } from "@/lib/email/transport";
 import {
@@ -23,6 +24,10 @@ import {
   evaluateScheduledDefinitionTrigger,
   type ScheduledDefinitionInput,
 } from "./evaluate-scheduled";
+import {
+  evaluateReportScheduleTrigger,
+  reportScheduleKind,
+} from "./evaluate-report-schedules";
 import type { LifecycleEventInput } from "./paged-trigger-runner";
 import type { TriggerEvalOutcome } from "./types";
 
@@ -168,6 +173,34 @@ export async function evaluateEventLifecycleTriggers(
     results.push({
       kind: definition.kind,
       definitionId: definition.id,
+      outcome,
+    });
+  }
+
+  // M7-T3 — scheduled report delivery, folded into this SAME per-event
+  // fan-out (spec agents/docs/specs/m7-scheduled-reports.md D5: "one Cloud
+  // Scheduler job continues to drive everything"). A ReportSchedule is NOT
+  // an EmailDefinition (D5) — listed and looped independently here, exactly
+  // mirroring the `scheduled` EmailDefinition loop just above (one schedule
+  // per iteration, its own TriggerEvalOutcome pushed into the SAME results
+  // array the route summarizes).
+  const reportSchedules = await listAdminReportSchedulesForEvent({
+    eventId: input.eventId,
+    organizationId: input.organizationId,
+  });
+  for (const schedule of reportSchedules) {
+    const outcome = await evaluateReportScheduleTrigger({
+      organizationId: input.organizationId,
+      eventId: input.eventId,
+      eventName: input.event.name,
+      event: input.event,
+      schedule,
+      nowMs,
+      transport: input.transport,
+    });
+    results.push({
+      kind: reportScheduleKind(schedule.templateSlug),
+      definitionId: schedule.id,
       outcome,
     });
   }
