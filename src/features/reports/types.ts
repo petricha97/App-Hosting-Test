@@ -30,3 +30,26 @@ export interface FinanceCardData {
   // Currency-agnostic (§2): rendered once, below every currency section.
   discountCodesUsed: number;
 }
+
+// ============================================================================
+// M7-T2 — Report templates library
+// Spec: agents/docs/specs/m7-report-templates.md
+// Design: agents/docs/design/m7-report-templates.md
+// ============================================================================
+
+// One row of a report template's output. Every value is ALREADY the exact
+// string the CSV cell needs (raw ISO datetime strings, pre-formatted money
+// via formatMoney, "" for empty/null) — the Run table applies its own
+// display formatting (human dates) on top of these same raw values at
+// render time (design §3: "two different serializations of the same
+// field, by design"). Keyed by each template's column `key` (templates.ts).
+export type ReportRow = Record<string, string>;
+
+// One "Run" page (limit 50 + cursor, spec D2). `nextCursorMs` is the last
+// row's ordering-field millis (null when the page was empty); `hasMore`
+// mirrors every other admin list's "page.length === limit" convention.
+export interface ReportPage {
+  rows: ReportRow[];
+  nextCursorMs: number | null;
+  hasMore: boolean;
+}

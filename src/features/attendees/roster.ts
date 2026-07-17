@@ -58,7 +58,11 @@ export function timestampToMs(value: unknown): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-function buildName(first: string, last: string, email: string): string {
+// Exported (M7-T2, spec agents/docs/specs/m7-report-templates.md §1/§4):
+// reused verbatim by the Registration overview / Badges printed (check-in
+// history) report loaders — the same name-join/fallback rule the roster
+// already established, not a second implementation.
+export function buildName(first: string, last: string, email: string): string {
   const name = [first.trim(), last.trim()].filter(Boolean).join(" ").trim();
   return name || email.trim() || "Unnamed attendee";
 }
