@@ -40,7 +40,7 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M6-T3 | Lifecycle triggers & audience segmentation | M6 | Done (2026-07-16) | — | S6 |
 | M6-T4 | Email designer via shared block engine | M6 | Done (2026-07-16) | — | S6 |
 | M7-T1 | Reporting aggregates + event report summaries | M7 | Done (2026-07-17) | — | S7 |
-| M7-T2 | Report templates library | M7 | Todo | — | — |
+| M7-T2 | Report templates library | M7 | Done (2026-07-17) | — | S7 |
 | M7-T3 | Scheduled report delivery | M7 | Todo | — | — |
 | M8-T1 | Real IAM (replace mock data) | M8 | Todo | — | — |
 | M8-T2 | Workspace dashboard real metrics | M8 | Todo | — | — |
@@ -48,8 +48,16 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M8-T4 | Test coverage & regression backfill | M8 | Todo | — | — |
 | M8-T5 | Dependency hardening (next 15.5.x bump + audit fixes) | M8 | Todo | — | — |
 | M8-T6 | Generic accept-hook repair path (retry attendee creation) | M8 | Todo | — | — |
+| M8-T7 | Rate-limit CSV export routes (reports + attendees + responses) | M8 | Todo | — | — |
 
 ---
+
+### 2026-07-17 — M7-T2 CLOSED (DoD verified)
+Full gate sequence, zero fix cycles (one deferred finding, one accepted-as-designed finding, neither gating):
+- **Code Review:** APPROVED. 0 Blockers, 0 Should-fix, 3 Nits. Both central security decisions (D1 permission split, D4 masked-email) independently re-verified file-by-file across all 10 routes — zero reversed wiring. `agents/docs/reviews/m7-report-templates.md`.
+- **Security:** PASS. 0 Critical/High, 1 Medium, 2 Low. Medium (no rate-limiting on export routes) confirmed real but deliberately deferred — it's inherited technical debt already present on the pre-existing `attendees`/`responses` export routes, not a regression this ticket introduced; fixing only the 10 new routes would create an inconsistency, fixing all of them would be scope creep. Tracked as new ticket **M8-T7**. CSV formula-injection specifically checked and confirmed already closed by the pre-existing, reused `escapeCsvField` guard. `agents/docs/security/m7-report-templates.md`.
+- **QA:** SIGNED OFF. 1 Minor defect (QA-1: masked-email CSV cells carry a leading apostrophe in the raw file bytes, an artifact of the CSV formula-injection guard correctly treating any string starting with `@` as a risk) — accepted as-is, not fixed: the guard is behaving correctly, and special-casing it for one column would trade real protection for cosmetic byte-format tidiness. QA independently closed two nits Code Review had left open (D1 exercised end-to-end for all 5 templates, not just one; CSV escaping verified via a real RFC-4180 parser round-trip, not string-containment) and added a regression test for Security's Order-doc field-leak finding. `agents/docs/qa/m7-report-templates.md`.
+- **Checks:** lint clean, build exit 0, `npm test -- --run` 140 files / 1615 tests passing on the final working tree.
 
 ### 2026-07-17 — M7-T1 CLOSED (DoD verified) — first M7 ticket, zero fix cycles
 Full gate sequence, no fix cycles needed — a first for this session:
@@ -74,6 +82,7 @@ All three gates completed on 2026-07-13 and the Definition of Done is met for M5
 - **M5-F1 / D-1 (Minor, FS):** sold-out precheck 409s before `placeOrder` replay (`attendees/register/route.ts:214-219`) — fix pre-merge per the decision above.
 - **M8-T5 / M-1 (Medium, pre-existing):** bump `next` 15.0.5 → patched 15.5.x line and `npm audit fix` firebase-admin transitives (`@grpc/grpc-js`, `protobufjs`, `form-data`). Placed in M8 (hardening); independent, may be pulled forward if a convenient window appears before then.
 - **M8-T6 (QA-triaged gap):** the generic responses status route ignores `acceptHookFailed` (spec-documented M5 gap — no generic repair route). Ship a generic heal path / admin "retry attendee creation" affordance so the manual-register route is not the only repair seam. Placed in M8; revisit when M6-T3 touches the accept hook.
+- **M8-T7 / M-1 (Medium, M7-T2 security review, pre-existing pattern — not a new regression):** none of the CSV export routes in this app have rate limiting — `attendees/export`, `responses/export` (both pre-existing, shipped before M7), and now all 5 of M7-T2's new report-template export routes (which do up to 1000, or 4,000 for the Abandoned template's two-ceiling loop, Firestore reads per call). A cost/DoS-amplification gap for a compromised or misused `write:events` account — not a data-exposure or authz-bypass issue (every route is still correctly permission-gated). Deliberately NOT fixed only for M7-T2's 10 new routes (would leave the sibling attendees/responses exports inconsistently unprotected) and NOT expanded in-ticket to also fix the 2 pre-existing routes (scope creep beyond M7-T2). Fix all export routes together in one pass when M8 is picked up.
 - **L-4 spec reconciliation (RL, doc-only):** M5 read pages gate org membership, not `write:events` — amend `agents/docs/specs/m5-attendees-checkin.md` to record the read-surface convention (or escalate as a product decision if view-role PII visibility is unwanted).
 - **Optional cleanup (non-gating, pick up opportunistically):** Security L-1 (durable rate limiter → already an M8 note), L-2 (32KB body cap on dashboard mutating routes), L-3 (delete or org-scope dead `getAdminAttendeeByQrTokenHash`), L-5 (don't show admin email to team scanners — fold into M6-T2 polish), L-6 (document the QR-SVG server-only invariant at both sinks); Review nits N-1..N-8 (timezone helper, formatter consolidation, dead code, resolver cast, `.gitignore` comment, pagination interleave, approximate `checkedInAt`, ESM cycle watch).
 - **Deployment prerequisite (human/owner):** create `DRAFT_TOKEN_SECRET`, `QR_TOKEN_SECRET`, `SCANNER_SESSION_SECRET` in App Hosting before production deploy.
