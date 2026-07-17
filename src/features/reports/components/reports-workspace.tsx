@@ -8,6 +8,7 @@
 import { useRouter } from "next/navigation";
 
 import { FinanceSummaryCard } from "@/features/reports/components/finance-summary-card";
+import { ReportTemplatesSection } from "@/features/reports/components/report-templates-section";
 import { TicketTypeBarChartCard } from "@/features/reports/components/ticket-type-bar-chart-card";
 import type {
   FinanceCardData,
@@ -57,6 +58,8 @@ export function ReportsWorkspace({
           onRetry={retry}
         />
       </div>
+
+      <ReportTemplatesSection eventId={eventId} />
     </div>
   );
 }

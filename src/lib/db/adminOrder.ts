@@ -61,17 +61,33 @@ function orderCol() {
 
 // Lists the event's orders, org-scoped in the query, newest first. Served by
 // the composite index Order: eventId ASC, organizationId ASC, createdAt DESC.
+//
+// M7-T2 (spec agents/docs/specs/m7-report-templates.md §2/§7 gap analysis):
+// extended with an optional `startAfterCreatedAtMs` cursor — same
+// backward-compatible "load more" shape `listAdminAttendeesForEvent` and
+// `listAdminEmailMessagesForEvent` already use (cursor = the last row's
+// `createdAt` millis, on the SAME field the query already orders by). Every
+// existing caller omits the new param and is unaffected. Serves BOTH the
+// Order & transaction details Run view (limit 50 + cursor, page by page) and
+// its CSV export (internal 200-row-batch loop up to the 1000-row cap) — no
+// new query shape, no new index: adding `startAfter` on an already-ordered
+// field needs nothing beyond the existing composite index above.
 export async function getAdminOrdersForEvent(input: {
   eventId: string;
   organizationId: string;
   limit?: number;
+  startAfterCreatedAtMs?: number;
 }): Promise<WithId<OrderDoc>[]> {
-  const snap = await orderCol()
+  let query = orderCol()
     .where("eventId", "==", input.eventId)
     .where("organizationId", "==", input.organizationId)
-    .orderBy("createdAt", "desc")
-    .limit(input.limit ?? ORDER_LIST_LIMIT)
-    .get();
+    .orderBy("createdAt", "desc");
+
+  if (input.startAfterCreatedAtMs !== undefined) {
+    query = query.startAfter(Timestamp.fromMillis(input.startAfterCreatedAtMs));
+  }
+
+  const snap = await query.limit(input.limit ?? ORDER_LIST_LIMIT).get();
 
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as OrderDoc) }));
 }
