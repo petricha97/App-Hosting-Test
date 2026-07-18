@@ -26,6 +26,8 @@ interface EventBarProps {
   leading?: React.ReactNode;
   /** Extra breadcrumb segment after the event name (e.g. "Edit"). */
   trailingCrumb?: string | null;
+  /** Optional primary status control rendered after Preview. */
+  statusAction?: React.ReactNode;
 }
 
 function StatusBadge({ status }: { status: EventBarEvent["status"] }) {
@@ -46,7 +48,7 @@ function StatusBadge({ status }: { status: EventBarEvent["status"] }) {
   );
 }
 
-export function EventBar({ event, leading, trailingCrumb }: EventBarProps) {
+export function EventBar({ event, leading, trailingCrumb, statusAction }: EventBarProps) {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-xl">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:px-8">
@@ -126,7 +128,7 @@ export function EventBar({ event, leading, trailingCrumb }: EventBarProps) {
                   Preview
                 </Link>
               </Button>
-              {/* Reserved slot: "Publish changes" primary action lands in M8-T3. */}
+              {statusAction}
             </div>
           </>
         )}

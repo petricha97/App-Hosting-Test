@@ -41,9 +41,10 @@ interface EventShellProps {
   /** undefined → the layout is still resolving the event (bar skeleton). */
   event: EventBarEvent | undefined;
   children?: React.ReactNode;
+  statusAction?: React.ReactNode;
 }
 
-export function EventShell({ eventId, event, children }: EventShellProps) {
+export function EventShell({ eventId, event, children, statusAction }: EventShellProps) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
@@ -80,6 +81,7 @@ export function EventShell({ eventId, event, children }: EventShellProps) {
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <EventBar
           event={event}
+          statusAction={statusAction}
           trailingCrumb={getTrailingCrumb(pathname)}
           leading={
             <Button

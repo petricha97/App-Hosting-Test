@@ -66,7 +66,7 @@ export function EventStatusActions({
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <div className="flex flex-wrap items-center gap-3">
       <Button
         type="button"
         variant={status === "Published" ? "outline" : "default"}
@@ -91,13 +91,6 @@ export function EventStatusActions({
         )}
       </Button>
 
-      {status === "Published" ? (
-        <Button asChild variant="outline">
-          <a href={`/events/${eventId}`} target="_blank" rel="noreferrer">
-            View public page
-          </a>
-        </Button>
-      ) : null}
     </div>
   );
 }
