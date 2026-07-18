@@ -30,17 +30,17 @@ export function DashboardEmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-start gap-5 rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50/80 p-6 text-left",
+        "flex flex-col items-start gap-5 rounded-2xl border border-dashed border-border bg-card p-6 text-left",
         className,
       )}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-900 shadow-sm">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-background text-foreground shadow-sm">
         <Icon className="h-5 w-5" />
       </div>
 
       <div className="space-y-2">
-        <h3 className="text-xl font-semibold text-slate-950">{title}</h3>
-        <p className="max-w-2xl text-sm leading-7 text-slate-600">
+        <h3 className="text-xl font-semibold text-foreground">{title}</h3>
+        <p className="max-w-2xl text-sm leading-7 text-muted-foreground">
           {description}
         </p>
       </div>
