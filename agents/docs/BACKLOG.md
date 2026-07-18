@@ -42,13 +42,14 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M7-T1 | Reporting aggregates + event report summaries | M7 | Done (2026-07-17) | — | S7 |
 | M7-T2 | Report templates library | M7 | Done (2026-07-17) | — | S7 |
 | M7-T3 | Scheduled report delivery | M7 | Done | QA | S7 |
-| M8-T1 | Real IAM (replace mock data) | M8 | Todo | — | — |
+| M8-T1 | Real IAM (replace mock data) | M8 | Done | Review APPROVED | S8 PASS |
 | M8-T2 | Workspace dashboard real metrics | M8 | Todo | — | — |
 | M8-T3 | Event overview parity | M8 | Todo | — | — |
 | M8-T4 | Test coverage & regression backfill | M8 | Todo | — | — |
 | M8-T5 | Dependency hardening (next 15.5.x bump + audit fixes) | M8 | Todo | — | — |
 | M8-T6 | Generic accept-hook repair path (retry attendee creation) | M8 | Todo | — | — |
 | M8-T7 | Rate-limit CSV export routes (reports + attendees + responses) | M8 | Todo | — | — |
+| M8-T8 | Test coverage: last-Owner guardrail TOCTOU-race (transaction-conflict simulation) | M8 | Todo | — | — |
 
 ---
 
@@ -492,12 +493,13 @@ Rationale for reordering vs. the AGENT_LOOP.md seed:
 
 ## M8 — Hardening & Platform Parity
 
-### M8-T1 — Real IAM (replace mock data)
+### M8-T1 — Real IAM (replace mock data) — **Done (2026-07-18)**
 - **Goal:** Replace hardcoded mock in `src/features/iam/components/iam-dashboard.tsx` with real members/invitations/roles (Owner/Admin/Editor/Viewer per `users.html`), server-side role enforcement across all API routes built in M1–M7. *Note:* if SEC raises repeated authz findings earlier, Orchestrator may pull the role-check helper (not the UI) forward.
 - **Screens:** `users.html`.
 - **Code:** `src/features/iam/`, `src/lib/db/user-organization.ts` (+ missing `adminUserOrganization.ts` per audit), `src/lib/auth-utils.ts`, invite flow + `join-organization-dialog.tsx`.
 - **Deps:** none hard; touches all routes.
 - **Agents:** RL (role → permission matrix per screen, invite lifecycle) · UX (members table, role cards, invite dialog, Invited/Active states) · BE (membership/invite model, admin repo, indexes) · FS (UI + enforcement sweep across routes) · CR (enforcement completeness) · SEC (full authz review — this is the ticket's core; multi-tenant isolation re-test) · QA (permission matrix per role, invite E2E).
+- **Closure:** Research corrected a stale backlog note (`adminUserOrganization.ts` already existed) and found the blast radius was far smaller than feared — Editor's permission set is a superset of every M1–M7 route's existing check, so only ONE existing route (`attendees/route.ts` GET) needed a code change; a real, independent pre-existing bug was found and fixed along the way (that route required `write:events` while its own SSR page had zero permission check). Code Review APPROVED (0 Blockers, 1 Should-fix — a `revokeAdminInvitation` check-ordering bug, spec-compliance not security, fixed and re-verified). Security PASS (0 Critical/High, 1 Medium — the last-Owner guardrail is architecturally correct, same-transaction check-and-mutate, confirmed via direct source read, but its TOCTOU-race resistance is untested by the fake-Firestore double; deferred to new ticket **M8-T8** rather than blocking). QA SIGNED OFF (0 defects; closed 4 genuine coverage gaps with 22 new regression tests — a real-route+real-DAL permission-matrix suite, a full 7-stage invite→accept→role-change→removal E2E, the invite-token signup-skip-org-creation path, and the Owner+Admin combined role card — all four gaps were already correctly implemented, not defects). Orchestrator independently re-verified every gate (re-ran lint/tsc/build/full test suite from a clean shell at each step, spot-read the D10 hierarchy branching, the last-Owner transaction structure, the invitation email-match TOCTOU-safety, and the token-entropy/firestore.rules claims directly in source rather than trusting reports). Final suite: 164 files / 1897 tests. A separate, user-directed UI/UX redesign exploration (two Artifact mockups, current-vs-proposed) ran in parallel off the critical path — user reviewed both and kept the current design, so no code changes resulted.
 
 ### M8-T2 — Workspace dashboard real metrics
 - **Goal:** Replace `src/features/dashboard/mock-data.ts` with real aggregates: draft/published events, registrations, revenue; wire quick-actions/checklist deep links to the now-real sub-screens.
@@ -530,6 +532,18 @@ Rationale for reordering vs. the AGENT_LOOP.md seed:
 - **Code:** `src/app/api/dashboard/responses/` status route, `src/features/responses/on-submission-accepted.ts` callers; regression tests.
 - **Deps:** M5 (Done); revisit design when M6-T3 adds email side-effects to the accept hook.
 - **Agents:** RL (amend spec: repair semantics) · FS (implement) · CR · SEC (authz on retry action) · QA (orphan-heal E2E).
+
+### M8-T7 — Rate-limit CSV export routes (from M7-T2 Security M-1)
+- **Goal:** none of this app's CSV export routes have rate limiting — `attendees/export`, `responses/export` (both pre-existing), and all 5 of M7-T2's report-template export routes. A cost/DoS-amplification gap for a compromised or misused `write:events` account, not a data-exposure or authz-bypass issue. Fix all export routes together in one pass (fixing only a subset would leave the others inconsistently unprotected).
+- **Code:** every `.../export/route.ts` under `src/app/api/dashboard/`.
+- **Deps:** none — independent; may be pulled forward if a convenient window appears.
+- **Agents:** FS (add `checkRateLimit` matching this app's existing convention) · CR · SEC (verify closure) · QA (429 regression test per route).
+
+### M8-T8 — Test coverage: last-Owner guardrail TOCTOU-race simulation (from M8-T1 Security M-1)
+- **Goal:** `changeAdminMemberRole`/`removeAdminMember`'s last-Owner guardrail is architecturally race-safe (the Owner-count check and the mutation run inside the same Firestore transaction, verified by direct source read — `agents/docs/security/m8-real-iam.md`), but this guarantee is completely unverified by the test suite: the fake Firestore double (`src/__tests__/helpers/fake-admin-db.ts`) executes transactions with zero conflict/retry simulation. A future regression (e.g., someone swapping in the already-exported non-transactional `countAdminOrganizationOwners` sibling by mistake) would silently reintroduce a 2-Owner concurrent-removal race and no existing test would catch it.
+- **Code:** `src/__tests__/helpers/fake-admin-db.ts` (add transaction-conflict simulation) or a new integration test against emulated Firestore; `src/__tests__/admin-user-organization-iam.test.ts`.
+- **Deps:** M8-T1 (Done).
+- **Agents:** BE (own the fix — either extend the fake-db double or add an emulator-backed test) · CR · QA (confirm the new test actually fails against a hypothetical non-transactional regression, not just passes against current code).
 
 ---
 
