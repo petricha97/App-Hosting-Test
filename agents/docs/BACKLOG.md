@@ -45,11 +45,13 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M8-T1 | Real IAM (replace mock data) | M8 | Done | Review APPROVED | S8 PASS |
 | M8-T2 | Workspace dashboard real metrics | M8 | Done (2026-07-19) | Review APPROVED (after 5 Should-fix) | SEC PASS 0 findings, QA SIGNED OFF |
 | M8-T3 | Event overview parity | M8 | Done (2026-07-19) | Review APPROVED (after 3 Should-fix) | SEC PASS 0 findings, QA SIGNED OFF |
-| M8-T4 | Test coverage & regression backfill | M8 | Todo | — | — |
+| M8-T4 | Test coverage & regression backfill (+4 real bugs fixed) | M8 | Done (2026-07-19) | Review APPROVED (after Blocker+3 SF) | SEC PASS after H1/H2 fix; M1→M8-T9 |
 | M8-T5 | Dependency hardening (next 15.5.x bump + audit fixes) | M8 | Todo | — | — |
 | M8-T6 | Generic accept-hook repair path (retry attendee creation) | M8 | Todo | — | — |
 | M8-T7 | Rate-limit CSV export routes (reports + attendees + responses) | M8 | Todo | — | — |
 | M8-T8 | Test coverage: last-Owner guardrail TOCTOU-race (transaction-conflict simulation) | M8 | Todo | — | — |
+| M8-T9 | Form-template propagation operational atomicity (Firestore batch/chunk under 500-write limit + bounded linked-form query) | M8 | Todo | — | from M8-T4 SEC M1 |
+| M8-T10 | Server-own eventPagePath/invoicePath review + coverage provider decision (from M8-T4 CR/plan) | M8 | Todo | — | deferred |
 
 ---
 
