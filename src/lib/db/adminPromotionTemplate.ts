@@ -140,7 +140,6 @@ export async function applyTemplateToSpecificEvents(
   const snap = await adminDb
     .collectionGroup("EventPromotion")
     .where("templateId", "==", templateId)
-    .where("organizationId", "==", organizationId)
     .get();
 
   // Map eventId → the promotion doc for quick lookup.
@@ -150,16 +149,21 @@ export async function applyTemplateToSpecificEvents(
     if (parentEventId) promotionByEventId.set(parentEventId, doc);
   }
 
+  const skippedMissing = eventIds.filter((eventId) => {
+    const doc = promotionByEventId.get(eventId);
+    return !doc || doc.data().organizationId !== organizationId;
+  });
+
+  if (skippedMissing.length > 0) {
+    return { updated: 0, skippedCustom: [], skippedMissing };
+  }
+
   const skippedCustom: string[] = [];
-  const skippedMissing: string[] = [];
   const docsToUpdate: QueryDocumentSnapshot[] = [];
 
   for (const eventId of eventIds) {
     const doc = promotionByEventId.get(eventId);
-    if (!doc) {
-      skippedMissing.push(eventId);
-      continue;
-    }
+    if (!doc) continue;
     const data = doc.data() as { inheritFromParent: boolean };
     if (!data.inheritFromParent && !options.overwriteCustom) {
       skippedCustom.push(eventId);
