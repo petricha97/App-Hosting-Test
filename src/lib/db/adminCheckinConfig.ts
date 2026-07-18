@@ -93,6 +93,19 @@ export async function getAdminCheckinConfigForEvent(input: {
   };
 }
 
+// Readiness differs from get-or-default rendering: only a persisted,
+// tenant-matching document proves that check-in has been configured.
+export async function hasAdminCheckinConfigForEvent(input: {
+  eventId: string;
+  organizationId: string;
+}): Promise<boolean> {
+  const snap = await checkinConfigCol().doc(input.eventId).get();
+  if (!snap.exists) return false;
+
+  const doc = snap.data() as CheckinConfigDoc;
+  return doc.organizationId === input.organizationId;
+}
+
 // Upsert through the allow-list, inside a transaction:
 // - no doc -> create defaults + patch (lazy first save, T4 AC-3);
 // - doc exists -> update ONLY the patched toggle keys (+ updatedAt);

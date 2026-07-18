@@ -260,6 +260,28 @@ export async function getAdminRegistrationDraftsForEvent(input: {
   });
 }
 
+// Event-overview aggregate: incomplete drafts are represented by the
+// existence of a RegistrationDraft document (completed drafts are deleted).
+// The range is deliberately strict `< cutoff`: a draft idle for exactly 24h
+// is not abandoned; it becomes abandoned one millisecond later.
+export async function countAdminAbandonedRegistrationDraftsForEvent(input: {
+  eventId: string;
+  organizationId: string;
+  nowMs?: number;
+}): Promise<number> {
+  const cutoff = Timestamp.fromMillis(
+    (input.nowMs ?? Date.now()) - ABANDONED_AFTER_MS,
+  );
+  const snap = await registrationDraftCol()
+    .where("eventId", "==", input.eventId)
+    .where("organizationId", "==", input.organizationId)
+    .where("updatedAt", "<", cutoff)
+    .count()
+    .get();
+
+  return snap.data().count;
+}
+
 // Delete protection for registration paths (spec T1: BLOCK, limit 5):
 // drafts in this event that walked the given path. Equality-only query —
 // served by single-field index merging, no composite needed.

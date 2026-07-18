@@ -6,6 +6,7 @@ import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
 import { getEventBarDateLabel } from "@/features/event/utils";
 import { EventNotFound } from "@/features/event/components/event-not-found";
 import { EventShell } from "@/features/event/components/event-shell";
+import { EventStatusActions } from "@/features/dashboard/components/event-status-actions";
 
 interface EventWorkspaceLayoutProps {
   children: ReactNode;
@@ -42,6 +43,11 @@ async function EventWorkspaceContent({
         dateLabel: getEventBarDateLabel(event),
         venue: null,
       }}
+      statusAction={
+        scope.userDoc.permissions.includes("write:events") ? (
+          <EventStatusActions eventId={event.id} status={event.status} />
+        ) : undefined
+      }
     >
       {children}
     </EventShell>

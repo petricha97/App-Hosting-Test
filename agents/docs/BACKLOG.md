@@ -44,7 +44,7 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M7-T3 | Scheduled report delivery | M7 | Done | QA | S7 |
 | M8-T1 | Real IAM (replace mock data) | M8 | Done | Review APPROVED | S8 PASS |
 | M8-T2 | Workspace dashboard real metrics | M8 | Done (2026-07-19) | Review APPROVED (after 5 Should-fix) | SEC PASS 0 findings, QA SIGNED OFF |
-| M8-T3 | Event overview parity | M8 | Todo | — | — |
+| M8-T3 | Event overview parity | M8 | Done (2026-07-19) | Review APPROVED (after 3 Should-fix) | SEC PASS 0 findings, QA SIGNED OFF |
 | M8-T4 | Test coverage & regression backfill | M8 | Todo | — | — |
 | M8-T5 | Dependency hardening (next 15.5.x bump + audit fixes) | M8 | Todo | — | — |
 | M8-T6 | Generic accept-hook repair path (retry attendee creation) | M8 | Todo | — | — |
