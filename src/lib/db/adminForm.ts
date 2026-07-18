@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 
 import { adminDb } from "@/app/lib/firestore";
 import { createAdminCollectionApi } from "@/lib/db/adminBase";
+import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
 import {
   applyTemplateToLinkedForm,
   extractFormIdFromPath,
@@ -43,11 +44,16 @@ export async function getAdminFormForEvent(input: {
   const directMatches = await findAdminFormsByField("eventId", input.eventId);
 
   for (const candidate of directMatches) {
+    if (
+      candidate.eventId !== input.eventId ||
+      candidate.organizationId !== input.organizationId
+    ) {
+      continue;
+    }
+
     const parsed = parseStoredForm(candidate, input);
 
-    if (parsed && parsed.organizationId === input.organizationId) {
-      return parsed;
-    }
+    if (parsed) return parsed;
   }
 
   const linkedFormId = extractFormIdFromPath(input.formPath);
@@ -59,6 +65,13 @@ export async function getAdminFormForEvent(input: {
   const linkedForm = await getAdminFormById(linkedFormId);
 
   if (!linkedForm) {
+    return null;
+  }
+
+  if (
+    linkedForm.eventId !== input.eventId ||
+    linkedForm.organizationId !== input.organizationId
+  ) {
     return null;
   }
 
@@ -89,6 +102,14 @@ export async function getAdminPublishedFormForPublicEvent(input: {
   const directMatches = await findAdminFormsByField("eventId", input.eventId);
 
   for (const candidate of directMatches) {
+    if (
+      candidate.eventId !== input.eventId ||
+      (input.organizationId != null &&
+        candidate.organizationId !== input.organizationId)
+    ) {
+      continue;
+    }
+
     const parsed = normalizeStoredFormDocument(candidate, {
       eventId: input.eventId,
       eventName: input.eventName,
@@ -109,6 +130,14 @@ export async function getAdminPublishedFormForPublicEvent(input: {
   const linkedForm = await getAdminFormById(linkedFormId);
 
   if (!linkedForm) {
+    return null;
+  }
+
+  if (
+    linkedForm.eventId !== input.eventId ||
+    (input.organizationId != null &&
+      linkedForm.organizationId !== input.organizationId)
+  ) {
     return null;
   }
 
@@ -211,9 +240,38 @@ export async function applyAdminTemplateToForms(input: {
   template: FormTemplateDoc & { id: string };
   forms: Array<FormDoc & { id: string }>;
 }) {
+  const forms = await Promise.all(
+    input.forms.map((form) => getAdminFormById(form.id)),
+  );
+
+  const events = await Promise.all(
+    forms.map((form) =>
+      form?.eventId
+        ? getAdminEventForOrganization(
+            form.eventId,
+            input.template.organizationId,
+          )
+        : Promise.resolve(null),
+    ),
+  );
+
+  if (
+    forms.some(
+      (form, index) =>
+        !form ||
+        form.organizationId !== input.template.organizationId ||
+        form.templateLink?.templateId !== input.template.id ||
+        form.templateLink.detached ||
+        !events[index],
+    )
+  ) {
+    throw new Error("Cannot apply template to an ineligible form");
+  }
+
+  const eligibleForms = forms as Array<NonNullable<(typeof forms)[number]>>;
   const updatedIds: string[] = [];
 
-  for (const form of input.forms) {
+  for (const form of eligibleForms) {
     const next = applyTemplateToLinkedForm({
       form,
       template: input.template,

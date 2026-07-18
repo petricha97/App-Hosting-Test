@@ -60,6 +60,18 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  if (
+    parsed.data.organizationPath !== event.organizationPath ||
+    parsed.data.formPath !== event.formPath ||
+    parsed.data.eventPagePath !== event.eventPagePath ||
+    parsed.data.invoicePath !== event.invoicePath
+  ) {
+    return NextResponse.json(
+      { error: "Server-owned event pointers cannot be changed" },
+      { status: 403 },
+    );
+  }
+
   await updateAdminEvent(eventId, {
     ...parsed.data,
     updatedAt: FieldValue.serverTimestamp(),
