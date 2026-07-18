@@ -120,7 +120,9 @@ export function LoginForm({
         setError("password", { message: "Invalid email or password." });
         break;
       case "auth/too-many-requests":
-        setError("root", { message: "Too many attempts. Please try again later." });
+        setError("root", {
+          message: "Too many attempts. Please try again later.",
+        });
         break;
       default:
         setError("root", { message: "Login failed. Please try again." });
@@ -130,9 +132,9 @@ export function LoginForm({
   async function syncSessionCookie() {
     const user = auth.currentUser;
     if (!user) return;
-  
+
     const token = await user.getIdToken(); // optionally getIdToken(true) to force refresh
-  
+
     await fetch("/api/auth/session", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -155,6 +157,7 @@ export function LoginForm({
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
+      await syncSessionCookie();
       router.push(redirectTo);
     } catch {
       setError("root", { message: "Google sign in failed. Please try again." });
@@ -207,7 +210,11 @@ export function LoginForm({
 
         <CardContent>
           <Form {...form}>
-            <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
+            <form
+              onSubmit={handleSubmit(onSubmit)}
+              noValidate
+              className="space-y-6"
+            >
               {errors.root?.message && (
                 <p className="text-sm text-red-600" role="alert">
                   {errors.root.message}

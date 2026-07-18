@@ -29,7 +29,9 @@ export function SiteHeader() {
   const isHomeRoute = pathname === "/";
   const isDashboardRoute = pathname.startsWith("/dashboard");
   const isAuthRoute =
-    pathname.startsWith("/login") || pathname.startsWith("/signup");
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/invite");
 
   const { user, initializing } = useAuth();
 

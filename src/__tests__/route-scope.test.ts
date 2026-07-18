@@ -8,13 +8,17 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { cookies, decodeUser, getAdminUserByEmail, getAdminEventForOrganization } =
-  vi.hoisted(() => ({
-    cookies: vi.fn(),
-    decodeUser: vi.fn(),
-    getAdminUserByEmail: vi.fn(),
-    getAdminEventForOrganization: vi.fn(),
-  }));
+const {
+  cookies,
+  decodeUser,
+  getAdminUserByEmail,
+  getAdminEventForOrganization,
+} = vi.hoisted(() => ({
+  cookies: vi.fn(),
+  decodeUser: vi.fn(),
+  getAdminUserByEmail: vi.fn(),
+  getAdminEventForOrganization: vi.fn(),
+}));
 
 vi.mock("next/headers", () => ({ cookies }));
 vi.mock("@/lib/auth-utils", () => ({ default: decodeUser }));
@@ -42,7 +46,8 @@ function memberUserDoc(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   cookies.mockResolvedValue({
-    get: (name: string) => (name === "session" ? { value: "token" } : undefined),
+    get: (name: string) =>
+      name === "session" ? { value: "token" } : undefined,
   });
   decodeUser.mockResolvedValue({
     uid: "u1",
@@ -82,9 +87,7 @@ describe("resolveRegistrationRouteScope", () => {
     getAdminUserByEmail.mockResolvedValue(
       memberUserDoc({
         organizationId: "victim-org",
-        organizations: [
-          { organizationId: "attacker-org", role: "member" },
-        ],
+        organizations: [{ organizationId: "attacker-org", role: "member" }],
       }),
     );
 
@@ -130,5 +133,70 @@ describe("resolveRegistrationRouteScope", () => {
     const scope = await resolveRegistrationRouteScope(EVENT_ID);
 
     expect(scope).toMatchObject({ ok: false, status: 404 });
+  });
+});
+
+describe("resolveRegistrationRouteScope — { requireWriteEvents: false } (M8-T1 spec D6)", () => {
+  it("succeeds for a member WITHOUT write:events when the caller opts out", async () => {
+    getAdminUserByEmail.mockResolvedValue(
+      memberUserDoc({ permissions: ["view:events"] }),
+    );
+
+    const scope = await resolveRegistrationRouteScope(EVENT_ID, {
+      requireWriteEvents: false,
+    });
+
+    expect(scope).toEqual({
+      ok: true,
+      organizationId: ORG_ID,
+      event,
+      userId: "owner@example.com",
+    });
+  });
+
+  it("still 401s without a session cookie even when opted out", async () => {
+    cookies.mockResolvedValue({ get: () => undefined });
+
+    const scope = await resolveRegistrationRouteScope(EVENT_ID, {
+      requireWriteEvents: false,
+    });
+
+    expect(scope).toMatchObject({ ok: false, status: 401 });
+  });
+
+  it("still 403s a spoofed/missing org scope even when opted out", async () => {
+    getAdminUserByEmail.mockResolvedValue(
+      memberUserDoc({ organizationId: "victim-org", organizations: [] }),
+    );
+
+    const scope = await resolveRegistrationRouteScope(EVENT_ID, {
+      requireWriteEvents: false,
+    });
+
+    expect(scope).toMatchObject({ ok: false, status: 403 });
+  });
+
+  it("still 404s a cross-org/unknown event even when opted out", async () => {
+    getAdminEventForOrganization.mockResolvedValue(null);
+
+    const scope = await resolveRegistrationRouteScope(EVENT_ID, {
+      requireWriteEvents: false,
+    });
+
+    expect(scope).toMatchObject({ ok: false, status: 404 });
+  });
+
+  it("defaults to requiring write:events when options are omitted (every pre-existing call site is unaffected)", async () => {
+    getAdminUserByEmail.mockResolvedValue(
+      memberUserDoc({ permissions: ["view:events"] }),
+    );
+
+    const scope = await resolveRegistrationRouteScope(EVENT_ID);
+
+    expect(scope).toEqual({
+      ok: false,
+      error: "Missing write:events permission",
+      status: 403,
+    });
   });
 });

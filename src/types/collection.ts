@@ -23,11 +23,32 @@ export interface OrganizationDoc {
   updatedAt: Timestamp | FieldValue;
 }
 
+// ============================================================================
+// M8-T1 — Real IAM: 4-tier role model (spec: agents/docs/specs/m8-real-iam.md
+// D2/D3/D5). Widens the pre-M8 role union ("owner" / "admin" / "member",
+// where "admin" was reachable in the type but never actually written by any
+// code path) to the real 4-tier model Owner/Admin/Editor/Viewer. "member" is
+// KEPT in the union as a PERMANENT, read-time-only legacy alias for "viewer"
+// (D2) — no backfill migration; every write site after this ticket ships
+// uses "viewer", never "member".
+// ============================================================================
+export type OrganizationRole =
+  "owner" | "admin" | "editor" | "viewer" | "member";
+
 export interface OrganizationMembership {
   organizationId: string;
-  role: "owner" | "admin" | "member";
+  role: OrganizationRole;
   joinedAt: Timestamp | FieldValue;
-  joinMethod: "created" | "invite_link" | "invite_code" | "domain_auto_join";
+  joinMethod:
+    | "created"
+    | "invite_link"
+    | "invite_code"
+    | "domain_auto_join"
+    // M8-T1: the invite-accept flow (src/lib/db/adminUserOrganization.ts
+    // acceptAdminInvitation) — a specific, pre-assigned-role email invite,
+    // distinct from the shared-secret invite_code/invite_link/domain joins
+    // (which all default to "viewer", D9).
+    | "invite_email";
 }
 
 export type UserPermission =
@@ -44,6 +65,10 @@ export type UserPermission =
   | "view:user"
   | "write:user";
 
+// Owner AND Admin (D5 — byte-identical at the permission-string layer; the
+// only real distinction between them is the D10 role-hierarchy guardrail on
+// the member-management surface adminUserOrganization.ts adds, never
+// expressed as a UserPermission string).
 export const OWNER_PERMISSIONS: UserPermission[] = [
   "view:events",
   "write:events",
@@ -59,11 +84,27 @@ export const OWNER_PERMISSIONS: UserPermission[] = [
   "write:user",
 ];
 
+// Viewer (and the legacy "member" alias, D2 — exact, not approximate: this
+// set IS the Viewer set, which is why treating role === "member" as
+// role === "viewer" is a zero-cost alias).
 export const MEMBER_PERMISSIONS: UserPermission[] = [
   "view:events",
   "view:form",
   "view:invoice",
   "view:promotion",
+];
+
+// Editor (M8-T1 D3): "Build events, forms, emails; can't manage members" —
+// write:events/write:form/write:promotion, view-only invoice, zero
+// *:organization / *:user.
+export const EDITOR_PERMISSIONS: UserPermission[] = [
+  "view:events",
+  "write:events",
+  "view:form",
+  "write:form",
+  "view:promotion",
+  "write:promotion",
+  "view:invoice",
 ];
 
 export interface UserDoc {
@@ -72,7 +113,7 @@ export interface UserDoc {
   email: string;
   avatarUrl?: string;
   organizationId: string;
-  organizationRole: "owner" | "admin" | "member";
+  organizationRole: OrganizationRole;
   organizations: OrganizationMembership[];
   emailVerified: boolean;
   status: "active" | "pending" | "suspended";
@@ -82,20 +123,70 @@ export interface UserDoc {
   lastLoginAt?: Timestamp;
 }
 
+// M8-T1 — Invitation (spec §3, revised shape; supersedes the prior
+// type/code/maxUses-shaped declaration, which was declared and never
+// referenced anywhere in the codebase — confirmed by exhaustive grep before
+// this ticket). One live invitation per (organizationId, lowercased email)
+// pair — DETERMINISTIC doc id (src/lib/db/adminInvitation.ts:
+// sha256(["Invitation", organizationId, lowercasedEmail]), same tuple-hash
+// family as ReportSchedule/EmailDefinition) — upsert semantics, never a
+// duplicate (spec §3 AC-1). SERVER-ONLY (firestore.rules deny-all, no client
+// repo pair).
 export interface InvitationDoc {
   organizationId: string;
-  type: "email" | "link" | "code";
-  email?: string;
-  token?: string;
-  code?: string;
-  role: "admin" | "member";
-  maxUses?: number;
-  usedCount: number;
-  expiresAt?: Timestamp;
-  status: "active" | "expired" | "revoked";
-  createdBy: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  // Always lowercased at write time.
+  email: string;
+  // Never "owner" (D10 — an invitation can never mint an Owner) and never
+  // the legacy "member" alias (new writes always use the real 4 role names).
+  role: "admin" | "editor" | "viewer";
+  // "expired" is NEVER stored — derived at read/accept time from
+  // `expiresAt < now` (spec §3, same "derived, not invented" discipline as
+  // the abandoned-draft/isAbandoned convention already used elsewhere).
+  status: "pending" | "accepted" | "revoked";
+  // Opaque bearer secret for the accept URL (/invite/{token}) — the ONLY way
+  // to resolve an invitation from the accept flow, since the caller has no
+  // other identifier (src/lib/db/adminInvitation.ts:
+  // getAdminInvitationByToken).
+  token: string;
+  // Inviter's email — audit only; re-stamped on every upsert/re-invite to
+  // whoever performed the LATEST invite.
+  invitedBy: string;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+  // Concrete Timestamp (never FieldValue — the accept-time comparison needs
+  // a real instant, not a server-computed sentinel). Stamped
+  // now + INVITATION_EXPIRY_DAYS at create/refresh time.
+  expiresAt: Timestamp;
+  acceptedAt?: Timestamp | FieldValue;
+  acceptedBy?: string;
+}
+
+// M8-T1 — OrganizationMember (spec D12, the reverse-index this ticket adds).
+// UserDoc.organizations[] is embedded PER-USER, not reverse-indexed, so
+// "list every member of org X" has no correct query against User alone
+// (agents/docs/specs/m7-scheduled-reports.md D2 named this exact gap and
+// deferred it here). Root collection, DETERMINISTIC doc id
+// `organizationId + "_" + lowercased email`
+// (src/lib/db/adminOrganizationMember.ts) — one row per (org, member) pair.
+// Written/updated/deleted IN THE SAME TRANSACTION as every roster mutation
+// (addAdminUserToOrganization, createAdminOrganizationWithOwner,
+// acceptAdminInvitation, changeAdminMemberRole, removeAdminMember) so it can
+// never drift out of sync with the authoritative embedded roster. SERVER-ONLY
+// (firestore.rules deny-all, no client repo pair) — listing an org's members
+// is then a plain `where(organizationId == X)` query.
+export interface OrganizationMemberDoc {
+  organizationId: string;
+  // Always lowercased — matches the User doc's own key convention.
+  email: string;
+  role: OrganizationRole;
+  // Denormalized from UserDoc.name at write time — display convenience for
+  // the members table, never independently editable.
+  name: string;
+  // Denormalized from UserDoc.status at write time. This ticket ships no
+  // "suspend" action (spec Non-goals), so this is "active" for every row
+  // this ticket ever writes — kept as the full status union for forward
+  // compat with UserDoc.status.
+  status: "active" | "pending" | "suspended";
 }
 
 export interface DomainVerificationDoc {

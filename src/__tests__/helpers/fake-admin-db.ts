@@ -70,6 +70,64 @@ function aggregateFieldPath(field: AggregateFieldLike): string {
   throw new Error("fake-admin-db: aggregate sum() field path not resolvable");
 }
 
+// Resolves the two FieldValue transform sentinels this codebase's admin DAL
+// actually writes into `.update()` payloads — FieldValue.increment(n)
+// (M8-T1's Organization.memberCount decrement, M2's order-finalize
+// counters) and FieldValue.arrayUnion(...)/arrayRemove(...) (M8-T1's
+// UserDoc.organizations[] roster append) — against the doc's EXISTING
+// stored value, so post-write assertions can read the real resulting
+// number/array instead of the opaque sentinel object. Deliberately narrow:
+// FieldValue.serverTimestamp()/delete() are left UNRESOLVED (stored as-is,
+// unchanged pre-existing behavior) since other tests already assert against
+// the raw sentinel in `writes` for those — resolving them here would be an
+// unrelated, riskier behavior change to a shared helper.
+function resolveFieldValueTransforms(
+  existing: DocData | undefined,
+  data: DocData,
+): DocData {
+  const base = existing ?? {};
+  const resolved: DocData = { ...data };
+
+  for (const [key, value] of Object.entries(data)) {
+    if (value === null || typeof value !== "object") continue;
+    const ctorName = (value as { constructor?: { name?: string } }).constructor
+      ?.name;
+
+    if (ctorName === "NumericIncrementTransform") {
+      const operand = (value as { operand: number }).operand;
+      const current = typeof base[key] === "number" ? (base[key] as number) : 0;
+      resolved[key] = current + operand;
+      continue;
+    }
+
+    if (ctorName === "ArrayUnionTransform") {
+      const elements = (value as { elements: unknown[] }).elements;
+      const current = Array.isArray(base[key]) ? (base[key] as unknown[]) : [];
+      const serialized = new Set(current.map((e) => JSON.stringify(e)));
+      const merged = [...current];
+      for (const el of elements) {
+        const key2 = JSON.stringify(el);
+        if (!serialized.has(key2)) {
+          serialized.add(key2);
+          merged.push(el);
+        }
+      }
+      resolved[key] = merged;
+      continue;
+    }
+
+    if (ctorName === "ArrayRemoveTransform") {
+      const elements = (value as { elements: unknown[] }).elements;
+      const toRemove = new Set(elements.map((e) => JSON.stringify(e)));
+      const current = Array.isArray(base[key]) ? (base[key] as unknown[]) : [];
+      resolved[key] = current.filter((e) => !toRemove.has(JSON.stringify(e)));
+      continue;
+    }
+  }
+
+  return resolved;
+}
+
 export function createFakeAdminDb() {
   const store = new Map<string, DocData>();
   const writes: FakeWrite[] = [];
@@ -287,7 +345,10 @@ export function createFakeAdminDb() {
         const existing = store.get(path);
         if (existing === undefined) throw new Error(`NOT_FOUND: ${path}`);
         writes.push({ type: "update", path, data });
-        store.set(path, { ...existing, ...data });
+        store.set(path, {
+          ...existing,
+          ...resolveFieldValueTransforms(existing, data),
+        });
       },
       async delete() {
         writes.push({ type: "delete", path });
@@ -331,7 +392,22 @@ export function createFakeAdminDb() {
       const existing = store.get(ref.path);
       if (existing === undefined) throw new Error(`NOT_FOUND: ${ref.path}`);
       writes.push({ type: "update", path: ref.path, data });
-      store.set(ref.path, { ...existing, ...data });
+      store.set(ref.path, {
+        ...existing,
+        ...resolveFieldValueTransforms(existing, data),
+      });
+    },
+    // Full overwrite (create-or-replace), matching real Transaction.set()'s
+    // default (non-merge) behavior — M8-T1's reverse-index writes use this
+    // so a role change fully replaces the OrganizationMember row rather than
+    // shallow-merging stale fields forward.
+    set(ref: FakeRef, data: DocData) {
+      writes.push({ type: "set", path: ref.path, data });
+      store.set(ref.path, data);
+    },
+    delete(ref: FakeRef) {
+      writes.push({ type: "delete", path: ref.path });
+      store.delete(ref.path);
     },
   };
 
