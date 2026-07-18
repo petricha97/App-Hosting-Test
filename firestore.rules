@@ -354,6 +354,31 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------
+    // M8-T1 — Real IAM (spec: agents/docs/specs/m8-real-iam.md D7/D12).
+    // BOTH server-only, same posture as EmailDefinition/ReportSchedule
+    // above: no client repo pair, all reads/writes go through
+    // write:user-gated admin routes (member/invite management) and the
+    // session/bearer-authenticated accept route.
+    //
+    // Invitation: per-email, pre-assigned-role invites — carries an opaque
+    // bearer token (the accept-URL secret); a client-readable copy would
+    // let any signed-in user enumerate/guess other people's invite tokens.
+    //
+    // OrganizationMember: the D12 reverse-index (member-enumeration query
+    // support) — a pure denormalization of the authoritative
+    // UserDoc.organizations[] roster, kept in sync by the server DAL only
+    // (src/lib/db/adminOrganizationMember.ts); never independently
+    // client-writable.
+    // ------------------------------------------------------------------
+    match /Invitation/{invitationId} {
+      allow read, write: if false;
+    }
+
+    match /OrganizationMember/{organizationMemberId} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------
     // Server-only collections (no production client-SDK access exists):
     // Form authoring, registration submissions (PII), form templates, Puck
     // pages and promotion templates are all read AND written through admin

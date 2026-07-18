@@ -3,7 +3,11 @@
  * M5-T2 — merged roster list + CSV export routes:
  *   GET /api/dashboard/events/[eventId]/attendees          (load more)
  *   GET /api/dashboard/events/[eventId]/attendees/export   (CSV)
- * - both write:events-gated (T2 AC-9), 404 cross-org;
+ * - export stays write:events-gated (T2 AC-9), 404 cross-org;
+ * - the list ("load more") route was RECLASSIFIED to view-tier by M8-T1
+ *   (spec D6: { requireWriteEvents: false }) — a Viewer now gets 200, not
+ *   403, matching the SSR page it paginates. This is the one route the
+ *   M8-T1 enforcement sweep changes; export is unchanged.
  * - merged rows: Attendee docs + non-accepted FormData, newest first;
  *   accepted FormData never duplicates its Attendee row;
  * - ?status= pushes the split to the source queries (accepted -> no FormData
@@ -119,7 +123,8 @@ function makeContext() {
 beforeEach(() => {
   vi.clearAllMocks();
   cookies.mockResolvedValue({
-    get: (name: string) => (name === "session" ? { value: "token" } : undefined),
+    get: (name: string) =>
+      name === "session" ? { value: "token" } : undefined,
   });
   decodeUser.mockResolvedValue({
     uid: "u1",
@@ -144,14 +149,21 @@ beforeEach(() => {
 });
 
 describe("GET attendees — gates", () => {
-  it("403 without write:events (T2 AC-9)", async () => {
+  it("200s a member WITHOUT write:events (M8-T1 spec D6 reclassification — view-tier)", async () => {
     getAdminUserByEmail.mockResolvedValue({
       organizationId: ORG_ID,
       organizations: [{ organizationId: ORG_ID, role: "member" }],
       permissions: ["view:events"],
     });
     const response = await listGet(listRequest(), makeContext());
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
+    expect(listAdminAttendeesForEvent).toHaveBeenCalled();
+  });
+
+  it("401s without a session (still requires SOME authenticated org member)", async () => {
+    cookies.mockResolvedValue({ get: () => undefined });
+    const response = await listGet(listRequest(), makeContext());
+    expect(response.status).toBe(401);
     expect(listAdminAttendeesForEvent).not.toHaveBeenCalled();
   });
 

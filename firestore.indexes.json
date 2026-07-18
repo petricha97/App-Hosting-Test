@@ -209,6 +209,14 @@
       ]
     },
     {
+      "collectionGroup": "OrganizationMember",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "role", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "Organization",
       "queryScope": "COLLECTION",
       "fields": [

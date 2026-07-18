@@ -29,6 +29,10 @@ interface DeleteEntityDialogProps {
   blockedMessage: string | null;
   pending: boolean;
   onConfirm: () => void;
+  // M8-T1 (design §4/§5): the invitation-revoke reuse of this dialog wants
+  // "Revoke" instead of "Delete" on the destructive action. Optional and
+  // additive — every pre-existing caller is unaffected by the "Delete" default.
+  confirmLabel?: string;
 }
 
 export function DeleteEntityDialog({
@@ -39,6 +43,7 @@ export function DeleteEntityDialog({
   blockedMessage,
   pending,
   onConfirm,
+  confirmLabel = "Delete",
 }: DeleteEntityDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -63,7 +68,7 @@ export function DeleteEntityDialog({
                 {pending ? (
                   <Loader2 aria-hidden="true" className="animate-spin" />
                 ) : null}
-                Delete
+                {confirmLabel}
               </Button>
             </>
           )}

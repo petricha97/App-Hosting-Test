@@ -15,7 +15,8 @@ export type LoginValues = z.infer<typeof loginSchema>;
 // ============================================================================
 
 export const createOrganizationSchema = z.object({
-  name: z.string()
+  name: z
+    .string()
     .trim()
     .min(2, "Name must be at least 2 characters.")
     .max(100, "Name is too long."),
@@ -26,7 +27,8 @@ export const createOrganizationSchema = z.object({
 export type CreateOrganizationValues = z.infer<typeof createOrganizationSchema>;
 
 export const organizationSettingsSchema = z.object({
-  name: z.string()
+  name: z
+    .string()
     .trim()
     .min(2, "Name must be at least 2 characters.")
     .max(100, "Name is too long."),
@@ -36,30 +38,36 @@ export const organizationSettingsSchema = z.object({
   allowDomainAutoJoin: z.boolean(),
 });
 
-export type OrganizationSettingsValues = z.infer<typeof organizationSettingsSchema>;
+export type OrganizationSettingsValues = z.infer<
+  typeof organizationSettingsSchema
+>;
 
 // ============================================================================
 // Signup Wizard Schemas
 // ============================================================================
 
-export const credentialsStepSchema = z.object({
-  name: z.string().trim().max(80, "Name is too long.").optional(),
-  email: z.email("Enter a valid email."),
-  password: z.string()
-    .min(8, "Use at least 8 characters.")
-    .regex(/[A-Za-z]/, "Include at least one letter.")
-    .regex(/[0-9]/, "Include at least one number."),
-  confirmPassword: z.string(),
-}).refine(v => v.password === v.confirmPassword, {
-  path: ["confirmPassword"],
-  message: "Passwords do not match.",
-});
+export const credentialsStepSchema = z
+  .object({
+    name: z.string().trim().max(80, "Name is too long.").optional(),
+    email: z.email("Enter a valid email."),
+    password: z
+      .string()
+      .min(8, "Use at least 8 characters.")
+      .regex(/[A-Za-z]/, "Include at least one letter.")
+      .regex(/[0-9]/, "Include at least one number."),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords do not match.",
+  });
 
 export type CredentialsStepValues = z.infer<typeof credentialsStepSchema>;
 
 export const organizationStepSchema = z.object({
   action: z.enum(["create", "join", "auto-join"]),
-  organizationName: z.string()
+  organizationName: z
+    .string()
     .trim()
     .min(2, "Name must be at least 2 characters.")
     .max(100, "Name is too long.")
@@ -84,7 +92,8 @@ export type VerificationStepValues = z.infer<typeof verificationStepSchema>;
 // ============================================================================
 
 export const joinByCodeSchema = z.object({
-  code: z.string()
+  code: z
+    .string()
     .min(6, "Code must be at least 6 characters.")
     .max(8, "Code must be at most 8 characters.")
     .regex(/^[A-Z0-9]+$/, "Code must contain only letters and numbers."),
@@ -103,13 +112,18 @@ export type JoinOrganizationValues = z.infer<typeof joinOrganizationSchema>;
 // ============================================================================
 // Invitation Schemas
 // ============================================================================
+// M8-T1 (spec: agents/docs/specs/m8-real-iam.md §3, D7): replaces the prior
+// type: "email"|"link"|"code" shape — dead code, zero imports anywhere,
+// confirmed by exhaustive grep before this ticket. The "link"/"code"
+// invitation variants it anticipated are permanently out of scope (D7): they
+// would just re-implement the already-shipped Organization.inviteCode /
+// inviteLinkToken shared-secret flows a second, redundant way. The real
+// shape is narrower: one email, one pre-assigned role (never "owner" — D10,
+// an invitation can never mint an Owner).
 
 export const createInvitationSchema = z.object({
-  type: z.enum(["email", "link", "code"]),
-  email: z.email("Enter a valid email.").optional(),
-  role: z.enum(["admin", "member"]),
-  maxUses: z.number().min(1).optional(),
-  expiresInDays: z.number().min(1).max(365).optional(),
+  email: z.email("Enter a valid email."),
+  role: z.enum(["admin", "editor", "viewer"]),
 });
 
 export type CreateInvitationValues = z.infer<typeof createInvitationSchema>;
