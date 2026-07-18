@@ -261,6 +261,25 @@ export async function sumAdminOrderTotalsForEvent(input: {
   return snap.data().total;
 }
 
+// Workspace dashboard aggregate (M8-T2): paid revenue across the whole
+// organization for one currency/status/amount field. Mirrors
+// sumAdminOrderTotalsForEvent without the eventId filter.
+export async function sumAdminOrderTotalsForOrganization(input: {
+  organizationId: string;
+  paymentStatus: PaymentStatus;
+  currency: Currency;
+  field: OrderAmountSumField;
+}): Promise<number> {
+  const snap = await orderCol()
+    .where("organizationId", "==", input.organizationId)
+    .where("paymentStatus", "==", input.paymentStatus)
+    .where("currency", "==", input.currency)
+    .aggregate({ total: AggregateField.sum(`amounts.${input.field}`) })
+    .get();
+
+  return snap.data().total;
+}
+
 // ============================================================================
 // Failed payment records (M2-T4 lifecycle step 2 — card declines)
 // ============================================================================

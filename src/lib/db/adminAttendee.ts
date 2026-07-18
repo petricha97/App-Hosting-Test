@@ -297,6 +297,23 @@ export async function countAdminAttendeesForEvent(input: {
   return snap.data().count;
 }
 
+// Workspace dashboard aggregate (M8-T2): accepted registrations across the
+// whole organization, regardless of which event owns each attendee. Mirrors
+// countAdminAttendeesForEvent without event/check-in/ticket filters.
+export async function countAdminAttendeesForOrganization(input: {
+  organizationId: string;
+  status?: AttendeeStatus;
+}): Promise<number> {
+  let query = attendeeCol().where("organizationId", "==", input.organizationId);
+
+  if (input.status !== undefined) {
+    query = query.where("status", "==", input.status);
+  }
+
+  const snap = await query.count().get();
+  return snap.data().count;
+}
+
 // ============================================================================
 // M5-T5 — idempotent check-in flip
 // ============================================================================

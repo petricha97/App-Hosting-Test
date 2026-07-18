@@ -39,6 +39,10 @@ export const REGISTRATION_PATH_COLLECTION = "RegistrationPath";
 // safety bound, not pagination.
 export const REGISTRATION_PATH_LIST_LIMIT = 50;
 
+// Workspace dashboard currency enumeration across all events. Bounded because
+// it is only used to derive distinct currencies, not to render a table.
+export const ORGANIZATION_REGISTRATION_PATH_LIST_LIMIT = 200;
+
 // Enough names for a useful 409 "blocked by paths X, Y, Z" message.
 const REFERENCING_PATHS_LIMIT = 20;
 
@@ -60,6 +64,23 @@ export async function getAdminRegistrationPathsForEvent(input: {
     .where("organizationId", "==", input.organizationId)
     .orderBy("sortOrder", "asc")
     .limit(input.limit ?? REGISTRATION_PATH_LIST_LIMIT)
+    .get();
+
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ...(d.data() as RegistrationPathDoc),
+  }));
+}
+
+// Organization-wide path enumeration for M8-T2's Revenue card. No per-event
+// ordering is needed; the caller only counts currencies.
+export async function getAdminRegistrationPathsForOrganization(input: {
+  organizationId: string;
+  limit?: number;
+}): Promise<WithId<RegistrationPathDoc>[]> {
+  const snap = await registrationPathCol()
+    .where("organizationId", "==", input.organizationId)
+    .limit(input.limit ?? ORGANIZATION_REGISTRATION_PATH_LIST_LIMIT)
     .get();
 
   return snap.docs.map((d) => ({
