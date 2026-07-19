@@ -21,6 +21,7 @@ export interface SerializedResponse {
   // M3-T4: read-time defaults — legacy docs surface as "new" with null
   // ticket/order, never rewritten (src/lib/db/formDataStatus.ts).
   status: FormDataStatus;
+  attendeeCreated: boolean;
   ticketLabel: string | null;
   orderId: string | null;
 }
@@ -84,6 +85,7 @@ export function serializeResponses(
     eventName: eventNamesById.get(response.eventId) ?? "Unknown event",
     submissionPreview: buildSubmissionPreview(response.submission),
     status: readFormDataStatus(response),
+    attendeeCreated: response.attendeeCreated === true,
     ticketLabel:
       response.ticketLabel ?? ticketLabelsById?.get(response.id) ?? null,
     orderId: response.orderId ?? null,

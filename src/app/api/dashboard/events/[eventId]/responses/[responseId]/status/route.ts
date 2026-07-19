@@ -8,13 +8,15 @@
 // - Zod payload { to } from the status enum.
 // - The transition itself runs transactionally in the DAL
 //   (transitionAdminFormDataStatus): NOT_FOUND -> 404 (missing or cross-org,
-//   indistinguishable), INVALID_TRANSITION -> 409 (backward / repeat /
-//   anything out of accepted). Accepting fires the M5 attendee hook stub at
-//   most once — a second accept 409s before the hook is reachable.
+//   indistinguishable), INVALID_TRANSITION -> 409 except an accepted replay,
+//   which performs a scoped attendee-completion check. A failed initial hook
+//   or accepted/pending replay invokes the shared repair helper; an already-
+//   complete accepted replay is an idempotent 200 without another transition.
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { resolveRegistrationRouteScope } from "@/features/registration/server/route-scope";
+import { repairAttendeeCreation } from "@/features/responses/server/repair-attendee-creation";
 import { transitionAdminFormDataStatus } from "@/lib/db/adminFormData";
 import { FORM_DATA_STATUSES } from "@/lib/db/formDataStatus";
 
@@ -48,6 +50,47 @@ export async function PATCH(request: Request, context: RouteContext) {
     organizationId: scope.organizationId,
     to: parsed.data.to,
   });
+
+  const isAcceptedReplay =
+    !result.ok &&
+    result.code === "INVALID_TRANSITION" &&
+    parsed.data.to === "accepted";
+  const needsRepair =
+    (result.ok && result.acceptHookFailed === true) || isAcceptedReplay;
+
+  if (needsRepair) {
+    const repair = await repairAttendeeCreation({
+      responseId,
+      eventId,
+      organizationId: scope.organizationId,
+    });
+
+    if (repair.ok) {
+      return NextResponse.json({ responseId, status: "accepted" });
+    }
+    if (repair.code === "RESPONSE_NOT_FOUND") {
+      return NextResponse.json({ error: "Response not found." }, { status: 404 });
+    }
+    if (repair.code === "ATTENDEE_CREATION_FAILED") {
+      console.error(
+        `[responses/status] attendee repair failed for accepted response ${responseId}`,
+        repair.error,
+      );
+      return NextResponse.json(
+        {
+          error:
+            "The response is accepted but the attendee record could not be created. Please retry.",
+          code: "ATTENDEE_CREATION_FAILED",
+          responseId,
+          attendeeCreated: false,
+        },
+        { status: 500 },
+      );
+    }
+    // An accepted replay can only reach the helper for an accepted record;
+    // retain the status machine's conflict response if concurrent state is
+    // unexpectedly different by the time the scoped re-read occurs.
+  }
 
   if (!result.ok) {
     return NextResponse.json(

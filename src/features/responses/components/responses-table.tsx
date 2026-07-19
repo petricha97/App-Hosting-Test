@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -107,6 +108,44 @@ export function ResponsesTable({
     }
   };
 
+  const retryAttendeeCreation = async (response: SerializedResponse) => {
+    setPendingId(response.id);
+    try {
+      const result = await fetch(
+        `/api/dashboard/events/${encodeURIComponent(response.eventId)}/responses/${encodeURIComponent(response.id)}/retry-attendee-creation`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+      );
+      const data = (await result.json().catch(() => null)) as {
+        error?: unknown;
+      } | null;
+
+      if (result.ok) {
+        toast.success("Attendee created");
+        router.refresh();
+        return;
+      }
+
+      toast.error(
+        typeof data?.error === "string"
+          ? data.error
+          : result.status === 429
+            ? "Too many retries — wait a moment."
+            : "Failed to create the attendee.",
+      );
+      if ([401, 403, 404].includes(result.status)) router.refresh();
+    } catch {
+      toast.error("Failed to create the attendee.", {
+        description: "Check your connection and try again.",
+      });
+    } finally {
+      setPendingId(null);
+    }
+  };
+
   return (
     <div className="overflow-x-auto">
       <Table
@@ -154,7 +193,15 @@ export function ResponsesTable({
                   )}
                 </TableCell>
                 <TableCell>
-                  <StatusBadge status={status} />
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <StatusBadge status={status} />
+                    {status === "accepted" &&
+                    response.attendeeCreated === false ? (
+                      <Badge className="rounded-full bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                        Attendee not created
+                      </Badge>
+                    ) : null}
+                  </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {getResponseSubmittedLabel(response)}
@@ -164,7 +211,14 @@ export function ResponsesTable({
                     attendeeName={response.attendeeName}
                     status={status}
                     disabled={pendingId === response.id}
+                    attendeeCreationPending={
+                      status === "accepted" &&
+                      response.attendeeCreated === false
+                    }
                     onTransition={(to) => transition(response, to)}
+                    onRetryAttendeeCreation={() =>
+                      retryAttendeeCreation(response)
+                    }
                   />
                 </TableCell>
               </TableRow>

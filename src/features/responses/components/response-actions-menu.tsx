@@ -4,7 +4,7 @@
 // the legal forward transitions from the row's current status, so the menu
 // can never request a move the server would 409. Accepted rows render no
 // menu at all (terminal in M3) — the parent shows an em-dash instead.
-import { Check, MoreHorizontal } from "lucide-react";
+import { Check, MoreHorizontal, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,18 +23,22 @@ interface ResponseActionsMenuProps {
   attendeeName: string;
   status: FormDataStatus;
   disabled?: boolean;
+  attendeeCreationPending?: boolean;
   onTransition: (to: FormDataStatus) => void;
+  onRetryAttendeeCreation: () => void;
 }
 
 export function ResponseActionsMenu({
   attendeeName,
   status,
   disabled = false,
+  attendeeCreationPending = false,
   onTransition,
+  onRetryAttendeeCreation,
 }: ResponseActionsMenuProps) {
   const targets = forwardFormDataStatuses(status);
 
-  if (targets.length === 0) {
+  if (targets.length === 0 && !attendeeCreationPending) {
     // Terminal (accepted) — no actions exist in M3.
     return (
       <span aria-hidden="true" className="text-muted-foreground">
@@ -57,6 +61,12 @@ export function ResponseActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {attendeeCreationPending ? (
+          <DropdownMenuItem onSelect={onRetryAttendeeCreation}>
+            <RotateCcw aria-hidden="true" />
+            Retry attendee creation
+          </DropdownMenuItem>
+        ) : null}
         {targets.map((to) =>
           to === "new" ? null : (
             <DropdownMenuItem

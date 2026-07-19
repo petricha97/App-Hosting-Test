@@ -151,6 +151,7 @@ describe("toResponsesCsvRow", () => {
       eventName: "GovTech",
       submissionPreview: [],
       status: "pending",
+      attendeeCreated: false,
       ticketLabel: "GC Standard",
       orderId: "order-1",
     };
