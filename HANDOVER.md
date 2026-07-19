@@ -318,7 +318,14 @@ In progress:
 
 - **M8-T7 MILESTONE LANDED (2026-07-19 ~11:40):** commits `0232943` (feat, 11 files) + `aaee2f7` (docs) on `feat/m8-t7-export-rate-limits`; merged to `prototype` as `e66c090` (--no-ff, zero conflicts); merge log `fd75bb7`. All 8 CSV export routes rate-limited (distinct per-route keys, org+user, scope→rate→load ordering). SEC PASS (1 Low fixed), CR APPROVED after 1 SF (workspace per-user key). Report-export scope resolution refactored out of the shared handler into each route (no shared bucket) — Orchestrator-verified. Smoke: 186 files / 2050 tests. `main` untouched. 7th milestone this session.
 
-- **Now: M8-T8 (last-Owner guardrail TOCTOU-race test coverage — from M8-T1 Security M-1). Then follow-ups M8-T9/T10/T11 per standing authorization.**
+- **M8-T8 MILESTONE LANDED (2026-07-19 ~12:20):** commits `366b98d` (test, 2 files) + `28141fb` (docs) on `feat/m8-t8-owner-guardrail-race`; merged to `prototype` as `bc55410` (--no-ff, zero conflicts); merge log `fa33c56`. Test-only (zero production change): opt-in fake-db conflict simulation + last-Owner race test + a FAITHFUL helper-swap mutation proof (CR caught the first proof hoisted the count outside the tx; rebuilt to call the non-tx count inside the callback with an owner-demotion interleave → `buggyAttempts===1`, 0 owners; real guard retries → LAST_OWNER). Smoke: 186 files / 2052 tests, all pre-existing pass (backward-compat). `main` untouched.
+
+- **✅ CORE M8 COMPLETE (T1–T8 all merged to `prototype`).** 8th milestone. `main` never touched all session (`cd1951b`). Suite grew 166/1907 → 186/2052.
+
+- **Remaining (all lower-priority follow-ups filed during T2–T7, per standing authorization):**
+  - **M8-T9** — form-template propagation operational atomicity (Firestore batch under 500-write limit + bounded linked-form query). From M8-T4 SEC M1 (Medium).
+  - **M8-T10** — server-own eventPagePath/invoicePath review + coverage-provider tooling decision. From M8-T4 CR/plan.
+  - **M8-T11** — deferred dependency majors (postcss + uuid moderate `--force`; next@16 + react@19 evaluation). From M8-T5. **Breaking-change risk — needs the user's call before pulling next@16/react@19 into scope.**
 
 Next steps, in order:
 53. ~~Resolve the Full-Stack Codex-dispatch question above with the user.~~ RESOLVED — Codex-first authorized (see above). Then: M8-T2 Backend (Codex, in flight) → verify independently (lint/tsc/test, empirical index-check documentation) → Full-Stack (via whichever system the user picks) → Code Review → Security (aggregate queries don't leak cross-org data — two-org fixture required per spec §4 AC-4) → QA (numbers match seeded fixtures, cross-check aggregate vs brute-force reduction per spec §4 AC-2) → merge to `prototype`. NEVER main.
