@@ -25,11 +25,26 @@ import {
   listAdminFormDataForEvent,
   listAdminFormDataForOrganization,
 } from "@/lib/db/adminFormData";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
   const scope = await resolveResponsesOrgWriteScope();
   if (!scope.ok) {
     return NextResponse.json({ error: scope.error }, { status: scope.status });
+  }
+
+  const rate = checkRateLimit(
+    `export-responses-workspace:${scope.organizationId}:${scope.userId}`,
+    { limit: 10 },
+  );
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "Too many exports — wait a moment." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rate.retryAfterSeconds) },
+      },
+    );
   }
 
   const url = new URL(request.url);
