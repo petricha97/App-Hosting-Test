@@ -22,5 +22,30 @@ export default defineConfig({
     // single test file's own `vi.stubGlobal` call can run. See
     // src/__tests__/stubs/resize-observer-setup.ts.
     setupFiles: ['./src/__tests__/stubs/resize-observer-setup.ts'],
+    coverage: {
+      provider: 'v8',
+      all: true,
+      include: ['src/**/*.ts', 'src/**/*.tsx'],
+      exclude: [
+        'src/__tests__/**',
+        '**/*.test.*',
+        '**/*.d.ts',
+        'vitest.config.*',
+        'next.config.*',
+        '**/*.config.*',
+        '**/node_modules/**',
+      ],
+      reporter: ['text-summary', 'text', 'html', 'json-summary'],
+      reportsDirectory: 'coverage',
+      // M8-T10 all-source baseline: statements 58.91%, branches 50.16%,
+      // functions 51.93%, lines 59.91%. These regression floors should ratchet
+      // upward over time toward 80%+, especially branches and functions.
+      thresholds: {
+        statements: 57,
+        branches: 49,
+        functions: 50,
+        lines: 58,
+      },
+    },
   },
 })

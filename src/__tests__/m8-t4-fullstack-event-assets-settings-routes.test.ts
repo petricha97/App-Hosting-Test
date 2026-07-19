@@ -83,6 +83,28 @@ describe("M8-T4 dashboard event POST", () => {
     expect(mocks.getEvent).toHaveBeenCalledWith("event-a", "org-a");
     expect(mocks.updateEvent).not.toHaveBeenCalled();
   });
+  it("rejects changing the server-owned eventPagePath and performs no event write", async () => {
+    const response = await updateEvent(
+      json({ ...validEvent, eventPagePath: "EventPage/foreign-page" }),
+      context(),
+    );
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: "Server-owned event pointers cannot be changed",
+    });
+    expect(mocks.updateEvent).not.toHaveBeenCalled();
+  });
+  it("rejects changing the server-owned invoicePath and performs no event write", async () => {
+    const response = await updateEvent(
+      json({ ...validEvent, invoicePath: "Invoice/foreign-invoice" }),
+      context(),
+    );
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: "Server-owned event pointers cannot be changed",
+    });
+    expect(mocks.updateEvent).not.toHaveBeenCalled();
+  });
 });
 
 describe("M8-T4 page assets POST", () => {
