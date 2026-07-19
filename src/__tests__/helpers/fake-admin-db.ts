@@ -18,6 +18,8 @@
 
 type DocData = Record<string, unknown>;
 
+export type FakeTransactionInterleave = () => void | Promise<void>;
+
 export interface FakeWrite {
   type: "create" | "set" | "update" | "delete";
   path: string;
@@ -129,9 +131,28 @@ function resolveFieldValueTransforms(
 }
 
 export function createFakeAdminDb() {
-  const store = new Map<string, DocData>();
+  const versions = new Map<string, number>();
+  class VersionedStore extends Map<string, DocData> {
+    override set(path: string, data: DocData): this {
+      versions.set(path, (versions.get(path) ?? 0) + 1);
+      return super.set(path, data);
+    }
+
+    override delete(path: string): boolean {
+      versions.set(path, (versions.get(path) ?? 0) + 1);
+      return super.delete(path);
+    }
+
+    override clear(): void {
+      super.clear();
+      versions.clear();
+    }
+  }
+
+  const store = new VersionedStore();
   const writes: FakeWrite[] = [];
   let autoId = 0;
+  let transactionInterleave: FakeTransactionInterleave | null = null;
   // Counts full-document-transferring query reads (query.get()) SEPARATELY
   // from aggregate reads (query.count().get() / query.aggregate(...).get()),
   // which never populate this counter — lets DAL tests assert "zero
@@ -411,9 +432,115 @@ export function createFakeAdminDb() {
     },
   };
 
+  type TransactionWrite = FakeWrite;
+
+  function makeConflictTrackingTransaction(
+    reads: Map<string, number>,
+    pendingWrites: TransactionWrite[],
+  ) {
+    const recordRead = (path: string) => {
+      if (!reads.has(path)) reads.set(path, versions.get(path) ?? 0);
+    };
+
+    return {
+      async get(target: FakeRef | FakeQuery) {
+        if ("__isQuery" in target && target.__isQuery) {
+          const result = runQuery(target);
+          for (const doc of result.docs) {
+            recordRead(`${target.collectionPath}/${doc.id}`);
+          }
+          return result;
+        }
+        const ref = target as FakeRef;
+        recordRead(ref.path);
+        return ref.get();
+      },
+      create(ref: FakeRef, data: DocData) {
+        if (store.has(ref.path)) throw new Error(`ALREADY_EXISTS: ${ref.path}`);
+        pendingWrites.push({ type: "create", path: ref.path, data });
+      },
+      update(ref: FakeRef, data: DocData) {
+        if (!store.has(ref.path)) throw new Error(`NOT_FOUND: ${ref.path}`);
+        pendingWrites.push({ type: "update", path: ref.path, data });
+      },
+      set(ref: FakeRef, data: DocData) {
+        pendingWrites.push({ type: "set", path: ref.path, data });
+      },
+      delete(ref: FakeRef) {
+        pendingWrites.push({ type: "delete", path: ref.path });
+      },
+    };
+  }
+
+  function commitTransactionWrites(pendingWrites: TransactionWrite[]): void {
+    for (const write of pendingWrites) {
+      if (write.type === "create") {
+        if (store.has(write.path)) throw new Error(`ALREADY_EXISTS: ${write.path}`);
+        writes.push({ type: write.type, path: write.path, data: write.data });
+        store.set(write.path, write.data!);
+      } else if (write.type === "set") {
+        writes.push({ type: write.type, path: write.path, data: write.data });
+        store.set(write.path, write.data!);
+      } else if (write.type === "update") {
+        const existing = store.get(write.path);
+        if (existing === undefined) throw new Error(`NOT_FOUND: ${write.path}`);
+        writes.push({ type: write.type, path: write.path, data: write.data });
+        store.set(write.path, {
+          ...existing,
+          ...resolveFieldValueTransforms(existing, write.data!),
+        });
+      } else {
+        writes.push({ type: "delete", path: write.path });
+        store.delete(write.path);
+      }
+    }
+  }
+
+  // Opt-in Firestore optimistic-concurrency simulation for race tests. With
+  // a hook registered, transaction writes are staged, ref/query document
+  // reads retain the observed document revisions, and the hook runs exactly
+  // once between the first body execution and commit. A changed read aborts
+  // that attempt and re-runs the body against fresh state. Without a hook the
+  // original single-run, immediate-write behavior below is used unchanged.
+  async function runTransactionWithConflicts<T>(
+    fn: (t: typeof tx) => Promise<T>,
+  ): Promise<T> {
+    const hook = transactionInterleave;
+    transactionInterleave = null;
+    const maxAttempts = 5;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const reads = new Map<string, number>();
+      const pendingWrites: TransactionWrite[] = [];
+      const conflictTx = makeConflictTrackingTransaction(reads, pendingWrites);
+      const result = await fn(conflictTx as typeof tx);
+
+      if (attempt === 1) await hook?.();
+
+      const conflicted = [...reads].some(
+        ([path, observedVersion]) =>
+          (versions.get(path) ?? 0) !== observedVersion,
+      );
+      if (conflicted) {
+        if (attempt === maxAttempts) {
+          throw new Error("ABORTED: fake-admin-db transaction retry limit exceeded");
+        }
+        continue;
+      }
+
+      commitTransactionWrites(pendingWrites);
+      return result;
+    }
+
+    throw new Error("ABORTED: fake-admin-db transaction retry limit exceeded");
+  }
+
   const db = {
     collection: (name: string) => makeCollection(name),
-    runTransaction: async <T>(fn: (t: typeof tx) => Promise<T>) => fn(tx),
+    runTransaction: async <T>(fn: (t: typeof tx) => Promise<T>) => {
+      if (transactionInterleave === null) return fn(tx);
+      return runTransactionWithConflicts(fn);
+    },
   };
 
   function reset() {
@@ -421,6 +548,7 @@ export function createFakeAdminDb() {
     writes.length = 0;
     autoId = 0;
     queryDocReads = 0;
+    transactionInterleave = null;
   }
 
   return {
@@ -428,6 +556,9 @@ export function createFakeAdminDb() {
     store,
     writes,
     reset,
+    setTransactionInterleave(hook: FakeTransactionInterleave): void {
+      transactionInterleave = hook;
+    },
     get queryDocReads() {
       return queryDocReads;
     },
