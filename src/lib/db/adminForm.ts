@@ -15,6 +15,26 @@ import type { FormDoc, FormTemplateDoc } from "@/types/collection";
 
 const formAdminApi = createAdminCollectionApi<FormDoc>("Form");
 
+export const MAX_TEMPLATE_APPLY_FORMS = 500;
+
+export class TemplateApplyLimitError extends Error {
+  readonly code = "TEMPLATE_APPLY_LIMIT_EXCEEDED";
+
+  constructor(readonly maxForms = MAX_TEMPLATE_APPLY_FORMS) {
+    super(`A template can be applied to at most ${maxForms} forms at once`);
+    this.name = "TemplateApplyLimitError";
+  }
+}
+
+export class TemplateApplyIneligibleFormError extends Error {
+  readonly code = "TEMPLATE_APPLY_INELIGIBLE_FORM";
+
+  constructor() {
+    super("Cannot apply template to an ineligible form");
+    this.name = "TemplateApplyIneligibleFormError";
+  }
+}
+
 const {
   create: createAdminForm,
   getById: getAdminFormById,
@@ -170,11 +190,17 @@ export async function getAdminFormsForOrganization(organizationId: string) {
 export async function getAdminLinkedFormsForTemplate(input: {
   templateId: string;
   organizationId: string;
+  limit?: number;
 }) {
-  const matchesSnapshot = await adminDb
+  let query = adminDb
     .collection("Form")
-    .where("templateLink.templateId", "==", input.templateId)
-    .get();
+    .where("templateLink.templateId", "==", input.templateId);
+
+  if (input.limit !== undefined) {
+    query = query.limit(input.limit);
+  }
+
+  const matchesSnapshot = await query.get();
   const matches = matchesSnapshot.docs.map((doc) => ({
     id: doc.id,
     ...(doc.data() as FormDoc),
@@ -238,8 +264,12 @@ export async function detachAdminFormFromTemplate(input: {
 
 export async function applyAdminTemplateToForms(input: {
   template: FormTemplateDoc & { id: string };
-  forms: Array<FormDoc & { id: string }>;
+  forms: Array<{ id: string }>;
 }) {
+  if (input.forms.length > MAX_TEMPLATE_APPLY_FORMS) {
+    throw new TemplateApplyLimitError();
+  }
+
   const forms = await Promise.all(
     input.forms.map((form) => getAdminFormById(form.id)),
   );
@@ -265,11 +295,11 @@ export async function applyAdminTemplateToForms(input: {
         !events[index],
     )
   ) {
-    throw new Error("Cannot apply template to an ineligible form");
+    throw new TemplateApplyIneligibleFormError();
   }
 
   const eligibleForms = forms as Array<NonNullable<(typeof forms)[number]>>;
-  const updatedIds: string[] = [];
+  const batch = adminDb.batch();
 
   for (const form of eligibleForms) {
     const next = applyTemplateToLinkedForm({
@@ -278,14 +308,16 @@ export async function applyAdminTemplateToForms(input: {
       appliedAt: FieldValue.serverTimestamp(),
     });
 
-    await updateAdminForm(form.id, {
+    batch.update(adminDb.collection("Form").doc(form.id), {
       fields: sanitizeFormFieldsForFirestore(next.fields),
       templateLink: next.templateLink,
       updatedAt: FieldValue.serverTimestamp(),
     });
-
-    updatedIds.push(form.id);
   }
 
-  return updatedIds;
+  // One bounded batch is intentional: chunking would make propagation only
+  // atomic per chunk and could leave a template partially applied.
+  await batch.commit();
+
+  return eligibleForms.map((form) => form.id);
 }

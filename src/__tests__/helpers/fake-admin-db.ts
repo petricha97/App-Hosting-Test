@@ -12,6 +12,7 @@
 //     .sum()/.count()), so tests exercise the same AggregateField objects
 //     the DAL builds in production, not a fake stand-in class,
 //   runTransaction with tx.get (ref or query) / tx.create / tx.update.
+//   batch().update().commit() with staged, atomic commits and opt-in failure.
 // update() MERGES into the store (and throws NOT_FOUND on missing docs, like
 // the real SDK) so post-write assertions can read final doc state; every
 // write is also recorded in `writes` for write-set assertions.
@@ -153,6 +154,7 @@ export function createFakeAdminDb() {
   const writes: FakeWrite[] = [];
   let autoId = 0;
   let transactionInterleave: FakeTransactionInterleave | null = null;
+  let batchFailureAt: number | null = null;
   // Counts full-document-transferring query reads (query.get()) SEPARATELY
   // from aggregate reads (query.count().get() / query.aggregate(...).get()),
   // which never populate this counter — lets DAL tests assert "zero
@@ -537,6 +539,29 @@ export function createFakeAdminDb() {
 
   const db = {
     collection: (name: string) => makeCollection(name),
+    batch: () => {
+      const pendingWrites: TransactionWrite[] = [];
+      return {
+        update(ref: FakeRef, data: DocData) {
+          pendingWrites.push({ type: "update", path: ref.path, data });
+          return this;
+        },
+        async commit() {
+          // Validate the complete staged write set before mutating the store,
+          // matching WriteBatch.commit()'s all-or-nothing behavior.
+          for (const [index, write] of pendingWrites.entries()) {
+            if (batchFailureAt === index) {
+              batchFailureAt = null;
+              throw new Error(`FAILED_PRECONDITION: fake batch write ${index}`);
+            }
+            if (write.type === "update" && !store.has(write.path)) {
+              throw new Error(`NOT_FOUND: ${write.path}`);
+            }
+          }
+          commitTransactionWrites(pendingWrites);
+        },
+      };
+    },
     runTransaction: async <T>(fn: (t: typeof tx) => Promise<T>) => {
       if (transactionInterleave === null) return fn(tx);
       return runTransactionWithConflicts(fn);
@@ -549,6 +574,7 @@ export function createFakeAdminDb() {
     autoId = 0;
     queryDocReads = 0;
     transactionInterleave = null;
+    batchFailureAt = null;
   }
 
   return {
@@ -558,6 +584,9 @@ export function createFakeAdminDb() {
     reset,
     setTransactionInterleave(hook: FakeTransactionInterleave): void {
       transactionInterleave = hook;
+    },
+    setBatchFailureAt(operationIndex: number): void {
+      batchFailureAt = operationIndex;
     },
     get queryDocReads() {
       return queryDocReads;

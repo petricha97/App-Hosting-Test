@@ -43,6 +43,23 @@ describe("M8-T4 applyAdminTemplateToForms", () => {
       expect(stored.fields).toEqual(expect.arrayContaining([expect.objectContaining({ label: "New company", origin: "template" }), expect.objectContaining({ id: "diet", label: "Diet" })]));
     }
     expect(fake.store.get("Form/unrelated")).toMatchObject({ title: "untouched" });
+    expect(fake.writes.filter((write) => write.type === "update")).toHaveLength(2);
+  });
+
+  it("commits no forms when any staged batch write fails", async () => {
+    const template = { id: "tpl-a", organizationId: "org-a", version: 4, fields: [] } as unknown as FormTemplateDoc & { id: string };
+    const forms = ["one", "two"].map((id) => ({ id, eventId: `event-${id}`, organizationId: "org-a", fields: [customField], templateLink: { templateId: "tpl-a", templateVersion: 3, detached: false, appliedAt: now } })) as unknown as Array<FormDoc & { id: string }>;
+    for (const form of forms) {
+      fake.store.set(`Form/${form.id}`, form as unknown as Record<string, unknown>);
+      fake.store.set(`Event/${form.eventId}`, eventDoc("org-a"));
+    }
+    const before = new Map(forms.map((form) => [`Form/${form.id}`, fake.store.get(`Form/${form.id}`)]));
+    fake.setBatchFailureAt(1);
+
+    await expect(applyAdminTemplateToForms({ template, forms })).rejects.toThrow("fake batch write 1");
+
+    for (const [path, document] of before) expect(fake.store.get(path)).toEqual(document);
+    expect(fake.writes).toHaveLength(0);
   });
 
   it("P1 HIGH: rejects detached and foreign-organization forms instead of updating every caller-supplied form", async () => {
