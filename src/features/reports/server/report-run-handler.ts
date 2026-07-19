@@ -49,6 +49,7 @@ export async function handleReportRunRequest(
 
 export async function handleReportExportRequest(
   eventId: string,
+  organizationId: string,
   loadExportRows: (input: {
     eventId: string;
     organizationId: string;
@@ -56,18 +57,9 @@ export async function handleReportExportRequest(
   columns: ReportColumnConfig[],
   filename: string,
 ): Promise<Response> {
-  // Export: write:events gate (spec D1 — the deliberate divergence from
-  // Run), the exact precedent already shipped for attendees/export/route.ts.
-  const scope = await resolveReportsRouteScope(eventId, {
-    requireWriteEvents: true,
-  });
-  if (!scope.ok) {
-    return NextResponse.json({ error: scope.error }, { status: scope.status });
-  }
-
   const rows = await loadExportRows({
     eventId,
-    organizationId: scope.organizationId,
+    organizationId,
   });
   const csv = buildReportCsv(columns, rows);
 

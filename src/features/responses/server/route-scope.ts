@@ -24,14 +24,19 @@ import type { EventDoc, WithId } from "@/types/collection";
 const COOKIE_NAME = "session";
 
 type BaseScope =
-  | { ok: true; organizationId: string }
+  | { ok: true; organizationId: string; userId: string }
   | { ok: false; error: string; status: 401 | 403 | 404 };
 
 // Shared session -> org resolution (same trust chain as
 // resolveRegistrationRouteScope: the active org id is only a valid tenant key
 // when the server-locked organizations[] roster confirms membership).
 async function resolveSessionOrganization(): Promise<
-  | { ok: true; organizationId: string; permissions: string[] }
+  | {
+      ok: true;
+      organizationId: string;
+      permissions: string[];
+      userId: string;
+    }
   | { ok: false; error: string; status: 401 | 403 }
 > {
   const cookieStore = await cookies();
@@ -55,6 +60,7 @@ async function resolveSessionOrganization(): Promise<
     ok: true,
     organizationId,
     permissions: userDoc?.permissions ?? [],
+    userId: decodedUser.email.toLowerCase(),
   };
 }
 
@@ -101,5 +107,9 @@ export async function resolveResponsesOrgWriteScope(): Promise<BaseScope> {
     };
   }
 
-  return { ok: true, organizationId: session.organizationId };
+  return {
+    ok: true,
+    organizationId: session.organizationId,
+    userId: session.userId,
+  };
 }

@@ -14,6 +14,7 @@ import {
 import { parseRosterStatusFilter } from "@/features/attendees/roster";
 import { loadRosterPage } from "@/features/attendees/server/load-roster";
 import { resolveRegistrationRouteScope } from "@/features/registration/server/route-scope";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 interface RouteContext {
   params: Promise<{ eventId: string }>;
@@ -24,6 +25,20 @@ export async function GET(request: Request, context: RouteContext) {
   const scope = await resolveRegistrationRouteScope(eventId);
   if (!scope.ok) {
     return NextResponse.json({ error: scope.error }, { status: scope.status });
+  }
+
+  const rate = checkRateLimit(
+    `export-attendees:${scope.organizationId}:${scope.userId}:${eventId}`,
+    { limit: 10 },
+  );
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "Too many exports — wait a moment." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rate.retryAfterSeconds) },
+      },
+    );
   }
 
   const url = new URL(request.url);
