@@ -99,6 +99,10 @@ beforeEach(() => {
     permissions: ["write:events"],
   });
   getAdminEventForOrganization.mockResolvedValue({ id: EVENT_ID, name: "GovTech" });
+  onSubmissionAccepted.mockImplementation(async (submission: { id: string }) => {
+    const doc = fake.store.get(`FormData/${submission.id}`);
+    if (doc) doc.attendeeCreated = true;
+  });
 });
 
 describe("PATCH /responses/[id]/status — auth gates (T4 AC-4)", () => {
@@ -171,7 +175,6 @@ describe("transition matrix (T4 AC-2)", () => {
     ["accepted", "new"],
     ["accepted", "pending"],
     ["accepted", "reviewed"],
-    ["accepted", "accepted"],
   ];
 
   for (const [from, to] of LEGAL) {
@@ -239,14 +242,76 @@ describe("accept side-effect (T4 AC-3)", () => {
     expect(onSubmissionAccepted).not.toHaveBeenCalled();
   });
 
-  it("double-click accept: second call 409s and the hook still fired only once", async () => {
-    seedResponse(RESPONSE_ID, { status: "new" });
+  it("accepted/pending replay heals without rewriting acceptedAt or status", async () => {
+    const acceptedAt = { seconds: 1_700_000_000, nanoseconds: 123_000_000 };
+    seedResponse(RESPONSE_ID, {
+      status: "accepted",
+      attendeeCreated: false,
+      acceptedAt,
+    });
 
-    const first = await PATCH(makeRequest("accepted"), context());
-    const second = await PATCH(makeRequest("accepted"), context());
+    const response = await PATCH(makeRequest("accepted"), context());
 
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(409);
+    expect(response.status).toBe(200);
     expect(onSubmissionAccepted).toHaveBeenCalledTimes(1);
+    expect(fake.store.get(`FormData/${RESPONSE_ID}`)).toMatchObject({
+      status: "accepted",
+      attendeeCreated: true,
+      acceptedAt,
+    });
+    expect(fake.writes).toHaveLength(0);
+  });
+
+  it("accepted/complete replay preserves acceptedAt with no hook or status write", async () => {
+    const acceptedAt = { seconds: 1_700_000_001, nanoseconds: 456_000_000 };
+    seedResponse(RESPONSE_ID, {
+      status: "accepted",
+      attendeeCreated: true,
+      acceptedAt,
+    });
+
+    const response = await PATCH(makeRequest("accepted"), context());
+
+    expect(response.status).toBe(200);
+    expect(onSubmissionAccepted).not.toHaveBeenCalled();
+    expect(fake.store.get(`FormData/${RESPONSE_ID}`)).toMatchObject({
+      status: "accepted",
+      attendeeCreated: true,
+      acceptedAt,
+    });
+    expect(fake.writes).toHaveLength(0);
+  });
+
+  it("immediately repairs a failed accept hook before returning success", async () => {
+    seedResponse(RESPONSE_ID, { status: "reviewed", attendeeCreated: false });
+    onSubmissionAccepted
+      .mockRejectedValueOnce(new Error("first hook failed"))
+      .mockImplementationOnce(async (submission: { id: string }) => {
+        fake.store.get(`FormData/${submission.id}`)!.attendeeCreated = true;
+      });
+
+    const response = await PATCH(makeRequest("accepted"), context());
+
+    expect(response.status).toBe(200);
+    expect(onSubmissionAccepted).toHaveBeenCalledTimes(2);
+    expect(fake.store.get(`FormData/${RESPONSE_ID}`)!.attendeeCreated).toBe(true);
+  });
+
+  it("returns structured 500 when the initial hook and one repair both fail", async () => {
+    seedResponse(RESPONSE_ID, { status: "reviewed", attendeeCreated: false });
+    onSubmissionAccepted.mockRejectedValue(new Error("attendee unavailable"));
+
+    const response = await PATCH(makeRequest("accepted"), context());
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error:
+        "The response is accepted but the attendee record could not be created. Please retry.",
+      code: "ATTENDEE_CREATION_FAILED",
+      responseId: RESPONSE_ID,
+      attendeeCreated: false,
+    });
+    expect(fake.store.get(`FormData/${RESPONSE_ID}`)!.status).toBe("accepted");
+    expect(onSubmissionAccepted).toHaveBeenCalledTimes(2);
   });
 });
