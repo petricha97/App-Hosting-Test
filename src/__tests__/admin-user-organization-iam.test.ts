@@ -110,6 +110,26 @@ function seedMember(
   );
 }
 
+function commitConcurrentOwnerRemoval(email: string): void {
+  const lower = email.toLowerCase();
+  const memberPath = `OrganizationMember/${organizationMemberId(ORG_A, lower)}`;
+  const userPath = `User/${lower}`;
+  const user = fake.store.get(userPath) as {
+    organizations: Array<{ organizationId: string }>;
+  };
+  const orgPath = `Organization/${ORG_A}`;
+  const org = fake.store.get(orgPath) as { memberCount: number };
+
+  fake.store.set(userPath, {
+    ...user,
+    organizations: user.organizations.filter(
+      (membership) => membership.organizationId !== ORG_A,
+    ),
+  });
+  fake.store.delete(memberPath);
+  fake.store.set(orgPath, { ...org, memberCount: org.memberCount - 1 });
+}
+
 beforeEach(() => {
   fake.reset();
 });
@@ -637,6 +657,128 @@ describe("changeAdminMemberRole — D10 hierarchy + last-Owner guardrails", () =
 });
 
 describe("removeAdminMember — D10 hierarchy + last-Owner guardrails + D12 sync", () => {
+  it("M8-T8: retries a 2-Owner removal after a concurrent removal and returns LAST_OWNER", async () => {
+    seedOrg(ORG_A, 2);
+    seedMember("owner1@example.com", ORG_A, "owner");
+    seedMember("owner2@example.com", ORG_A, "owner");
+
+    let interleavedOwnerCount: number | null = null;
+    let concurrentRemovalSucceeded = false;
+    fake.setTransactionInterleave(async () => {
+      commitConcurrentOwnerRemoval("owner2@example.com");
+      concurrentRemovalSucceeded = true;
+      interleavedOwnerCount = await countAdminOrganizationOwners(ORG_A);
+    });
+
+    const secondRemoval = await removeAdminMember({
+      organizationId: ORG_A,
+      callerEmail: "owner1@example.com",
+      targetEmail: "owner1@example.com",
+    });
+
+    expect(interleavedOwnerCount).toBe(1);
+    expect(secondRemoval).toEqual({ ok: false, code: "LAST_OWNER" });
+    expect(await countAdminOrganizationOwners(ORG_A)).toBe(1);
+    expect(
+      await getAdminOrganizationMember(ORG_A, "owner1@example.com"),
+    ).not.toBeNull();
+    expect(
+      await getAdminOrganizationMember(ORG_A, "owner2@example.com"),
+    ).toBeNull();
+    expect([concurrentRemovalSucceeded, secondRemoval.ok].filter(Boolean)).toHaveLength(
+      1,
+    );
+  });
+
+  it("M8-T8 mutation proof: an inside-callback non-transactional owner count misses the demotion race", async () => {
+    const seedTwoOwners = () => {
+      seedOrg(ORG_A, 2);
+      seedMember("owner1@example.com", ORG_A, "owner");
+      seedMember("owner2@example.com", ORG_A, "owner");
+    };
+    const commitConcurrentOwnerDemotion = () => {
+      const email = "owner2@example.com";
+      const userPath = `User/${email}`;
+      const memberPath = `OrganizationMember/${organizationMemberId(ORG_A, email)}`;
+      const user = fake.store.get(userPath) as {
+        organizations: Array<{ organizationId: string; role: string }>;
+      };
+      const member = fake.store.get(memberPath) as Record<string, unknown>;
+
+      fake.store.set(userPath, {
+        ...user,
+        organizations: user.organizations.map((membership) =>
+          membership.organizationId === ORG_A
+            ? { ...membership, role: "editor" }
+            : membership,
+        ),
+      });
+      fake.store.set(memberPath, { ...member, role: "editor" });
+    };
+
+    seedTwoOwners();
+
+    // Regression-catcher: this is the exact helper-swap mutant. The real
+    // non-transactional counter remains inside the callback at the guard's
+    // location, but its owner-query reads never enter this transaction's
+    // read-set. The buggy path tx.gets owner1 and the org, not owner2's User
+    // or OrganizationMember row, so owner2's concurrent demotion cannot
+    // conflict and the stale count commits on the first attempt.
+    let buggyAttempts = 0;
+    fake.setTransactionInterleave(commitConcurrentOwnerDemotion);
+    const buggyRemoval = await fake.db.runTransaction(async (tx) => {
+      buggyAttempts += 1;
+      const userRef = fake.db.collection("User").doc("owner1@example.com");
+      const orgRef = fake.db.collection("Organization").doc(ORG_A);
+      const memberRef = fake.db
+        .collection("OrganizationMember")
+        .doc(organizationMemberId(ORG_A, "owner1@example.com"));
+      const userSnap = await tx.get(userRef);
+      const orgSnap = await tx.get(orgRef);
+      if ("docs" in userSnap || "docs" in orgSnap) {
+        throw new Error("expected document snapshots");
+      }
+      const user = userSnap.data() as {
+        organizations: Array<{ organizationId: string }>;
+      };
+      const org = orgSnap.data() as { memberCount: number };
+
+      const ownerCount = await countAdminOrganizationOwners(ORG_A);
+      if (ownerCount <= 1) return { ok: false as const, code: "LAST_OWNER" };
+
+      tx.update(userRef, {
+        organizations: user.organizations.filter(
+          (membership) => membership.organizationId !== ORG_A,
+        ),
+      });
+      tx.update(orgRef, { memberCount: org.memberCount - 1 });
+      tx.delete(memberRef);
+      return { ok: true as const };
+    });
+
+    expect(buggyAttempts).toBe(1);
+    expect(buggyRemoval).toEqual({ ok: true });
+    expect(await countAdminOrganizationOwners(ORG_A)).toBe(0);
+
+    // Same interleave, real guard: tx.get(ownerQuery) tracks owner2's member
+    // row, so its demotion conflicts, the callback retries, and LAST_OWNER
+    // preserves owner1 as the sole Owner.
+    fake.reset();
+    seedTwoOwners();
+    fake.setTransactionInterleave(commitConcurrentOwnerDemotion);
+    const realRemoval = await removeAdminMember({
+      organizationId: ORG_A,
+      callerEmail: "owner1@example.com",
+      targetEmail: "owner1@example.com",
+    });
+
+    expect(realRemoval).toEqual({ ok: false, code: "LAST_OWNER" });
+    expect(await countAdminOrganizationOwners(ORG_A)).toBe(1);
+    expect(
+      await getAdminOrganizationMember(ORG_A, "owner1@example.com"),
+    ).not.toBeNull();
+  });
+
   it("an Owner can remove an Editor — reverse-index deleted, memberCount decremented", async () => {
     seedOrg(ORG_A, 2);
     seedMember("owner@example.com", ORG_A, "owner");
