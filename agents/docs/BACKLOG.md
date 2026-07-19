@@ -47,7 +47,7 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M8-T3 | Event overview parity | M8 | Done (2026-07-19) | Review APPROVED (after 3 Should-fix) | SEC PASS 0 findings, QA SIGNED OFF |
 | M8-T4 | Test coverage & regression backfill (+4 real bugs fixed) | M8 | Done (2026-07-19) | Review APPROVED (after Blocker+3 SF) | SEC PASS after H1/H2 fix; M1→M8-T9 |
 | M8-T5 | Dependency hardening (next 15.0.5→15.5.20 + transitive audit fixes) | M8 | Done (2026-07-19) | Review APPROVED (after 2 SF) | SEC PASS: 2crit/3high→0; 11 mod deferred→M8-T11 |
-| M8-T11 | Deferred dependency majors (postcss + uuid moderate --force fixes; next@16 + react@19 evaluation) | M8 | Todo | — | from M8-T5; breaking-change risk, needs isolated regression |
+| M8-T11 | Deferred dependency majors (postcss + uuid moderate --force fixes; next@16 + react@19 evaluation) | M8 | Won't-do (2026-07-19) | — | User decision: SKIP. postcss/uuid moderates confirmed non-reachable by M8-T5 SEC (postcss build-time-only, uuid vulnerable path unused) → accepted residual, not worth --force breaking-change risk. next@16/react@19 deferred. Reopen if a reachable advisory appears. |
 | M8-T6 | Generic accept-hook repair path (retry attendee creation) | M8 | Done (2026-07-19) | Review APPROVED (after 4 test-quality SF) | SEC PASS 0 findings, QA SIGNED OFF |
 | M8-T7 | Rate-limit CSV export routes (reports + attendees + responses) | M8 | Done (2026-07-19) | Review APPROVED (after 1 SF: workspace per-user key) | SEC PASS (8/8 limited, 1 Low fixed) |
 | M8-T8 | Test coverage: last-Owner guardrail TOCTOU-race (transaction-conflict simulation) | M8 | Done (2026-07-19) | Review APPROVED (after 1 SF: faithful helper-swap mutant) | test-only; closes M8-T1 SEC M-1 |
