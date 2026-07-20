@@ -148,6 +148,8 @@ beforeEach(() => {
   isAdminActiveFeeCombinationTaken.mockResolvedValue(false);
   getAdminFeeForEvent.mockResolvedValue(existingFee);
   getAdminOrdersReferencingFee.mockResolvedValue([]);
+  updateAdminFee.mockResolvedValue({ ok: true });
+  deleteAdminFee.mockResolvedValue({ ok: true });
 });
 
 describe("POST /pricing/fees — auth, tenancy, and validation gates", () => {
@@ -308,14 +310,17 @@ describe("PATCH /pricing/fees/[feeId]", () => {
       currency: "USD",
       excludeId: FEE_ID,
     });
-    expect(updateAdminFee).toHaveBeenCalledWith(FEE_ID, {
+    expect(updateAdminFee).toHaveBeenCalledWith(
+      { feeId: FEE_ID, eventId: EVENT_ID, organizationId: ORG_ID },
+      {
       name: "GC-EB Delegate USD",
       ticketTypeId: "tt-1",
       registrationTypeId: "rt-1",
       currency: "USD",
       basePriceMinor: 95000,
       status: "active",
-    });
+      },
+    );
   });
 
   it("returns 409 on edit into a duplicate active combination", async () => {
@@ -343,7 +348,7 @@ describe("PATCH /pricing/fees/[feeId]", () => {
     expect(response.status).toBe(200);
     expect(isAdminActiveFeeCombinationTaken).not.toHaveBeenCalled();
     expect(updateAdminFee).toHaveBeenCalledWith(
-      FEE_ID,
+      { feeId: FEE_ID, eventId: EVENT_ID, organizationId: ORG_ID },
       expect.objectContaining({ status: "archived" }),
     );
   });
@@ -414,6 +419,10 @@ describe("DELETE /pricing/fees/[feeId] — BLOCK when orders reference", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true });
-    expect(deleteAdminFee).toHaveBeenCalledWith(FEE_ID);
+    expect(deleteAdminFee).toHaveBeenCalledWith({
+      feeId: FEE_ID,
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+    });
   });
 });

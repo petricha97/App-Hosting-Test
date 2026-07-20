@@ -152,6 +152,8 @@ beforeEach(() => {
   isAdminTicketTypeCodeTaken.mockResolvedValue(false);
   getAdminTicketTypeForEvent.mockResolvedValue(existingTicket);
   getAdminFeesReferencingTicketType.mockResolvedValue([]);
+  updateAdminTicketType.mockResolvedValue({ ok: true });
+  deleteAdminTicketType.mockResolvedValue({ ok: true });
 });
 
 describe("POST /tickets — auth, tenancy, and validation gates", () => {
@@ -380,7 +382,9 @@ describe("PATCH /tickets/[id]", () => {
       code: "GC-EB",
       excludeId: TICKET_ID,
     });
-    expect(updateAdminTicketType).toHaveBeenCalledWith(TICKET_ID, {
+    expect(updateAdminTicketType).toHaveBeenCalledWith(
+      { ticketTypeId: TICKET_ID, eventId: EVENT_ID, organizationId: ORG_ID },
+      {
       name: "GC Early Bird",
       code: "GC-EB",
       capacity: null,
@@ -388,7 +392,8 @@ describe("PATCH /tickets/[id]", () => {
       salesEnd: null,
       isOpen: true,
       registrationTypeIds: [],
-    });
+      },
+    );
   });
 
   it("rejects reducing capacity below the current registeredCount", async () => {
@@ -482,6 +487,10 @@ describe("DELETE /tickets/[id] — BLOCK when registered", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true });
-    expect(deleteAdminTicketType).toHaveBeenCalledWith(TICKET_ID);
+    expect(deleteAdminTicketType).toHaveBeenCalledWith({
+      ticketTypeId: TICKET_ID,
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+    });
   });
 });

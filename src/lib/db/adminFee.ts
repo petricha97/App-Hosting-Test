@@ -123,13 +123,17 @@ export interface UpdateAdminFeeInput {
   status?: FeeStatus;
 }
 
+export type AdminFeeMutationResult =
+  | { ok: true }
+  | { ok: false; code: "NOT_FOUND" };
+
 // Allow-list update: organizationId, eventId and createdAt are server-owned
 // and unreachable here regardless of what the caller passes. Bumps updatedAt.
 // The caller still owns uniqueness (excluding self) and reference validation.
 export async function updateAdminFee(
-  feeId: string,
+  scope: { feeId: string; eventId: string; organizationId: string },
   input: UpdateAdminFeeInput,
-): Promise<void> {
+): Promise<AdminFeeMutationResult> {
   const data: Record<string, unknown> = {
     updatedAt: FieldValue.serverTimestamp(),
   };
@@ -145,14 +149,44 @@ export async function updateAdminFee(
   }
   if (input.status !== undefined) data.status = input.status;
 
-  await feeCol().doc(feeId).update(data);
+  const ref = feeCol().doc(scope.feeId);
+  return adminDb.runTransaction<AdminFeeMutationResult>(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { ok: false, code: "NOT_FOUND" };
+    const doc = snap.data() as FeeDoc;
+    if (
+      doc.eventId !== scope.eventId ||
+      doc.organizationId !== scope.organizationId
+    ) {
+      return { ok: false, code: "NOT_FOUND" };
+    }
+    tx.update(ref, data);
+    return { ok: true };
+  });
 }
 
 // Hard delete. Delete protection is BLOCK, not cascade: the route must 409
 // (directing to Archive) when any Order references the fee — check via
 // getAdminOrdersReferencingFee in adminOrder.ts.
-export async function deleteAdminFee(feeId: string): Promise<void> {
-  await feeCol().doc(feeId).delete();
+export async function deleteAdminFee(scope: {
+  feeId: string;
+  eventId: string;
+  organizationId: string;
+}): Promise<AdminFeeMutationResult> {
+  const ref = feeCol().doc(scope.feeId);
+  return adminDb.runTransaction<AdminFeeMutationResult>(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { ok: false, code: "NOT_FOUND" };
+    const doc = snap.data() as FeeDoc;
+    if (
+      doc.eventId !== scope.eventId ||
+      doc.organizationId !== scope.organizationId
+    ) {
+      return { ok: false, code: "NOT_FOUND" };
+    }
+    tx.delete(ref);
+    return { ok: true };
+  });
 }
 
 // Uniqueness check: at most one ACTIVE fee per

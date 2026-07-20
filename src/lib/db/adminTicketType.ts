@@ -152,15 +152,19 @@ export interface UpdateAdminTicketTypeInput {
   registrationTypeIds?: string[];
 }
 
+export type AdminTicketTypeMutationResult =
+  | { ok: true }
+  | { ok: false; code: "NOT_FOUND" };
+
 // Allow-list update: organizationId, eventId, registeredCount and createdAt
 // are server-owned and unreachable here regardless of what the caller passes.
 // Bumps updatedAt. Route-level rules the caller still owns: code uniqueness
 // (excluding self), capacity >= current registeredCount, salesEnd >= salesStart,
 // and registrationTypeIds membership in the same event.
 export async function updateAdminTicketType(
-  ticketTypeId: string,
+  scope: { ticketTypeId: string; eventId: string; organizationId: string },
   input: UpdateAdminTicketTypeInput,
-): Promise<void> {
+): Promise<AdminTicketTypeMutationResult> {
   const data: Record<string, unknown> = {
     updatedAt: FieldValue.serverTimestamp(),
   };
@@ -179,13 +183,43 @@ export async function updateAdminTicketType(
     data.registrationTypeIds = dedupeIds(input.registrationTypeIds);
   }
 
-  await ticketTypeCol().doc(ticketTypeId).update(data);
+  const ref = ticketTypeCol().doc(scope.ticketTypeId);
+  return adminDb.runTransaction<AdminTicketTypeMutationResult>(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { ok: false, code: "NOT_FOUND" };
+    const doc = snap.data() as TicketTypeDoc;
+    if (
+      doc.eventId !== scope.eventId ||
+      doc.organizationId !== scope.organizationId
+    ) {
+      return { ok: false, code: "NOT_FOUND" };
+    }
+    tx.update(ref, data);
+    return { ok: true };
+  });
 }
 
 // Hard delete. Delete protection is BLOCK, not cascade: the route must 409
 // when registeredCount > 0. (M2 extends the block to tickets referenced by fees.)
-export async function deleteAdminTicketType(ticketTypeId: string): Promise<void> {
-  await ticketTypeCol().doc(ticketTypeId).delete();
+export async function deleteAdminTicketType(scope: {
+  ticketTypeId: string;
+  eventId: string;
+  organizationId: string;
+}): Promise<AdminTicketTypeMutationResult> {
+  const ref = ticketTypeCol().doc(scope.ticketTypeId);
+  return adminDb.runTransaction<AdminTicketTypeMutationResult>(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { ok: false, code: "NOT_FOUND" };
+    const doc = snap.data() as TicketTypeDoc;
+    if (
+      doc.eventId !== scope.eventId ||
+      doc.organizationId !== scope.organizationId
+    ) {
+      return { ok: false, code: "NOT_FOUND" };
+    }
+    tx.delete(ref);
+    return { ok: true };
+  });
 }
 
 // Case-insensitive per-event code uniqueness check within TicketType only —
