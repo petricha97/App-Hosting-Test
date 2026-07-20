@@ -45,6 +45,27 @@ export default defineConfig({
         branches: 49,
         functions: 50,
         lines: 58,
+        // M8-T12 risk-weighted floors: core DAL, routes, and libraries are
+        // held high while lower-risk UI remains at the global floor. Ratchet
+        // core toward 90%+ and global toward 80% over time.
+        'src/lib/db/**': {
+          statements: 72,
+          branches: 65,
+          functions: 67,
+          lines: 74,
+        },
+        'src/app/api/**': {
+          statements: 83,
+          branches: 72,
+          functions: 80,
+          lines: 84,
+        },
+        'src/lib/**': {
+          statements: 76,
+          branches: 68,
+          functions: 73,
+          lines: 77,
+        },
       },
     },
   },

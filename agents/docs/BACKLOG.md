@@ -53,6 +53,7 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M8-T8 | Test coverage: last-Owner guardrail TOCTOU-race (transaction-conflict simulation) | M8 | Done (2026-07-19) | Review APPROVED (after 1 SF: faithful helper-swap mutant) | test-only; closes M8-T1 SEC M-1 |
 | M8-T9 | Form-template propagation operational atomicity (Firestore batch/chunk under 500-write limit + bounded linked-form query) | M8 | Done (2026-07-19) | Review APPROVED (after 2 fixes: selected-mode skip + error mapping) | SEC PASS, QA SIGNED OFF |
 | M8-T10 | Coverage tooling + enforced floor + eventPagePath/invoicePath 403 tests (from M8-T4 CR/plan) | M8 | Done (2026-07-19) | Review APPROVED (after 1 SF: exclude honesty) | @vitest/coverage-v8, all:true honest floor stmts57/br49/fn50/ln58; pointers already server-owned in M8-T4, 2 regression tests added |
+| M8-T12 | CI + risk-weighted coverage gates | M8 | Done (2026-07-20) | — | GitHub Actions enforces lint, baseline-aware typecheck, full coverage suite, global floor, and higher DAL/API/lib regression floors on prototype pushes and PRs |
 
 ---
 
