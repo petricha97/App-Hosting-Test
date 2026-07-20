@@ -55,6 +55,7 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M8-T10 | Coverage tooling + enforced floor + eventPagePath/invoicePath 403 tests (from M8-T4 CR/plan) | M8 | Done (2026-07-19) | Review APPROVED (after 1 SF: exclude honesty) | @vitest/coverage-v8, all:true honest floor stmts57/br49/fn50/ln58; pointers already server-owned in M8-T4, 2 regression tests added |
 | M8-T12 | CI + risk-weighted coverage gates | M8 | Done (2026-07-20) | — | GitHub Actions enforces lint, baseline-aware typecheck, full coverage suite, global floor, and higher DAL/API/lib regression floors on prototype pushes and PRs |
 | M8-T13 | Core money DAL test hardening + defense-in-depth tenancy guards (tax/fee/ticket-type) | M8 | Done (2026-07-20) | Review APPROVED | SEC PASS: original gap defense-in-depth (routes gate, not exploitable); 6 mutations now transactional ownership-guarded; DAL 0-6%→89-100% br |
+| M8-T14 | Public buying-flow DAL test hardening (ticketType/registrationType/adminFormData) + accepted-status guard | M8 | Done (2026-07-20) | Orchestrator-verified (test-only + 1 Low guard) | 23-57%→96-100% br; found+fixed 1 Low defense-in-depth (attendeeCreated flip now rejects explicitly-non-accepted, grandfathers legacy); DAL 80%+ br |
 
 ---
 
