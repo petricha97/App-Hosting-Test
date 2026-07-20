@@ -124,6 +124,8 @@ beforeEach(() => {
   isAdminTaxCodeTaken.mockResolvedValue(false);
   getAdminTaxForEvent.mockResolvedValue(existingTax);
   getAdminOrdersReferencingTax.mockResolvedValue([]);
+  updateAdminTax.mockResolvedValue({ ok: true });
+  deleteAdminTax.mockResolvedValue({ ok: true });
 });
 
 describe("POST /pricing/taxes — auth, tenancy, and validation gates", () => {
@@ -275,7 +277,10 @@ describe("PATCH /pricing/taxes/[taxId]", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(updateAdminTax).toHaveBeenCalledWith(TAX_ID, { isActive: false });
+    expect(updateAdminTax).toHaveBeenCalledWith(
+      { taxId: TAX_ID, eventId: EVENT_ID, organizationId: ORG_ID },
+      { isActive: false },
+    );
     // A pure toggle never touches code uniqueness.
     expect(isAdminTaxCodeTaken).not.toHaveBeenCalled();
   });
@@ -292,7 +297,9 @@ describe("PATCH /pricing/taxes/[taxId]", () => {
       code: "TAX-NY",
       excludeId: TAX_ID,
     });
-    expect(updateAdminTax).toHaveBeenCalledWith(TAX_ID, {
+    expect(updateAdminTax).toHaveBeenCalledWith(
+      { taxId: TAX_ID, eventId: EVENT_ID, organizationId: ORG_ID },
+      {
       name: "New York Sales Tax",
       code: "TAX-NY",
       type: "percentage",
@@ -300,7 +307,8 @@ describe("PATCH /pricing/taxes/[taxId]", () => {
       fixedAmountMinor: null,
       fixedCurrency: null,
       isActive: true,
-    });
+      },
+    );
   });
 
   it("returns 409 for a duplicate code on edit", async () => {
@@ -365,6 +373,10 @@ describe("DELETE /pricing/taxes/[taxId] — BLOCK when orders applied it", () =>
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true });
-    expect(deleteAdminTax).toHaveBeenCalledWith(TAX_ID);
+    expect(deleteAdminTax).toHaveBeenCalledWith({
+      taxId: TAX_ID,
+      eventId: EVENT_ID,
+      organizationId: ORG_ID,
+    });
   });
 });

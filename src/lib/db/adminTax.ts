@@ -137,15 +137,19 @@ export interface UpdateAdminTaxInput {
   isActive?: boolean;
 }
 
+export type AdminTaxMutationResult =
+  | { ok: true }
+  | { ok: false; code: "NOT_FOUND" };
+
 // Allow-list update: organizationId, eventId and createdAt are server-owned
 // and unreachable here. Bumps updatedAt. When `type` is present the unused
 // field group is forced to null so a percentage->fixed switch (or vice versa)
 // can never leave stale values behind. The caller owns code uniqueness
 // (excluding self) and the exactly-one-group payload validation.
 export async function updateAdminTax(
-  taxId: string,
+  scope: { taxId: string; eventId: string; organizationId: string },
   input: UpdateAdminTaxInput,
-): Promise<void> {
+): Promise<AdminTaxMutationResult> {
   const data: Record<string, unknown> = {
     updatedAt: FieldValue.serverTimestamp(),
   };
@@ -177,14 +181,44 @@ export async function updateAdminTax(
     }
   }
 
-  await taxCol().doc(taxId).update(data);
+  const ref = taxCol().doc(scope.taxId);
+  return adminDb.runTransaction<AdminTaxMutationResult>(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { ok: false, code: "NOT_FOUND" };
+    const doc = snap.data() as TaxDoc;
+    if (
+      doc.eventId !== scope.eventId ||
+      doc.organizationId !== scope.organizationId
+    ) {
+      return { ok: false, code: "NOT_FOUND" };
+    }
+    tx.update(ref, data);
+    return { ok: true };
+  });
 }
 
 // Hard delete. Delete protection is BLOCK, not cascade: the route must 409
 // (directing to deactivate) when any Order references the tax — check via
 // getAdminOrdersReferencingTax in adminOrder.ts.
-export async function deleteAdminTax(taxId: string): Promise<void> {
-  await taxCol().doc(taxId).delete();
+export async function deleteAdminTax(scope: {
+  taxId: string;
+  eventId: string;
+  organizationId: string;
+}): Promise<AdminTaxMutationResult> {
+  const ref = taxCol().doc(scope.taxId);
+  return adminDb.runTransaction<AdminTaxMutationResult>(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { ok: false, code: "NOT_FOUND" };
+    const doc = snap.data() as TaxDoc;
+    if (
+      doc.eventId !== scope.eventId ||
+      doc.organizationId !== scope.organizationId
+    ) {
+      return { ok: false, code: "NOT_FOUND" };
+    }
+    tx.delete(ref);
+    return { ok: true };
+  });
 }
 
 // Case-insensitive per-event code uniqueness check within Tax only — a tax

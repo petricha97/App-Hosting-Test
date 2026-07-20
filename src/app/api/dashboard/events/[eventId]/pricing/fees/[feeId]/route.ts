@@ -101,14 +101,20 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  await updateAdminFee(feeId, {
+  const result = await updateAdminFee(
+    { feeId, eventId, organizationId: scope.organizationId },
+    {
     name: parsed.data.name,
     ticketTypeId: parsed.data.ticketTypeId,
     registrationTypeId: parsed.data.registrationTypeId,
     currency: parsed.data.currency,
     basePriceMinor: parsed.data.basePriceMinor,
     status: parsed.data.status,
-  });
+    },
+  );
+  if (!result.ok) {
+    return NextResponse.json({ error: "Fee not found" }, { status: 404 });
+  }
 
   return NextResponse.json({ feeId });
 }
@@ -147,6 +153,13 @@ export async function DELETE(_request: Request, context: RouteContext) {
     );
   }
 
-  await deleteAdminFee(feeId);
+  const result = await deleteAdminFee({
+    feeId,
+    eventId,
+    organizationId: scope.organizationId,
+  });
+  if (!result.ok) {
+    return NextResponse.json({ error: "Fee not found" }, { status: 404 });
+  }
   return NextResponse.json({ success: true });
 }

@@ -106,7 +106,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     ? new Date(eventLocalDateToUtcMs(parsed.data.salesEnd, timeZone, "end"))
     : null;
 
-  await updateAdminTicketType(ticketTypeId, {
+  const result = await updateAdminTicketType(
+    { ticketTypeId, eventId, organizationId: scope.organizationId },
+    {
     name: parsed.data.name,
     code: parsed.data.code,
     capacity: parsed.data.capacity,
@@ -114,7 +116,14 @@ export async function PATCH(request: Request, context: RouteContext) {
     salesEnd,
     isOpen: parsed.data.isOpen,
     registrationTypeIds: parsed.data.registrationTypeIds,
-  });
+    },
+  );
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: "Ticket type not found" },
+      { status: 404 },
+    );
+  }
 
   return NextResponse.json({ ticketTypeId });
 }
@@ -169,6 +178,16 @@ export async function DELETE(_request: Request, context: RouteContext) {
     );
   }
 
-  await deleteAdminTicketType(ticketTypeId);
+  const result = await deleteAdminTicketType({
+    ticketTypeId,
+    eventId,
+    organizationId: scope.organizationId,
+  });
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: "Ticket type not found" },
+      { status: 404 },
+    );
+  }
   return NextResponse.json({ success: true });
 }

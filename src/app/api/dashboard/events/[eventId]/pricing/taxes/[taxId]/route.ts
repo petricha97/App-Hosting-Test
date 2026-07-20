@@ -47,7 +47,13 @@ export async function PATCH(request: Request, context: RouteContext) {
   // so a malformed full payload can never be misread as a toggle.
   const toggle = taxActiveToggleSchema.safeParse(body);
   if (toggle.success) {
-    await updateAdminTax(taxId, { isActive: toggle.data.isActive });
+    const result = await updateAdminTax(
+      { taxId, eventId, organizationId: scope.organizationId },
+      { isActive: toggle.data.isActive },
+    );
+    if (!result.ok) {
+      return NextResponse.json({ error: "Tax not found" }, { status: 404 });
+    }
     return NextResponse.json({ taxId });
   }
 
@@ -72,7 +78,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  await updateAdminTax(taxId, {
+  const result = await updateAdminTax(
+    { taxId, eventId, organizationId: scope.organizationId },
+    {
     name: parsed.data.name,
     code: parsed.data.code,
     // Passing type makes the DAL null the unused field group, so a
@@ -85,7 +93,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     fixedCurrency:
       parsed.data.type === "fixed" ? parsed.data.fixedCurrency : null,
     isActive: parsed.data.isActive,
-  });
+    },
+  );
+  if (!result.ok) {
+    return NextResponse.json({ error: "Tax not found" }, { status: 404 });
+  }
 
   return NextResponse.json({ taxId });
 }
@@ -124,6 +136,13 @@ export async function DELETE(_request: Request, context: RouteContext) {
     );
   }
 
-  await deleteAdminTax(taxId);
+  const result = await deleteAdminTax({
+    taxId,
+    eventId,
+    organizationId: scope.organizationId,
+  });
+  if (!result.ok) {
+    return NextResponse.json({ error: "Tax not found" }, { status: 404 });
+  }
   return NextResponse.json({ success: true });
 }
