@@ -328,7 +328,19 @@ export async function markAdminFormDataAttendeeCreated(input: {
   const update: Record<string, unknown> = { attendeeCreated: true };
   if (input.qrTokenHash !== undefined) update.qrTokenHash = input.qrTokenHash;
 
-  await formDataCol().doc(input.formDataId).update(update);
+  const ref = formDataCol().doc(input.formDataId);
+  await adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new Error("NOT_FOUND");
+
+    const doc = snap.data() as FormDataDoc;
+    // Legacy docs predate status tracking; the sole caller runs post-accept,
+    // so reject only explicitly non-accepted misuse without breaking legacy.
+    if (doc.status !== undefined && doc.status !== "accepted")
+      throw new Error("RESPONSE_NOT_ACCEPTED");
+
+    tx.update(ref, update);
+  });
 }
 
 // ============================================================================
