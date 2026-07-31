@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
 
@@ -17,6 +17,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    exclude: [...configDefaults.exclude, 'e2e/**'],
     // M6-T4: @measured/puck's <Puck> pulls in @dnd-kit/dom, which touches
     // `ResizeObserver` at module top-level import time — earlier than any
     // single test file's own `vi.stubGlobal` call can run. See
