@@ -62,6 +62,14 @@ const fieldTypeDefaults: Record<
     label: "Email field",
     placeholder: "name@example.com",
   },
+  number: {
+    label: "Number",
+    placeholder: "Enter a number",
+  },
+  date: {
+    label: "Date",
+    placeholder: "",
+  },
   textarea: {
     label: "Long answer",
     placeholder: "Type more details",

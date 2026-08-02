@@ -24,9 +24,12 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   AlignLeft,
   Blocks,
+  CalendarDays,
   Eye,
   EyeOff,
   GripVertical,
+  Hash,
+  Info,
   LockKeyhole,
   Mail,
   Plus,
@@ -57,7 +60,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -72,6 +74,11 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const FORM_ID = "form-template-builder";
@@ -80,19 +87,26 @@ const fieldPalette = [
   {
     type: "text" as const,
     title: "Short text",
-    description: "Capture simple one-line answers.",
     icon: Type,
   },
   {
     type: "email" as const,
     title: "Email",
-    description: "Collect contactable email addresses.",
     icon: Mail,
+  },
+  {
+    type: "number" as const,
+    title: "Number",
+    icon: Hash,
+  },
+  {
+    type: "date" as const,
+    title: "Date",
+    icon: CalendarDays,
   },
   {
     type: "textarea" as const,
     title: "Long answer",
-    description: "Great for notes, preferences, or context.",
     icon: AlignLeft,
   },
 ];
@@ -103,10 +117,27 @@ function getFieldTypeLabel(type: FormFieldTypeValues) {
       return "Short text";
     case "email":
       return "Email";
+    case "number":
+      return "Number";
+    case "date":
+      return "Date";
     case "textarea":
       return "Long answer";
     default:
       return type;
+  }
+}
+
+function getFieldInputType(type: FormFieldTypeValues) {
+  switch (type) {
+    case "email":
+      return "email";
+    case "number":
+      return "number";
+    case "date":
+      return "date";
+    default:
+      return "text";
   }
 }
 
@@ -150,7 +181,7 @@ function PreviewField({ field }: { field: FormFieldValues }) {
       ) : (
         <Input
           disabled
-          type={field.type === "email" ? "email" : "text"}
+          type={getFieldInputType(field.type)}
           placeholder={field.placeholder || "Type your answer"}
           className="h-12 rounded-2xl border-slate-200 bg-slate-50 text-slate-700 disabled:opacity-100"
         />
@@ -247,12 +278,10 @@ function SortableFieldRow({
 }
 
 interface FormTemplateBuilderWorkspaceProps {
-  organizationName: string;
   initialTemplate: SerializedFormTemplate | null;
 }
 
 export function FormTemplateBuilderWorkspace({
-  organizationName,
   initialTemplate,
 }: FormTemplateBuilderWorkspaceProps) {
   const router = useRouter();
@@ -263,7 +292,6 @@ export function FormTemplateBuilderWorkspace({
   const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(
     initialTemplate?.id ?? null,
   );
-  const [currentVersion, setCurrentVersion] = useState(initialTemplate?.version ?? 1);
 
   const form = useForm<TemplateBuilderInput, undefined, TemplateBuilderValues>({
     resolver: zodResolver(templateBuilderSchema),
@@ -382,7 +410,6 @@ export function FormTemplateBuilderWorkspace({
       const payload = (await response.json()) as {
         error?: string;
         templateId?: string;
-        version?: number;
       };
 
       if (!response.ok) {
@@ -391,10 +418,6 @@ export function FormTemplateBuilderWorkspace({
 
       if (payload.templateId) {
         setCurrentTemplateId(payload.templateId);
-      }
-
-      if (payload.version) {
-        setCurrentVersion(payload.version);
       }
 
       toast.success("Template saved", {
@@ -476,12 +499,25 @@ export function FormTemplateBuilderWorkspace({
                   <Plus className="h-5 w-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl text-slate-950">
-                    Field palette
-                  </CardTitle>
-                  <CardDescription>
-                    Add reusable registration questions into the template.
-                  </CardDescription>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-2xl text-slate-950">
+                      Field palette
+                    </CardTitle>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                          aria-label="About the field palette"
+                        >
+                          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={6}>
+                        Add reusable registration questions into the template.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -496,33 +532,19 @@ export function FormTemplateBuilderWorkspace({
                     onClick={() => handleAddField(field.type)}
                     className="w-full rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4 text-left transition hover:border-orange-300 hover:bg-orange-50/70"
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-orange-900 shadow-sm">
                         <Icon className="h-4 w-4" />
                       </div>
-                      <div className="space-y-1">
+                      <div className="flex min-h-10 items-center">
                         <p className="text-sm font-semibold text-slate-950">
                           {field.title}
-                        </p>
-                        <p className="text-sm leading-6 text-slate-600">
-                          {field.description}
                         </p>
                       </div>
                     </div>
                   </button>
                 );
               })}
-
-              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4 text-sm leading-7 text-slate-600">
-                <p className="font-semibold text-slate-950">Workspace scope</p>
-                <p className="mt-2">{organizationName}</p>
-                <p className="mt-1 break-all text-xs text-slate-500">
-                  Template ID: {currentTemplateId ?? "Draft not saved yet"}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Version: {currentVersion}
-                </p>
-              </div>
             </CardContent>
           </Card>
 
@@ -533,14 +555,31 @@ export function FormTemplateBuilderWorkspace({
                   <Blocks className="h-5 w-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl text-slate-950">
-                    {isPreviewMode ? "Participant preview" : "Template canvas"}
-                  </CardTitle>
-                  <CardDescription>
-                    {isPreviewMode
-                      ? "Preview how future event forms and participants will see this registration structure."
-                      : "Reorder template fields with drag and drop, then select one to edit its settings."}
-                  </CardDescription>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-2xl text-slate-950">
+                      {isPreviewMode ? "Participant preview" : "Template canvas"}
+                    </CardTitle>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                          aria-label={
+                            isPreviewMode
+                              ? "About the participant preview"
+                              : "About the template canvas"
+                          }
+                        >
+                          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={6}>
+                        {isPreviewMode
+                          ? "Preview how future event forms and participants will see this registration structure."
+                          : "Reorder template fields with drag and drop, then select one to edit its settings."}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -662,12 +701,26 @@ export function FormTemplateBuilderWorkspace({
                   <Settings2 className="h-5 w-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl text-slate-950">
-                    Field settings
-                  </CardTitle>
-                  <CardDescription>
-                    Tune labels, helper text, and validation for the selected template field.
-                  </CardDescription>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-2xl text-slate-950">
+                      Field settings
+                    </CardTitle>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                          aria-label="About field settings"
+                        >
+                          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={6}>
+                        Tune labels, helper text, and validation for the selected
+                        template field.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             </CardHeader>

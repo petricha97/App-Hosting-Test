@@ -299,7 +299,13 @@ export interface EventDoc {
 // TicketTypes/EventPromotions). At most one of each per form; fixed keys
 // "ticket" / "promo_code". See src/features/form/schema.ts.
 export type FormFieldType =
-  "text" | "email" | "textarea" | "ticket-selector" | "promo-code";
+  | "text"
+  | "email"
+  | "number"
+  | "date"
+  | "textarea"
+  | "ticket-selector"
+  | "promo-code";
 export type FormFieldOrigin = "mandatory" | "template" | "event";
 
 export type FormStatus = "draft" | "published";

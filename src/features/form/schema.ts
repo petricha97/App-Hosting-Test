@@ -13,6 +13,8 @@ const firestoreTimestampSchema = z.custom<Timestamp | FieldValue>(
 export const formFieldTypeSchema = z.enum([
   "text",
   "email",
+  "number",
+  "date",
   "textarea",
   // M3-T2 commerce field types — EVENT-ONLY, never valid in templates
   // (templateBuilderSchema rejects them below).
@@ -205,6 +207,25 @@ export const formDataDocumentSchema = z.object({
   submittedAt: firestoreTimestampSchema,
 });
 
+function isNumericFieldValue(value: string) {
+  return /^-?\d+(\.\d+)?$/.test(value);
+}
+
+function isDateFieldValue(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    candidate.getUTCFullYear() === year &&
+    candidate.getUTCMonth() === month - 1 &&
+    candidate.getUTCDate() === day
+  );
+}
+
 export function buildFormSubmissionSchema(fields: FormFieldValues[]) {
   const shape: Record<string, z.ZodType<string>> = {};
 
@@ -230,6 +251,42 @@ export function buildFormSubmissionSchema(fields: FormFieldValues[]) {
             .refine(
               (value) => value.length === 0 || /\S+@\S+\.\S+/.test(value),
               "Enter a valid email address",
+            )
+            .default("");
+      continue;
+    }
+
+    if (field.type === "number") {
+      shape[field.key] = field.required
+        ? z
+            .string()
+            .trim()
+            .min(1, `${field.label} is required`)
+            .refine(isNumericFieldValue, "Enter a valid number")
+        : z
+            .string()
+            .trim()
+            .refine(
+              (value) => value.length === 0 || isNumericFieldValue(value),
+              "Enter a valid number",
+            )
+            .default("");
+      continue;
+    }
+
+    if (field.type === "date") {
+      shape[field.key] = field.required
+        ? z
+            .string()
+            .trim()
+            .min(1, `${field.label} is required`)
+            .refine(isDateFieldValue, "Enter a valid date")
+        : z
+            .string()
+            .trim()
+            .refine(
+              (value) => value.length === 0 || isDateFieldValue(value),
+              "Enter a valid date",
             )
             .default("");
       continue;

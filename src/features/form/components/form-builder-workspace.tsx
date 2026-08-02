@@ -24,9 +24,11 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   AlignLeft,
   Blocks,
+  CalendarDays,
   Eye,
   EyeOff,
   GripVertical,
+  Hash,
   LockKeyhole,
   Mail,
   Plus,
@@ -103,6 +105,18 @@ const fieldPalette = [
     icon: Mail,
   },
   {
+    type: "number" as const,
+    title: "Number",
+    description: "Capture numeric responses like counts or quantities.",
+    icon: Hash,
+  },
+  {
+    type: "date" as const,
+    title: "Date",
+    description: "Capture a single calendar date.",
+    icon: CalendarDays,
+  },
+  {
     type: "textarea" as const,
     title: "Long answer",
     description: "Great for notes, preferences, or context.",
@@ -169,6 +183,10 @@ function getFieldTypeLabel(type: FormFieldTypeValues) {
       return "Short text";
     case "email":
       return "Email";
+    case "number":
+      return "Number";
+    case "date":
+      return "Date";
     case "textarea":
       return "Long answer";
     case "ticket-selector":
@@ -177,6 +195,19 @@ function getFieldTypeLabel(type: FormFieldTypeValues) {
       return "Promo code";
     default:
       return type;
+  }
+}
+
+function getFieldInputType(type: FormFieldTypeValues) {
+  switch (type) {
+    case "email":
+      return "email";
+    case "number":
+      return "number";
+    case "date":
+      return "date";
+    default:
+      return "text";
   }
 }
 
@@ -222,7 +253,7 @@ function PreviewField({ field }: { field: FormFieldValues }) {
       ) : (
         <Input
           disabled
-          type={field.type === "email" ? "email" : "text"}
+          type={getFieldInputType(field.type)}
           placeholder={field.placeholder || "Type your answer"}
           className="h-12 rounded-2xl border-slate-200 bg-slate-50 text-slate-700 disabled:opacity-100"
         />

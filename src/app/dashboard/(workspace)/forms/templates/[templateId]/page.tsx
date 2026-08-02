@@ -56,7 +56,6 @@ export default async function DashboardFormTemplateDetailPage({
   return (
     <div className="space-y-6">
       <FormTemplateBuilderWorkspace
-        organizationName={scope.organization?.name ?? "Current workspace"}
         initialTemplate={serializeFormTemplate(template)}
       />
       <TemplateLinkedFormsManager

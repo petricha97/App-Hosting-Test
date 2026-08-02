@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { FileStack, LayoutTemplate, Sparkles } from "lucide-react";
+import { FileStack, LayoutTemplate } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -42,7 +42,7 @@ export default async function DashboardFormsPage() {
         }
       />
 
-      <section className="grid gap-6 xl:grid-cols-3">
+      <section className="grid gap-6 xl:grid-cols-2">
         <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">
           <CardHeader className="px-6 pt-6">
             <div className="flex items-center gap-3">
@@ -51,9 +51,6 @@ export default async function DashboardFormsPage() {
               </div>
               <div>
                 <CardTitle className="text-2xl text-slate-950">Event forms</CardTitle>
-                <CardDescription>
-                  Current registration forms attached to events in this workspace.
-                </CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -73,9 +70,6 @@ export default async function DashboardFormsPage() {
               </div>
               <div>
                 <CardTitle className="text-2xl text-slate-950">Templates</CardTitle>
-                <CardDescription>
-                  Shared registration structures that can seed new event forms.
-                </CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -84,30 +78,12 @@ export default async function DashboardFormsPage() {
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Active and archived templates live together inside the workspace library.
             </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-[2rem] border-white/70 bg-slate-950 py-0 text-white shadow-[0_24px_60px_-42px_rgba(15,23,42,0.55)]">
-          <CardHeader className="px-6 pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-orange-100">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle className="text-2xl">Template-first flow</CardTitle>
-                <CardDescription className="text-slate-300">
-                  New event forms can now begin from scratch or from a reusable template.
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4 px-6 pb-6 pt-0 text-sm leading-7 text-slate-200">
-            <p>
+            <p className="mt-4 text-sm leading-7 text-slate-600">
               Use templates when your team repeats the same registration structure across multiple events and wants a safer way to roll updates forward.
             </p>
             <Button
               asChild
-              className="rounded-full bg-white text-slate-950 hover:bg-orange-50"
+              className="mt-4 rounded-full"
             >
               <Link href="/dashboard/forms/templates">Browse templates</Link>
             </Button>

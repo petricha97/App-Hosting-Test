@@ -42,7 +42,20 @@ export function buildDefaultSubmissionValues(fields: FormFieldValues[]) {
 }
 
 // Exported for reuse by the public multi-step flow's Personal Information
-// step (design §3) — one renderer for text/email/textarea question inputs.
+// step (design §3) — one renderer for text/email/number/date/textarea inputs.
+function getFieldInputType(field: FormFieldValues) {
+  switch (field.type) {
+    case "email":
+      return "email";
+    case "number":
+      return "number";
+    case "date":
+      return "date";
+    default:
+      return "text";
+  }
+}
+
 export function renderFieldInput(field: FormFieldValues, formField: {
   value: string;
   onChange: ControllerRenderProps<Record<string, string>, string>["onChange"];
@@ -63,7 +76,7 @@ export function renderFieldInput(field: FormFieldValues, formField: {
 
   return (
     <Input
-      type={field.type === "email" ? "email" : "text"}
+      type={getFieldInputType(field)}
       placeholder={field.placeholder || "Type your answer"}
       className="h-12 rounded-2xl border-slate-200 bg-slate-50"
       {...formField}
