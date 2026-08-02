@@ -26,7 +26,7 @@ import type {
 interface WorkspaceStatCardProps {
   title: string;
   value: string;
-  hint: string;
+  hint?: ReactNode;
   errored?: boolean;
   onRetry?: () => void;
   secondary?: ReactNode;
@@ -45,9 +45,25 @@ export function WorkspaceStatCard({
   return (
     <Card className="rounded-2xl border-border bg-card py-0">
       <CardHeader className="px-5 pt-5">
-        <CardDescription className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {title}
-        </CardDescription>
+        <div className="flex items-center gap-1.5">
+          <CardDescription className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {title}
+          </CardDescription>
+          {hint ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-accent-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                  aria-label={`About ${title}`}
+                >
+                  <Info className="h-3 w-3" aria-hidden="true" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{hint}</TooltipContent>
+            </Tooltip>
+          ) : null}
+        </div>
         <div className="flex min-w-0 items-start gap-2">
           <CardTitle
             className={
@@ -93,9 +109,7 @@ export function WorkspaceStatCard({
               </Button>
             ) : null}
           </div>
-        ) : (
-          <p className="text-sm leading-6 text-muted-foreground">{hint}</p>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );
