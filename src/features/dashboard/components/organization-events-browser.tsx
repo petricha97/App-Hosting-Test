@@ -64,11 +64,13 @@ function EventCard({ event }: { event: SerializedEvent }) {
 interface OrganizationEventsBrowserProps {
   initialEvents: SerializedEvent[];
   workspaceName?: string | null;
+  showDebugPayload?: boolean;
 }
 
 export function OrganizationEventsBrowser({
   initialEvents,
   workspaceName,
+  showDebugPayload = false,
 }: OrganizationEventsBrowserProps) {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -177,21 +179,23 @@ export function OrganizationEventsBrowser({
             </CardContent>
           </Card>
 
-          <Card className="rounded-[2rem] border-dashed border-slate-300 bg-slate-950 py-0 text-white shadow-[0_24px_60px_-42px_rgba(15,23,42,0.55)]">
-            <CardHeader className="px-6 pt-6">
-              <CardDescription className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-200">
-                Debug payload
-              </CardDescription>
-              <CardTitle className="text-2xl text-white">
-                Server-serialized event JSON
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-6 pb-6 pt-0">
-              <pre className="overflow-x-auto rounded-[1.5rem] bg-black/30 p-4 text-xs leading-6 text-slate-200">
-                {JSON.stringify(filteredEvents, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
+          {showDebugPayload ? (
+            <Card className="rounded-[2rem] border-dashed border-slate-300 bg-slate-950 py-0 text-white shadow-[0_24px_60px_-42px_rgba(15,23,42,0.55)]">
+              <CardHeader className="px-6 pt-6">
+                <CardDescription className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-200">
+                  Debug payload
+                </CardDescription>
+                <CardTitle className="text-2xl text-white">
+                  Server-serialized event JSON
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-6 pb-6 pt-0">
+                <pre className="overflow-x-auto rounded-[1.5rem] bg-black/30 p-4 text-xs leading-6 text-slate-200">
+                  {JSON.stringify(filteredEvents, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
       )}
     </div>
