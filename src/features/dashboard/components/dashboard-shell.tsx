@@ -9,7 +9,6 @@ import {
   ChevronsRight,
   LogOut,
   Menu,
-  Plus,
   X,
 } from "lucide-react";
 
@@ -136,35 +135,12 @@ function SidebarContent({
               )}
             </AvatarFallback>
           </Avatar>
-          <div className={cn("space-y-1", collapsed && "hidden")}>
+          <div className={cn(collapsed && "hidden")}>
             <p className="text-base font-semibold text-slate-950">
               {orgName ?? "Eventa"}
             </p>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-              Dashboard
-            </p>
           </div>
         </div>
-
-        {collapsed ? (
-          <Button
-            asChild
-            size="icon"
-            className="mx-auto flex rounded-full"
-            title="Create event"
-          >
-            <Link href="/dashboard/events/new" onClick={onNavigate}>
-              <Plus className="h-4 w-4" />
-            </Link>
-          </Button>
-        ) : (
-          <Button asChild className="w-full justify-center rounded-full">
-            <Link href="/dashboard/events/new" onClick={onNavigate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Event
-            </Link>
-          </Button>
-        )}
 
         {onToggleCollapse ? (
           <Button

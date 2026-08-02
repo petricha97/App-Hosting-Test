@@ -14,7 +14,6 @@ import {
 import type { SerializedEvent } from "@/features/event/utils";
 import { getEventPrimaryDateLabel } from "@/features/event/utils";
 import { DashboardEmptyState } from "@/features/dashboard/components/empty-state";
-import { DashboardPageHeader } from "@/features/dashboard/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -106,22 +105,12 @@ export function OrganizationEventsBrowser({
 
   return (
     <div className="space-y-6">
-      <DashboardPageHeader
-        eyebrow="Events"
-        title="Manage the events that belong to the active organization."
-        description="This view now reads real event documents through the shared Firestore collection API and filters them to the current workspace."
-        actions={
+      <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">
+        <CardHeader className="flex flex-col gap-4 px-6 pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-xl text-slate-950">Search</CardTitle>
           <Button asChild>
             <Link href="/dashboard/events/new">Create Event</Link>
           </Button>
-        }
-      />
-
-      <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">
-        <CardHeader className="px-6 pt-6">
-          <CardTitle className="text-xl text-slate-950">
-            Search
-          </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 px-6 pb-6 pt-0 md:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
           <div className="relative">
