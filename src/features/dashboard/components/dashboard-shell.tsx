@@ -52,6 +52,11 @@ function getPageMeta(pathname: string) {
         title: "Forms",
         breadcrumbs: ["Dashboard", "Forms"],
       };
+    case "/dashboard/variables":
+      return {
+        title: "Variables",
+        breadcrumbs: ["Dashboard", "Variables"],
+      };
     case "/dashboard/forms/templates":
       return {
         title: "Templates",

@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Braces,
   CircleDollarSign,
   ClipboardList,
   Inbox,
@@ -77,6 +78,7 @@ export const eventNavGroups: EventNavGroup[] = [
         segment: "emails",
         icon: Mail,
       },
+      { title: "Variables", segment: "variables", icon: Braces },
       { title: "Attendees", segment: "attendees", icon: Users },
       { title: "Check-in", segment: "checkin", icon: QrCode },
       { title: "Reports", segment: "reports", icon: BarChart3 },

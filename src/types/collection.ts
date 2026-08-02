@@ -294,6 +294,19 @@ export interface EventDoc {
   updatedAt: Timestamp | FieldValue;
 }
 
+export type VariableScope = "organization" | "event";
+
+export interface VariableDoc {
+  organizationId: string;
+  scope: VariableScope;
+  eventId?: string;
+  key: string;
+  value: string;
+  description?: string;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
 // M3-T2: "ticket-selector" and "promo-code" are EVENT-ONLY commerce field
 // types (never allowed in FormTemplates — they bind to event-scoped
 // TicketTypes/EventPromotions). At most one of each per form; fixed keys

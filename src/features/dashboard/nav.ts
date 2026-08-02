@@ -1,4 +1,5 @@
 import {
+  Braces,
   FileStack,
   Inbox,
   LayoutDashboard,
@@ -26,6 +27,11 @@ export const dashboardNavItems: DashboardNavItem[] = [
     title: "Forms",
     href: "/dashboard/forms",
     icon: FileStack,
+  },
+  {
+    title: "Variables",
+    href: "/dashboard/variables",
+    icon: Braces,
   },
   {
     title: "Responses",
