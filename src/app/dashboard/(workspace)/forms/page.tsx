@@ -10,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DashboardPageHeader } from "@/features/dashboard/components/page-header";
 import { getDashboardScope } from "@/features/dashboard/server/get-dashboard-scope";
 import { getAdminEventsForOrganization } from "@/lib/db/adminEvent";
 import { getAdminFormsForOrganization } from "@/lib/db/adminForm";
@@ -26,21 +25,14 @@ export default async function DashboardFormsPage() {
 
   return (
     <div className="space-y-6">
-      <DashboardPageHeader
-        eyebrow="Forms"
-        title="Manage event forms and reusable templates."
-        description="Event registration still resolves to event-owned forms, while templates help the workspace reuse and update shared registration structures."
-        actions={
-          <>
-            <Button asChild variant="outline">
-              <Link href="/dashboard/forms/templates">Open templates</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/dashboard/forms/templates/new">New template</Link>
-            </Button>
-          </>
-        }
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <Button asChild variant="outline">
+          <Link href="/dashboard/forms/templates">Open templates</Link>
+        </Button>
+        <Button asChild>
+          <Link href="/dashboard/forms/templates/new">New template</Link>
+        </Button>
+      </div>
 
       <section className="grid gap-6 xl:grid-cols-2">
         <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">

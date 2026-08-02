@@ -8,7 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DashboardPageHeader } from "@/features/dashboard/components/page-header";
 import { getDashboardScope } from "@/features/dashboard/server/get-dashboard-scope";
 import { getAdminLinkedFormsForTemplate } from "@/lib/db/adminForm";
 import { getAdminFormTemplatesForOrganization } from "@/lib/db/adminFormTemplate";
@@ -33,21 +32,14 @@ export default async function DashboardFormTemplatesPage() {
 
   return (
     <div className="space-y-6">
-      <DashboardPageHeader
-        eyebrow="Templates"
-        title="Reusable registration templates for the workspace."
-        description="Templates seed new event forms and can push later changes into linked forms when your team wants to standardize updates."
-        actions={
-          <>
-            <Button asChild variant="outline">
-              <Link href="/dashboard/forms">Back to forms</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/dashboard/forms/templates/new">New template</Link>
-            </Button>
-          </>
-        }
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end sm:items-center">
+        <Button asChild variant="outline">
+          <Link href="/dashboard/forms">Back to forms</Link>
+        </Button>
+        <Button asChild>
+          <Link href="/dashboard/forms/templates/new">New template</Link>
+        </Button>
+      </div>
 
       <section className="grid gap-6 lg:grid-cols-2">
         {templateCards.length ? (

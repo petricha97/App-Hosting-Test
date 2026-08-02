@@ -15,7 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DashboardPageHeader } from "@/features/dashboard/components/page-header";
 import { getDashboardScope } from "@/features/dashboard/server/get-dashboard-scope";
 import { getAdminAllEventPromotionsForOrg } from "@/lib/db/adminEventPromotion";
 import { getAdminEventsForOrganization } from "@/lib/db/adminEvent";
@@ -59,16 +58,11 @@ export default async function DashboardPromotionsPage() {
 
   return (
     <div className="space-y-6">
-      <DashboardPageHeader
-        eyebrow="Promotions"
-        title="Active Promotions"
-        description="Discount codes and promotions applied to events in this workspace."
-        actions={
-          <Button asChild variant="outline">
-            <Link href="/dashboard/promotions/templates">Manage templates</Link>
-          </Button>
-        }
-      />
+      <div className="flex justify-end">
+        <Button asChild variant="outline">
+          <Link href="/dashboard/promotions/templates">Manage templates</Link>
+        </Button>
+      </div>
 
       {promotions.length === 0 ? (
         // Empty state — shown when no templates have been attached to any event yet.

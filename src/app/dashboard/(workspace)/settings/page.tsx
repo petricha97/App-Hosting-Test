@@ -10,7 +10,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { DashboardPageHeader } from "@/features/dashboard/components/page-header";
 import { getDashboardScope } from "@/features/dashboard/server/get-dashboard-scope";
 import { OrgLogoUpload } from "@/features/iam/components/org-logo-upload";
 import { UserAvatarUpload } from "@/features/iam/components/user-avatar-upload";
@@ -25,12 +24,6 @@ export default async function DashboardSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <DashboardPageHeader
-        eyebrow="Settings"
-        title="Workspace & profile settings"
-        description="Manage your organization logo, your profile picture, and workspace preferences."
-      />
-
       {/* Profile images */}
       <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">
         <CardHeader className="px-6 pt-6">

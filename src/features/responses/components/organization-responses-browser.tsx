@@ -17,7 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DashboardEmptyState } from "@/features/dashboard/components/empty-state";
-import { DashboardPageHeader } from "@/features/dashboard/components/page-header";
 import { downloadCsvExport } from "@/features/responses/download";
 import {
   ResponsesFilteredEmptyState,
@@ -108,12 +107,6 @@ export function OrganizationResponsesBrowser({
 
   return (
     <div className="space-y-6">
-      <DashboardPageHeader
-        eyebrow="Responses"
-        title="Track live submissions across the active workspace."
-        description="Review, progress and accept registrations. Accepting a response is what mints the attendee record (arriving in M5)."
-      />
-
       {loadError ? (
         <EntityTableError
           entityLabel="responses"
