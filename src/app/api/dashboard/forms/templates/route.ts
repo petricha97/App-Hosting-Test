@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import decodeUser from "@/lib/auth-utils";
 import { templateBuilderSchema } from "@/features/form/schema";
-import { sanitizeFormFieldsForFirestore } from "@/features/form/utils";
+import { sanitizeTemplateFieldsForFirestore } from "@/features/form/utils";
 import { createAdminFormTemplate } from "@/lib/db/adminFormTemplate";
 import { getAdminUserByEmail } from "@/lib/db/adminUser";
 
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     description: parsedBuilder.data.description.trim(),
     status: parsedBuilder.data.status,
     version: 1,
-    fields: sanitizeFormFieldsForFirestore(parsedBuilder.data.fields),
+    fields: sanitizeTemplateFieldsForFirestore(parsedBuilder.data.fields),
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });

@@ -39,6 +39,45 @@ export function createMandatoryFormFields(): FormFieldValues[] {
   }));
 }
 
+export function createTemplateStarterFields(): FormFieldValues[] {
+  const starterFieldDefinitions: Array<
+    Pick<FormFieldValues, "id" | "key" | "label" | "type" | "placeholder">
+  > = [
+    {
+      id: "template-first-name",
+      key: "first_name",
+      label: "First name",
+      type: "text",
+      placeholder: "Enter your first name",
+    },
+    {
+      id: "template-last-name",
+      key: "last_name",
+      label: "Last name",
+      type: "text",
+      placeholder: "Enter your last name",
+    },
+    {
+      id: "template-email",
+      key: "email",
+      label: "Email",
+      type: "email",
+      placeholder: "Enter your email address",
+    },
+  ];
+
+  return starterFieldDefinitions.map((field, index) => ({
+    ...field,
+    helpText: "",
+    required: true,
+    isMandatory: false,
+    order: index,
+    origin: "template" as const,
+    sourceTemplateFieldId: field.id,
+    rows: undefined,
+  }));
+}
+
 export function buildDefaultFormTitle(eventName: string) {
   const trimmedName = eventName.trim();
   return trimmedName ? `${trimmedName} Registration` : "Event Registration";

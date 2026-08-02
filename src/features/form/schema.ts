@@ -157,7 +157,6 @@ export const templateBuilderSchema = z.object({
   status: formTemplateStatusSchema,
   fields: z
     .array(formFieldSchema)
-    .min(3, "The template must include the mandatory registration fields.")
     // M3-T2: templates are org-level and reusable across events; commerce
     // fields bind to event-scoped TicketTypes/EventPromotions, so they are
     // rejected here outright (T2 AC-3).
@@ -190,9 +189,7 @@ export const formTemplateDocumentSchema = storedFormTemplateDocumentSchema.exten
   description: z.string().trim().default(""),
   status: formTemplateStatusSchema,
   version: z.coerce.number().int().min(1),
-  fields: z
-    .array(formFieldSchema)
-    .min(3, "The template must include the mandatory registration fields."),
+  fields: z.array(formFieldSchema),
   createdAt: firestoreTimestampSchema,
   updatedAt: firestoreTimestampSchema,
 });

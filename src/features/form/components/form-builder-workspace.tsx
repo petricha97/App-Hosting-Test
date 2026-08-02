@@ -523,6 +523,14 @@ export function FormBuilderWorkspace({
       return;
     }
 
+    const remainingFields = watchedFields.filter((_, currentIndex) => currentIndex !== index);
+
+    if (selectedFieldId === field.id) {
+      const nextSelectedField =
+        remainingFields[Math.min(index, Math.max(remainingFields.length - 1, 0))];
+      setSelectedFieldId(nextSelectedField?.id ?? null);
+    }
+
     fieldArray.remove(index);
   }
 

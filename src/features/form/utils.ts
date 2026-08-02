@@ -4,6 +4,7 @@ import type { FieldValue, Timestamp } from "firebase/firestore";
 import {
   buildDefaultFormTitle,
   createMandatoryFormFields,
+  createTemplateStarterFields,
 } from "@/features/form/default-fields";
 import type {
   FormBuilderValues,
@@ -178,6 +179,53 @@ function normalizeField(
   };
 }
 
+function normalizeTemplateField(
+  field: Partial<FormFieldDoc>,
+  index: number,
+): FormFieldValues | null {
+  if (!field.id || !field.key || !field.label || !field.type) {
+    return null;
+  }
+
+  return {
+    id: field.id,
+    key: field.key,
+    label: field.label,
+    type: field.type,
+    placeholder: field.placeholder ?? "",
+    helpText: field.helpText ?? "",
+    required: Boolean(field.required),
+    isMandatory: false,
+    order: Number.isFinite(field.order) ? Number(field.order) : index,
+    origin: "template",
+    sourceTemplateFieldId: field.sourceTemplateFieldId?.trim() || field.id,
+    rows:
+      field.type === "textarea"
+        ? Number.isFinite(field.rows)
+          ? Number(field.rows)
+          : 4
+        : undefined,
+  };
+}
+
+function matchesMandatoryField(
+  candidate: Pick<FormFieldValues, "id" | "key" | "origin" | "sourceTemplateFieldId">,
+  mandatoryField: Pick<FormFieldValues, "id" | "key">,
+) {
+  if (candidate.key === mandatoryField.key) {
+    return true;
+  }
+
+  if (candidate.origin === "template") {
+    return false;
+  }
+
+  return (
+    candidate.id === mandatoryField.id ||
+    candidate.sourceTemplateFieldId === mandatoryField.id
+  );
+}
+
 export function ensureMandatoryFields(
   rawFields: Array<Partial<FormFieldDoc>> = [],
 ): FormFieldValues[] {
@@ -189,9 +237,7 @@ export function ensureMandatoryFields(
   const mandatoryFields = createMandatoryFormFields().map((field, index) => {
     const existing = normalizedCustomFields.find(
       (candidate) =>
-        candidate.id === field.id ||
-        candidate.key === field.key ||
-        candidate.sourceTemplateFieldId === field.id,
+        matchesMandatoryField(candidate, field),
     );
 
     if (existing) {
@@ -219,14 +265,21 @@ export function ensureMandatoryFields(
     (field) =>
       !matchedMandatoryFieldIds.has(field.id) &&
       !mandatoryFields.some(
-        (mandatory) =>
-          mandatory.key === field.key ||
-          mandatory.id === field.id ||
-          field.sourceTemplateFieldId === mandatory.id,
+        (mandatory) => matchesMandatoryField(field, mandatory),
       ),
   );
 
   return reorderFormFields([...mandatoryFields, ...customFields]);
+}
+
+export function normalizeTemplateFields(
+  rawFields: Array<Partial<FormFieldDoc>> = [],
+) {
+  return reorderFormFields(
+    rawFields
+      .map(normalizeTemplateField)
+      .filter((field): field is FormFieldValues => field !== null),
+  );
 }
 
 export function buildInitialFormDraft(eventName: string): FormBuilderValues {
@@ -242,11 +295,7 @@ export function buildInitialTemplateDraft(templateTitle = "Registration template
     title: templateTitle,
     description: "",
     status: "active" as const,
-    fields: createMandatoryFormFields().map((field) => ({
-      ...field,
-      origin: "template" as const,
-      sourceTemplateFieldId: field.id,
-    })),
+    fields: createTemplateStarterFields(),
   };
 }
 
@@ -257,7 +306,7 @@ export function buildFormDraftFromTemplate(
   return {
     title: buildDefaultFormTitle(eventName),
     status: "draft" as const,
-    fields: reorderFormFields(
+    fields: ensureMandatoryFields(
       template.fields.map((field) => ({
         ...field,
         id: `linked-${field.id}-${nanoid(6)}`,
@@ -384,13 +433,7 @@ export function normalizeStoredFormTemplateDocument(
     return null;
   }
 
-  const normalizedFields = ensureMandatoryFields(candidate.fields ?? []).map(
-    (field) => ({
-      ...field,
-      origin: "template" as const,
-      sourceTemplateFieldId: field.sourceTemplateFieldId ?? field.id,
-    }),
-  );
+  const normalizedFields = normalizeTemplateFields(candidate.fields ?? []);
 
   const template = {
     id: rawTemplate.id,
@@ -430,7 +473,7 @@ export function isTemplateManagedField(
 export function cloneTemplateFieldsForEvent(
   template: Pick<FormTemplateDoc, "fields">,
 ) {
-  return reorderFormFields(
+  return ensureMandatoryFields(
     template.fields.map((field) => ({
       ...field,
       id: `linked-${field.id}-${nanoid(6)}`,
@@ -439,6 +482,25 @@ export function cloneTemplateFieldsForEvent(
       rows: field.type === "textarea" ? field.rows ?? 4 : undefined,
     })),
   );
+}
+
+export function sanitizeTemplateFieldsForFirestore(fields: FormFieldValues[]) {
+  return reorderFormFields(fields).map((field) => {
+    const normalizedField = {
+      ...field,
+      isMandatory: false,
+      origin: "template" as const,
+      sourceTemplateFieldId: field.id,
+      rows: field.type === "textarea" ? field.rows ?? 4 : undefined,
+    };
+
+    if (normalizedField.type === "textarea") {
+      return normalizedField;
+    }
+
+    const { rows: _rows, ...rest } = normalizedField;
+    return rest;
+  });
 }
 
 export function applyTemplateToLinkedForm(input: {
