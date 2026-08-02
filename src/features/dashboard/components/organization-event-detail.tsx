@@ -2,23 +2,16 @@ import { FileStack } from "lucide-react";
 
 import { DashboardEmptyState } from "@/features/dashboard/components/empty-state";
 import { EventOverview } from "@/features/event/overview";
-import { EventRegistrationFormCard } from "@/features/form/components/event-registration-form-card";
-import type { SerializedForm } from "@/features/form/utils";
 import type { EventOverviewData } from "@/features/event/overview/event-overview-types";
 import type { SerializedEvent } from "@/features/event/utils";
-import type { SerializedEventPromotion } from "@/features/event-promotions/types";
-import type { SerializedPromotionTemplate } from "@/features/promotion-templates/types";
 
 interface OrganizationEventDetailProps {
   event: SerializedEvent | null;
   eventId: string;
   overview: EventOverviewData | null;
-  form: SerializedForm | null;
-  promotions: SerializedEventPromotion[];
-  availableTemplates: SerializedPromotionTemplate[];
 }
 
-export function OrganizationEventDetail({ event, eventId, overview, form, promotions, availableTemplates }: OrganizationEventDetailProps) {
+export function OrganizationEventDetail({ event, eventId, overview }: OrganizationEventDetailProps) {
   if (!event || !overview) {
     return (
       <DashboardEmptyState
@@ -33,7 +26,7 @@ export function OrganizationEventDetail({ event, eventId, overview, form, promot
 
   return (
     <div className="space-y-6">
-      <EventOverview eventId={eventId} data={overview} promotions={promotions} availableTemplates={availableTemplates} />
+      <EventOverview eventId={eventId} data={overview} />
       <section aria-labelledby="event-diagnostics-heading" className="rounded-2xl border border-border bg-card p-5">
         <h2 id="event-diagnostics-heading" className="text-xl font-semibold">Current event data</h2>
         <dl className="mt-4 grid gap-4 md:grid-cols-3">
@@ -42,7 +35,6 @@ export function OrganizationEventDetail({ event, eventId, overview, form, promot
           <div><dt className="text-sm font-medium text-muted-foreground">Overlap rule</dt><dd className="mt-1 text-sm">{event.allowOverlap ? "Scheduling overlap is allowed." : "Scheduling overlap is blocked."}</dd></div>
         </dl>
       </section>
-      <EventRegistrationFormCard eventId={event.id} eventName={event.name} form={form} />
     </div>
   );
 }

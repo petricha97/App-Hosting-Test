@@ -4,29 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getDashboardScope = vi.fn();
 const getEvent = vi.fn();
 const loadOverview = vi.fn();
-const getForm = vi.fn();
-const getPromotions = vi.fn();
-const getTemplates = vi.fn();
-const promotionProps = vi.fn();
-const formProps = vi.fn();
 const statusProps = vi.fn();
 
 vi.mock("@/features/dashboard/server/get-dashboard-scope", () => ({ getDashboardScope: () => getDashboardScope() }));
 vi.mock("@/lib/db/adminEvent", () => ({ getAdminEventForOrganization: (...args: unknown[]) => getEvent(...args) }));
-vi.mock("@/lib/db/adminForm", () => ({ getAdminFormForEvent: (...args: unknown[]) => getForm(...args) }));
-vi.mock("@/lib/db/adminEventPromotion", () => ({ getAdminEventPromotionsForEvent: (...args: unknown[]) => getPromotions(...args) }));
-vi.mock("@/lib/db/adminPromotionTemplate", () => ({ getAdminPromotionTemplatesForOrganization: (...args: unknown[]) => getTemplates(...args) }));
 vi.mock("@/features/event/overview/event-overview-loader", () => ({ loadEventOverview: (...args: unknown[]) => loadOverview(...args) }));
 vi.mock("@/features/event/utils", () => ({ serializeEvent: (value: unknown) => value, getEventBarDateLabel: () => "July 19" }));
-vi.mock("@/features/form/utils", () => ({ serializeForm: (value: unknown) => value }));
-vi.mock("@/features/event-promotions/utils", () => ({ serializeEventPromotion: (value: unknown) => value }));
-vi.mock("@/features/promotion-templates/utils", () => ({ serializePromotionTemplate: (value: unknown) => value }));
-vi.mock("@/features/event-promotions/components/event-promotion-manager", () => ({
-  EventPromotionManager: (props: unknown) => { promotionProps(props); return <div>Promotions manager preserved</div>; },
-}));
-vi.mock("@/features/form/components/event-registration-form-card", () => ({
-  EventRegistrationFormCard: (props: unknown) => { formProps(props); return <div>Registration form management preserved</div>; },
-}));
 vi.mock("@/features/dashboard/components/event-status-actions", () => ({
   EventStatusActions: (props: { eventId: string; status: string }) => { statusProps(props); return <button>Publish event</button>; },
 }));
@@ -39,18 +22,12 @@ const { default: Layout } = await import("@/app/dashboard/(event)/events/[eventI
 
 const event = { id: "evt-1", name: "Summit", status: "Draft", organizationPath: "Organization/org-1", timezone: "Asia/Singapore", periods: [], registrationPeriod: null, publishedAt: null, page: null, pageMode: "default", eventPagePath: "", formPath: "form/path", description: "", allowOverlap: false, expectedGuests: 0, capacity: 0, redirectUrl: "", createdAt: null, updatedAt: null };
 const overview = { event, registered: { value: 1 }, invited: { value: 2 }, revenue: { kind: "unconfigured" }, abandoned: { value: 0 }, identity: { category: "Not set", timezone: "Asia/Singapore", visibility: "Private (draft)", paths: { active: 0, total: 0, methods: [] } }, readiness: [] };
-const form = { id: "form-1", status: "published" };
-const promotions = [{ id: "promo-1", name: "Early bird" }];
-const templates = [{ id: "template-1", name: "Discount" }];
 
 beforeEach(() => {
   vi.clearAllMocks();
   getDashboardScope.mockResolvedValue({ organizationId: "org-1", userDoc: { permissions: ["write:events"] } });
   getEvent.mockResolvedValue(event);
   loadOverview.mockResolvedValue(overview);
-  getForm.mockResolvedValue(form);
-  getPromotions.mockResolvedValue(promotions);
-  getTemplates.mockResolvedValue(templates);
 });
 
 async function renderPage() {
@@ -65,13 +42,10 @@ async function renderResolvedLayout() {
 }
 
 describe("Dashboard event overview page wiring", () => {
-  it("passes exact overview, promotions, and form inputs and retains the anchor", async () => {
+  it("passes exact overview inputs", async () => {
     await renderPage();
     expect(getEvent).toHaveBeenCalledWith("evt-1", "org-1");
     expect(loadOverview).toHaveBeenCalledWith({ event, eventId: "evt-1", organizationId: "org-1" });
-    expect(promotionProps).toHaveBeenCalledWith({ eventId: "evt-1", promotions, availableTemplates: templates });
-    expect(formProps).toHaveBeenCalledWith({ eventId: "evt-1", eventName: "Summit", form });
-    expect(document.querySelector("#promotions")).not.toBeNull();
   });
 
   it("retains all diagnostics values and every page-mode description", async () => {

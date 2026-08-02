@@ -106,7 +106,7 @@ describe("M8-T3 QA — real loader and DAL integration", () => {
     definition("confirmation-payment-due", true);
 
     const data = await loadEventOverview({ event, eventId: event.id, organizationId: "org-owned" });
-    render(<EventOverview eventId={event.id} data={data} promotions={[]} availableTemplates={[]} />);
+    render(<EventOverview eventId={event.id} data={data} />);
 
     expect(data.registered).toEqual({ value: 2 });
     expect(data.invited).toEqual({ value: 1 });

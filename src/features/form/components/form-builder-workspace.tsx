@@ -401,6 +401,7 @@ export function FormBuilderWorkspace({
 }: FormBuilderWorkspaceProps) {
   const router = useRouter();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [submitAction, setSubmitAction] = useState<"draft" | "published" | null>(null);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(
     initialForm?.fields[0]?.id ?? null,
   );
@@ -442,12 +443,6 @@ export function FormBuilderWorkspace({
     () => (watchedFieldsValue ?? []) as FormFieldValues[],
     [watchedFieldsValue],
   );
-  const watchedStatus = useWatch({
-    control: form.control,
-    name: "status",
-    defaultValue: form.getValues("status"),
-  });
-
   const selectedFieldIndex = watchedFields.findIndex(
     (field) => field.id === selectedFieldId,
   );
@@ -635,8 +630,22 @@ export function FormBuilderWorkspace({
   }
 
   const isSubmitting = form.formState.isSubmitting;
-  const submitLabel = watchedStatus === "published" ? "Publish form" : "Save draft";
-  const submittingLabel = watchedStatus === "published" ? "Publishing..." : "Saving...";
+
+  async function submitWithStatus(status: "draft" | "published") {
+    form.setValue("status", status, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+
+    setSubmitAction(status);
+
+    try {
+      await form.handleSubmit((values) => onSubmit({ ...values, status }))();
+    } finally {
+      setSubmitAction(null);
+    }
+  }
 
   async function handleDetachTemplate() {
     if (!currentFormId || !currentTemplateLink || currentTemplateLink.detached) {
@@ -687,6 +696,7 @@ export function FormBuilderWorkspace({
               type="button"
               variant="outline"
               onClick={() => setIsPreviewMode((current) => !current)}
+              disabled={isSubmitting}
             >
               {isPreviewMode ? (
                 <>
@@ -700,15 +710,24 @@ export function FormBuilderWorkspace({
                 </>
               )}
             </Button>
-            <Button type="submit" form={FORM_ID} disabled={isSubmitting}>
-              {isSubmitting ? (
-                submittingLabel
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  {submitLabel}
-                </>
-              )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void submitWithStatus("draft")}
+              disabled={isSubmitting}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {isSubmitting && submitAction === "draft" ? "Saving..." : "Save draft"}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void submitWithStatus("published")}
+              disabled={isSubmitting}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {isSubmitting && submitAction === "published"
+                ? "Publishing..."
+                : "Publish form"}
             </Button>
             {linkedTemplateSummary ? (
               <Button
@@ -878,7 +897,7 @@ export function FormBuilderWorkspace({
               </div>
             </CardHeader>
             <CardContent className="space-y-5 px-6 pb-6 pt-0">
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="grid gap-5">
                 <FormField
                   control={form.control}
                   name="title"
@@ -891,27 +910,6 @@ export function FormBuilderWorkspace({
                           placeholder="Event registration"
                           {...field}
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <FormControl>
-                        <select
-                          className="flex h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm shadow-sm outline-none transition focus:border-orange-300"
-                          value={field.value}
-                          onChange={field.onChange}
-                        >
-                          <option value="draft">Draft</option>
-                          <option value="published">Published</option>
-                        </select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
