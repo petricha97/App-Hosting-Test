@@ -307,6 +307,29 @@ export interface VariableDoc {
   updatedAt: Timestamp | FieldValue;
 }
 
+export type AssetNodeKind = "folder" | "file";
+export type AssetProvider = "firebase-storage";
+export type AssetNodeStatus = "ready" | "uploading" | "failed";
+
+export interface AssetNodeDoc {
+  organizationId: string;
+  kind: AssetNodeKind;
+  parentId: string | null;
+  name: string;
+  normalizedName: string;
+  mimeType?: string | null;
+  extension?: string | null;
+  sizeBytes?: number | null;
+  blobKey?: string | null;
+  downloadToken?: string | null;
+  provider: AssetProvider;
+  status: AssetNodeStatus;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: Timestamp | FieldValue;
+  updatedAt: Timestamp | FieldValue;
+}
+
 // M3-T2: "ticket-selector" and "promo-code" are EVENT-ONLY commerce field
 // types (never allowed in FormTemplates — they bind to event-scoped
 // TicketTypes/EventPromotions). At most one of each per form; fixed keys

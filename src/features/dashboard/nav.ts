@@ -1,6 +1,7 @@
 import {
   Braces,
   FileStack,
+  FolderOpen,
   Inbox,
   LayoutDashboard,
   Settings,
@@ -32,6 +33,11 @@ export const dashboardNavItems: DashboardNavItem[] = [
     title: "Variables",
     href: "/dashboard/variables",
     icon: Braces,
+  },
+  {
+    title: "Assets",
+    href: "/dashboard/assets",
+    icon: FolderOpen,
   },
   {
     title: "Responses",
