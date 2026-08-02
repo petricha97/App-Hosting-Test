@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ArrowLeft, Building2, ChevronsLeft, ChevronsRight } from "lucide-react";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/AuthContext";
 import { buildEventNavHref, eventNavGroups } from "@/features/event/event-nav";
 import { cn } from "@/lib/utils";
 
@@ -27,20 +29,49 @@ export function EventNavSidebar({
   onNavigate,
   onToggleCollapse,
 }: EventNavSidebarProps) {
+  const { organization } = useAuth();
+  const orgName = organization?.name ?? "Eventa";
+  const orgLogoUrl = organization?.logoUrl ?? null;
+
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-card/95">
-      <div className={cn("space-y-3 py-5", collapsed ? "px-2" : "px-3")}>
+    <div className="flex h-full flex-col bg-white/95">
+      <div className={cn("space-y-6 py-5", collapsed ? "px-3" : "px-4")}>
+        <div
+          className={cn(
+            "flex items-center px-2",
+            collapsed ? "justify-center" : "gap-3",
+          )}
+        >
+          <Avatar className="h-11 w-11 rounded-full">
+            <AvatarImage
+              src={orgLogoUrl ?? undefined}
+              alt={orgName}
+              className="object-cover"
+            />
+            <AvatarFallback className="rounded-full bg-[linear-gradient(135deg,#ffb082,#ff7a59)] text-sm font-semibold text-white">
+              {orgName ? (
+                orgName[0]?.toUpperCase()
+              ) : (
+                <Building2 className="h-5 w-5" />
+              )}
+            </AvatarFallback>
+          </Avatar>
+          <div className={cn(collapsed && "hidden")}>
+            <p className="text-base font-semibold text-slate-950">{orgName}</p>
+          </div>
+        </div>
+
         <Link
           href="/dashboard/events"
           onClick={onNavigate}
           title={collapsed ? "All events" : undefined}
           className={cn(
-            "flex items-center rounded-2xl text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground",
-            collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
+            "group flex items-center rounded-2xl text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950",
+            collapsed ? "justify-center px-2 py-3" : "gap-3 px-3 py-3",
             navRowFocusClasses,
           )}
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition group-hover:bg-white group-hover:text-slate-950">
             <ArrowLeft className="h-4 w-4" />
           </span>
           <span className={cn(collapsed && "hidden")}>All events</span>
@@ -52,7 +83,7 @@ export function EventNavSidebar({
             variant="outline"
             size={collapsed ? "icon" : "sm"}
             className={cn(
-              "rounded-full",
+              "rounded-full border-slate-200 bg-white shadow-sm",
               collapsed ? "mx-auto flex" : "w-full justify-center",
             )}
             onClick={onToggleCollapse}
@@ -74,7 +105,10 @@ export function EventNavSidebar({
 
       <nav
         aria-label="Event sections"
-        className={cn("flex-1 space-y-1 pb-6 pt-2", collapsed ? "px-2" : "px-3")}
+        className={cn(
+          "sidebar-scroll flex-1 space-y-1 overflow-y-auto pb-6 pt-2",
+          collapsed ? "px-2" : "px-3",
+        )}
       >
         {eventNavGroups.map((group) => {
           const labelId = `event-nav-group-${group.label
@@ -86,7 +120,7 @@ export function EventNavSidebar({
               <p
                 id={labelId}
                 className={cn(
-                  "px-3 pb-1 pt-4 text-xs uppercase tracking-[0.2em] text-muted-foreground",
+                  "px-3 pb-1 pt-4 text-xs uppercase tracking-[0.2em] text-slate-500",
                   collapsed && "sr-only",
                 )}
               >
@@ -115,11 +149,11 @@ export function EventNavSidebar({
                       className={cn(
                         "group flex items-center rounded-2xl text-sm font-semibold transition",
                         collapsed
-                          ? "justify-center px-2 py-2.5"
-                          : "gap-3 px-3 py-2.5",
+                          ? "justify-center px-2 py-3"
+                          : "gap-3 px-3 py-3",
                         isActive
-                          ? "bg-primary/10 text-foreground shadow-sm"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                          ? "bg-orange-50 text-slate-950 shadow-sm"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
                         navRowFocusClasses,
                       )}
                     >
@@ -127,8 +161,8 @@ export function EventNavSidebar({
                         className={cn(
                           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition",
                           isActive
-                            ? "bg-background text-primary shadow-sm"
-                            : "bg-muted text-muted-foreground group-hover:bg-background group-hover:text-foreground",
+                            ? "bg-white text-orange-900 shadow-sm"
+                            : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-slate-950",
                         )}
                       >
                         <item.icon className="h-4 w-4" />
@@ -142,7 +176,7 @@ export function EventNavSidebar({
                           <Badge
                             variant="outline"
                             className={cn(
-                              "ml-auto rounded-full text-[10px]",
+                              "ml-auto rounded-full border-slate-200 bg-white text-[10px] text-slate-600",
                               collapsed && "hidden",
                             )}
                           >

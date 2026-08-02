@@ -63,10 +63,10 @@ export function EventShell({ eventId, event, children, statusAction }: EventShel
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground lg:flex">
+    <div className="min-h-screen bg-[#f7f3ec] text-slate-950 lg:flex">
       <aside
         className={cn(
-          "hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:shrink-0 lg:border-r lg:border-border lg:bg-card/95 lg:backdrop-blur-xl lg:transition-[width]",
+          "hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:shrink-0 lg:border-r lg:border-slate-200/70 lg:bg-white/80 lg:backdrop-blur-xl lg:transition-[width]",
           desktopSidebarCollapsed ? "lg:w-24" : "lg:w-80",
         )}
       >
@@ -110,7 +110,7 @@ export function EventShell({ eventId, event, children, statusAction }: EventShel
 
       <Dialog open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
         <DialogContent
-          className="left-0 top-0 h-dvh w-[88vw] max-w-[19rem] translate-x-0 translate-y-0 rounded-none border-r border-border p-0 sm:max-w-[19rem]"
+          className="left-0 top-0 h-dvh w-[88vw] max-w-[19rem] translate-x-0 translate-y-0 rounded-none border-r border-slate-200 p-0 sm:max-w-[19rem]"
           showCloseButton={false}
         >
           <DialogTitle className="sr-only">Event navigation</DialogTitle>
