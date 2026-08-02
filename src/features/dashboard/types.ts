@@ -5,7 +5,6 @@ export interface DashboardNavItem {
   href: string;
   icon: LucideIcon;
   exact?: boolean;
-  description: string;
 }
 
 export interface DashboardSummaryCard {

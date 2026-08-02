@@ -108,12 +108,8 @@ export function OrganizationEventsBrowser({
       <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">
         <CardHeader className="px-6 pt-6">
           <CardTitle className="text-xl text-slate-950">
-            Event index controls
+            Search
           </CardTitle>
-          <CardDescription>
-            Search is live for this organization. Filter chips can be layered in
-            next.
-          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 px-6 pb-6 pt-0 md:grid-cols-[minmax(0,1fr)_auto_auto]">
           <div className="relative">
@@ -167,10 +163,6 @@ export function OrganizationEventsBrowser({
               <CardDescription className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-900">
                 Organization events
               </CardDescription>
-              <CardTitle className="text-2xl text-slate-950">
-                {filteredEvents.length} event{filteredEvents.length === 1 ? "" : "s"} in{" "}
-                {workspaceName ?? "the active workspace"}
-              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 px-6 pb-6 pt-0">
               {filteredEvents.map((event) => (
