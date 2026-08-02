@@ -10,13 +10,11 @@ import {
   LogOut,
   Menu,
   Plus,
-  Sparkles,
   X,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Building2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
@@ -34,61 +32,51 @@ interface DashboardShellProps {
 }
 
 function getPageMeta(pathname: string) {
-  if (pathname === "/dashboard") {
-    return {
-      title: "Overview",
-      subtitle: "A high-level view of your workspace, drafts, and next steps.",
-      breadcrumbs: ["Dashboard", "Overview"],
-    };
+  switch (pathname) {
+    case "/dashboard":
+      return {
+        title: "Overview",
+        breadcrumbs: ["Dashboard", "Overview"],
+      };
+    case "/dashboard/events":
+      return {
+        title: "Events",
+        breadcrumbs: ["Dashboard", "Events"],
+      };
+    case "/dashboard/events/new":
+      return {
+        title: "Create Event",
+        breadcrumbs: ["Dashboard", "Events", "Create Event"],
+      };
+    case "/dashboard/forms":
+      return {
+        title: "Forms",
+        breadcrumbs: ["Dashboard", "Forms"],
+      };
+    case "/dashboard/forms/templates":
+      return {
+        title: "Templates",
+        breadcrumbs: ["Dashboard", "Forms", "Templates"],
+      };
+    case "/dashboard/forms/templates/new":
+      return {
+        title: "New Template",
+        breadcrumbs: ["Dashboard", "Forms", "Templates", "New Template"],
+      };
+    case "/dashboard/responses":
+      return {
+        title: "Responses",
+        breadcrumbs: ["Dashboard", "Responses"],
+      };
+    case "/dashboard/iam":
+      return {
+        title: "Users & Access",
+        breadcrumbs: ["Dashboard", "Users & Access"],
+      };
   }
 
-  if (pathname === "/dashboard/events") {
-    return {
-      title: "Events",
-      subtitle:
-        "Create events, track status, and keep every setup task moving.",
-      breadcrumbs: ["Dashboard", "Events"],
-    };
-  }
-
-  if (pathname === "/dashboard/events/new") {
-    return {
-      title: "Create Event",
-      subtitle:
-        "Shape the event workspace before real data and validation rules are finalized.",
-      breadcrumbs: ["Dashboard", "Events", "Create Event"],
-    };
-  }
-
-  // Event detail routes (/dashboard/events/[eventId]/…) render inside the
+  // Event detail routes (/dashboard/events/[eventId]/...) render inside the
   // (event) route group's EventShell, so no event branches are needed here.
-
-  if (pathname === "/dashboard/forms") {
-    return {
-      title: "Forms",
-      subtitle:
-        "Browse event-owned forms and reusable templates across your active workspace.",
-      breadcrumbs: ["Dashboard", "Forms"],
-    };
-  }
-
-  if (pathname === "/dashboard/forms/templates") {
-    return {
-      title: "Templates",
-      subtitle:
-        "Manage reusable registration templates for future event forms.",
-      breadcrumbs: ["Dashboard", "Forms", "Templates"],
-    };
-  }
-
-  if (pathname === "/dashboard/forms/templates/new") {
-    return {
-      title: "New Template",
-      subtitle: "Design a reusable registration template for your workspace.",
-      breadcrumbs: ["Dashboard", "Forms", "Templates", "New Template"],
-    };
-  }
-
   const templateMatch = pathname.match(
     /^\/dashboard\/forms\/templates\/([^/]+)$/,
   );
@@ -98,33 +86,12 @@ function getPageMeta(pathname: string) {
 
     return {
       title: "Template Editor",
-      subtitle:
-        "Update template fields and apply new versions to linked event forms.",
       breadcrumbs: ["Dashboard", "Forms", "Templates", templateId],
-    };
-  }
-
-  if (pathname === "/dashboard/responses") {
-    return {
-      title: "Responses",
-      subtitle: "Track registrations and submissions across all events.",
-      breadcrumbs: ["Dashboard", "Responses"],
-    };
-  }
-
-  if (pathname === "/dashboard/iam") {
-    return {
-      title: "Users & Access",
-      subtitle:
-        "Invite teammates, shape roles, and keep organization access understandable.",
-      breadcrumbs: ["Dashboard", "Users & Access"],
     };
   }
 
   return {
     title: "Settings",
-    subtitle:
-      "Manage the active workspace profile and prepare for future team features.",
     breadcrumbs: ["Dashboard", "Settings"],
   };
 }
@@ -266,31 +233,6 @@ function SidebarContent({
           );
         })}
       </nav>
-
-      <div className={cn("pb-5", collapsed ? "px-2" : "px-4")}>
-        <div className="rounded-[1.5rem] border border-orange-100 bg-[#fff4ea] p-4">
-          <div
-            className={cn(
-              "flex items-center text-orange-900",
-              collapsed ? "justify-center" : "gap-2",
-            )}
-          >
-            <Sparkles className="h-4 w-4" />
-            <p className={cn("text-sm font-semibold", collapsed && "hidden")}>
-              v1 dashboard scaffold
-            </p>
-          </div>
-          <p
-            className={cn(
-              "mt-2 text-xs leading-6 text-slate-600",
-              collapsed && "hidden",
-            )}
-          >
-            This shell is built to support events, event-owned forms, and
-            response workflows before the Firestore schema is fully finalized.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -383,31 +325,6 @@ export function DashboardShell({ children, serverUser }: DashboardShellProps) {
                     <span>{crumb}</span>
                   </span>
                 ))}
-              </div>
-              <div className="mt-2 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-                <div className="space-y-1">
-                  <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-                    {pageMeta.title}
-                  </h1>
-                  <p className="max-w-3xl text-sm leading-6 text-slate-600">
-                    {pageMeta.subtitle}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <Badge
-                    variant="outline"
-                    className="rounded-full border-orange-200 bg-white px-3 py-1 text-[11px] tracking-[0.18em] text-orange-900"
-                  >
-                    {workspaceLabel}
-                  </Badge>
-                  <Button asChild className="rounded-full">
-                    <Link href="/dashboard/events/new">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create Event
-                    </Link>
-                  </Button>
-                </div>
               </div>
             </div>
 
