@@ -241,7 +241,7 @@ function SidebarContent({
                 "group rounded-2xl transition",
                 collapsed
                   ? "flex justify-center px-2 py-3"
-                  : "flex items-start gap-3 px-3 py-3",
+                  : "flex items-center gap-3 px-3 py-3",
                 isActive
                   ? "bg-orange-50 text-slate-950 shadow-sm"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
@@ -249,7 +249,7 @@ function SidebarContent({
             >
               <span
                 className={cn(
-                  "mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl transition",
+                  "flex h-9 w-9 items-center justify-center rounded-xl transition",
                   isActive
                     ? "bg-white text-orange-900 shadow-sm"
                     : "bg-slate-100 text-slate-500 group-hover:bg-white",
@@ -257,12 +257,9 @@ function SidebarContent({
               >
                 <item.icon className="h-4 w-4" />
               </span>
-              <span className={cn("space-y-1", collapsed && "hidden")}>
+              <span className={cn("flex items-center", collapsed && "hidden")}>
                 <span className="block text-sm font-semibold">
                   {item.title}
-                </span>
-                <span className="block text-xs leading-5 text-slate-500">
-                  {item.description}
                 </span>
               </span>
             </Link>
