@@ -120,7 +120,7 @@ export function OrganizationEventOverview({
     <div className="space-y-6">
       <DashboardPageHeader
         eyebrow="Overview"
-        title="Keep your organization workspace moving with clear next steps."
+        title="Overview"
         description="Workspace-level event, registration, and paid revenue snapshots for the active organization."
         actions={
           <Button asChild>
