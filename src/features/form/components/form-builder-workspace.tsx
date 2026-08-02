@@ -29,6 +29,7 @@ import {
   EyeOff,
   GripVertical,
   Hash,
+  Info,
   LockKeyhole,
   Mail,
   Plus,
@@ -67,7 +68,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -95,31 +95,26 @@ const fieldPalette = [
   {
     type: "text" as const,
     title: "Short text",
-    description: "Capture simple one-line answers.",
     icon: Type,
   },
   {
     type: "email" as const,
     title: "Email",
-    description: "Collect contactable email addresses.",
     icon: Mail,
   },
   {
     type: "number" as const,
     title: "Number",
-    description: "Capture numeric responses like counts or quantities.",
     icon: Hash,
   },
   {
     type: "date" as const,
     title: "Date",
-    description: "Capture a single calendar date.",
     icon: CalendarDays,
   },
   {
     type: "textarea" as const,
     title: "Long answer",
-    description: "Great for notes, preferences, or context.",
     icon: AlignLeft,
   },
 ];
@@ -130,7 +125,6 @@ const fieldPalette = [
 const commercePalette: Array<{
   type: CommerceFieldType;
   title: string;
-  description: string;
   subtitle: string;
   icon: typeof Ticket;
   disabledTooltip: string;
@@ -138,7 +132,6 @@ const commercePalette: Array<{
   {
     type: "ticket-selector",
     title: "Ticket selector",
-    description: "Options come automatically from this event's Ticket Types.",
     subtitle: "ticket · from Ticket Types",
     icon: Ticket,
     disabledTooltip: "Only one ticket selector per form",
@@ -146,7 +139,6 @@ const commercePalette: Array<{
   {
     type: "promo-code",
     title: "Promo code",
-    description: "Optional code input, validated at checkout.",
     subtitle: "promo_code · from Promotions",
     icon: TicketPercent,
     disabledTooltip: "Only one promo code per form",
@@ -355,11 +347,7 @@ function SortableFieldRow({
 
             {field.helpText ? (
               <p className="text-sm leading-6 text-slate-600">{field.helpText}</p>
-            ) : (
-              <p className="text-sm leading-6 text-slate-400">
-                No helper copy yet.
-              </p>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -690,7 +678,6 @@ export function FormBuilderWorkspace({
       <DashboardPageHeader
         eyebrow="Event-owned form"
         title={`Build the registration flow for ${eventName}.`}
-        description="Start with the mandatory attendee details, then add or reorder custom fields as needed. This first version keeps the builder focused, event-scoped, and easy to evolve."
         actions={
           <>
             <Button asChild variant="outline">
@@ -750,12 +737,25 @@ export function FormBuilderWorkspace({
                   <Plus className="h-5 w-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl text-slate-950">
-                    Field palette
-                  </CardTitle>
-                  <CardDescription>
-                    Add the next custom question without leaving the builder.
-                  </CardDescription>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-2xl text-slate-950">
+                      Field palette
+                    </CardTitle>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                          aria-label="About the field palette"
+                        >
+                          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={6}>
+                        Add registration questions into the form.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -770,16 +770,13 @@ export function FormBuilderWorkspace({
                     onClick={() => handleAddField(field.type)}
                     className="w-full rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4 text-left transition hover:border-orange-300 hover:bg-orange-50/70"
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-orange-900 shadow-sm">
                         <Icon className="h-4 w-4" />
                       </div>
-                      <div className="space-y-1">
+                      <div className="flex min-h-10 items-center">
                         <p className="text-sm font-semibold text-slate-950">
                           {field.title}
-                        </p>
-                        <p className="text-sm leading-6 text-slate-600">
-                          {field.description}
                         </p>
                       </div>
                     </div>
@@ -812,22 +809,17 @@ export function FormBuilderWorkspace({
                           : "hover:border-orange-300 hover:bg-orange-50/70",
                       )}
                     >
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-orange-900 shadow-sm">
                           <Icon className="h-4 w-4" />
                         </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
+                        <div className="flex min-h-10 items-center gap-2">
                             <p className="text-sm font-semibold text-slate-950">
                               {entry.title}
                             </p>
                             <Badge className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary shadow-none">
                               New
                             </Badge>
-                          </div>
-                          <p className="text-sm leading-6 text-slate-600">
-                            {entry.description}
-                          </p>
                         </div>
                       </div>
                     </button>
@@ -847,42 +839,6 @@ export function FormBuilderWorkspace({
                   );
                 })}
               </div>
-
-              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4 text-sm leading-7 text-slate-600">
-                <p className="font-semibold text-slate-950">Workspace scope</p>
-                <p className="mt-2">{organizationName}</p>
-                <p className="mt-1 break-all text-xs text-slate-500">
-                  Event ID: {eventId}
-                </p>
-                <p className="mt-1 break-all text-xs text-slate-500">
-                  Form ID: {currentFormId ?? "Draft not saved yet"}
-                </p>
-                {linkedTemplateSummary ? (
-                  <>
-                    <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Linked template
-                    </p>
-                    <p className="mt-1 text-sm text-slate-700">
-                      {linkedTemplateSummary.title}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Version {currentTemplateLink?.templateVersion ?? linkedTemplateSummary.version}
-                      {currentTemplateLink?.detached ? " • Detached" : " • Linked"}
-                    </p>
-                    {templateUpdateAvailable ? (
-                      <p className="mt-1 text-xs font-medium text-orange-900">
-                        A newer template version is available. Open the template to apply updates.
-                      </p>
-                    ) : null}
-                    <Link
-                      href={`/dashboard/forms/templates/${linkedTemplateSummary.id}`}
-                      className="mt-2 inline-flex text-xs font-medium text-orange-900 underline-offset-4 hover:underline"
-                    >
-                      Manage template
-                    </Link>
-                  </>
-                ) : null}
-              </div>
             </CardContent>
           </Card>
 
@@ -893,14 +849,31 @@ export function FormBuilderWorkspace({
                   <Blocks className="h-5 w-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl text-slate-950">
-                    {isPreviewMode ? "Participant preview" : "Builder canvas"}
-                  </CardTitle>
-                  <CardDescription>
-                    {isPreviewMode
-                      ? "This mirrors the attendee-facing registration flow using the same field configuration."
-                      : "Reorder fields with drag and drop, then select one to edit its settings."}
-                  </CardDescription>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-2xl text-slate-950">
+                      {isPreviewMode ? "Participant preview" : "Builder canvas"}
+                    </CardTitle>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                          aria-label={
+                            isPreviewMode
+                              ? "About the participant preview"
+                              : "About the builder canvas"
+                          }
+                        >
+                          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={6}>
+                        {isPreviewMode
+                          ? "Preview how attendees will see this registration flow."
+                          : "Reorder form fields with drag and drop, then select one to edit its settings."}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -1005,13 +978,26 @@ export function FormBuilderWorkspace({
                   <Settings2 className="h-5 w-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl text-slate-950">
-                    Field settings
-                  </CardTitle>
-                  <CardDescription>
-                    Tune labels, helper text, and validation for the selected
-                    field.
-                  </CardDescription>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-2xl text-slate-950">
+                      Field settings
+                    </CardTitle>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                          aria-label="About field settings"
+                        >
+                          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={6}>
+                        Tune labels, helper text, and validation for the selected
+                        field.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -1135,11 +1121,24 @@ export function FormBuilderWorkspace({
                       render={({ field }) => (
                         <FormItem className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4">
                           <div className="space-y-1">
-                            <FormLabel>Required field</FormLabel>
-                            <FormDescription>
-                              Mandatory fields always stay required. Custom fields can
-                              be optional.
-                            </FormDescription>
+                            <div className="flex items-center gap-2">
+                              <FormLabel>Required field</FormLabel>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                                    aria-label="About required fields"
+                                  >
+                                    <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent sideOffset={6}>
+                                  Mandatory fields always stay required. Custom
+                                  fields can be optional.
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
                           </div>
                           <FormControl>
                             <Switch
@@ -1195,3 +1194,4 @@ export function FormBuilderWorkspace({
     </div>
   );
 }
+

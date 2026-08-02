@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { FormTemplatesBrowser } from "@/features/form/components/form-templates-browser";
 import { getDashboardScope } from "@/features/dashboard/server/get-dashboard-scope";
+import { serializeFormTemplate } from "@/features/form/utils";
 import { getAdminLinkedFormsForTemplate } from "@/lib/db/adminForm";
 import { getAdminFormTemplatesForOrganization } from "@/lib/db/adminFormTemplate";
 
@@ -18,7 +19,7 @@ export default async function DashboardFormTemplatesPage() {
       });
 
       return {
-        template,
+        template: serializeFormTemplate(template),
         linkedCount: linkedForms.filter((form) => !form.templateLink?.detached).length,
       };
     }),
