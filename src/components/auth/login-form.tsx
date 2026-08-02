@@ -52,7 +52,10 @@ export function LoginForm({
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [countdown, setCountdown] = useState<number>(redirectDelaySec);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [syncingSession, setSyncingSession] = useState(false);
   const timerRef = useRef<number | null>(null);
+  const syncedUserIdRef = useRef<string | null>(null);
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -72,9 +75,13 @@ export function LoginForm({
       setCurrentUser(user ?? null);
       if (user) {
         setCountdown(redirectDelaySec);
+        setSessionReady(false);
       } else {
         if (timerRef.current) window.clearInterval(timerRef.current);
         timerRef.current = null;
+        syncedUserIdRef.current = null;
+        setSessionReady(false);
+        setSyncingSession(false);
       }
     });
     return () => {
@@ -84,7 +91,14 @@ export function LoginForm({
   }, [redirectDelaySec]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !sessionReady) {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
     if (timerRef.current) return;
     timerRef.current = window.setInterval(() => {
       setCountdown((s) => {
@@ -104,13 +118,13 @@ export function LoginForm({
         timerRef.current = null;
       }
     };
-  }, [currentUser]);
+  }, [currentUser, sessionReady]);
 
   useEffect(() => {
-    if (countdown === 0 && currentUser) {
-      router.push(redirectTo);
+    if (countdown === 0 && currentUser && sessionReady) {
+      router.replace(redirectTo);
     }
-  }, [countdown, currentUser, redirectTo, router]);
+  }, [countdown, currentUser, redirectTo, router, sessionReady]);
 
   const mapFirebaseError = (err: FirebaseError): void => {
     switch (err.code) {
@@ -129,24 +143,80 @@ export function LoginForm({
     }
   };
 
-  async function syncSessionCookie() {
+  async function syncSessionCookie(forceRefresh = false) {
     const user = auth.currentUser;
     if (!user) return;
 
-    const token = await user.getIdToken(); // optionally getIdToken(true) to force refresh
+    const token = await user.getIdToken(forceRefresh);
 
-    await fetch("/api/auth/session", {
+    const response = await fetch("/api/auth/session", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ token }),
     });
+
+    if (!response.ok) {
+      throw new Error("Failed to restore the server session.");
+    }
   }
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    if (syncedUserIdRef.current === currentUser.uid) {
+      setSessionReady(true);
+      return;
+    }
+
+    const currentUserId = currentUser.uid;
+    let cancelled = false;
+
+    async function ensureServerSession() {
+      setSyncingSession(true);
+      try {
+        await syncSessionCookie(true);
+
+        if (cancelled) {
+          return;
+        }
+
+        syncedUserIdRef.current = currentUserId;
+        setSessionReady(true);
+        setCountdown(redirectDelaySec);
+      } catch (error) {
+        console.error(error);
+
+        if (cancelled) {
+          return;
+        }
+
+        setSessionReady(false);
+        setError("root", {
+          message: "Could not restore your dashboard session. Try again.",
+        });
+      } finally {
+        if (!cancelled) {
+          setSyncingSession(false);
+        }
+      }
+    }
+
+    void ensureServerSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, redirectDelaySec, setError]);
 
   const onSubmit: SubmitHandler<LoginValues> = async (values) => {
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
-      await syncSessionCookie();
-      router.push(redirectTo);
+      await syncSessionCookie(true);
+      syncedUserIdRef.current = auth.currentUser?.uid ?? null;
+      setSessionReady(true);
+      router.replace(redirectTo);
     } catch (e) {
       if (e instanceof FirebaseError) mapFirebaseError(e);
       else setError("root", { message: "Unexpected error. Please try again." });
@@ -157,8 +227,10 @@ export function LoginForm({
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      await syncSessionCookie();
-      router.push(redirectTo);
+      await syncSessionCookie(true);
+      syncedUserIdRef.current = auth.currentUser?.uid ?? null;
+      setSessionReady(true);
+      router.replace(redirectTo);
     } catch {
       setError("root", { message: "Google sign in failed. Please try again." });
     }
@@ -170,7 +242,10 @@ export function LoginForm({
       timerRef.current = null;
     }
     await signOut(auth);
+    await fetch("/api/auth/session", { method: "DELETE" });
+    syncedUserIdRef.current = null;
     setCurrentUser(null);
+    setSessionReady(false);
   };
 
   if (currentUser) {
