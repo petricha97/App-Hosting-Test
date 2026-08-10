@@ -24,6 +24,10 @@ import QRCode from "qrcode";
 import { deriveBodyForDefinition } from "@/features/emails/server/render";
 import { resolveEffectiveEmailDefinition } from "@/features/emails/server/resolve-definition";
 import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
+import {
+  attachEmailTemplateVariables,
+  loadEmailTemplateVariableSource,
+} from "@/features/emails/server/template-variables";
 import { getAdminEventForOrganization } from "@/lib/db/adminEvent";
 import { getAdminOrderForEvent } from "@/lib/db/adminOrder";
 import { buildEmailMergeContext } from "@/lib/email/merge-context";
@@ -89,6 +93,10 @@ export async function fireOnAcceptConfirmationEmail(
       order,
       qrCodeSvg,
     });
+    const variableSource = await loadEmailTemplateVariableSource({
+      organizationId: input.organizationId,
+      event,
+    });
 
     const recipientName = [input.attendee.firstName, input.attendee.lastName]
       .filter((part) => part.trim().length > 0)
@@ -125,7 +133,10 @@ export async function fireOnAcceptConfirmationEmail(
         bodyHtml,
         bodyText,
       },
-      context,
+      context: attachEmailTemplateVariables({
+        context,
+        source: variableSource,
+      }),
     });
 
     if (!result.ok) {

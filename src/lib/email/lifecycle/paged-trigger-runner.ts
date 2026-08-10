@@ -12,6 +12,11 @@ import "server-only";
 
 import { deriveBodyForDefinition } from "@/features/emails/server/render";
 import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
+import {
+  attachEmailTemplateVariables,
+  loadEmailTemplateVariableSource,
+  type EmailTemplateVariableSource,
+} from "@/features/emails/server/template-variables";
 import { buildEmailMergeContext } from "@/lib/email/merge-context";
 import { emailRecipientSchema } from "@/lib/email/schemas";
 import {
@@ -77,6 +82,7 @@ async function buildCandidateContext(input: {
   event: LifecycleEventInput;
   eventId: string;
   needsQrCode: boolean;
+  variableSource: EmailTemplateVariableSource;
 }) {
   let qrCodeSvg: string | null = null;
   if (input.needsQrCode && input.candidate.submissionId) {
@@ -85,10 +91,13 @@ async function buildCandidateContext(input: {
       submissionId: input.candidate.submissionId,
     });
   }
-  return buildEmailMergeContext({
-    event: input.event,
-    qrCodeSvg,
-    ...input.candidate.mergeInput,
+  return attachEmailTemplateVariables({
+    context: buildEmailMergeContext({
+      event: input.event,
+      qrCodeSvg,
+      ...input.candidate.mergeInput,
+    }),
+    source: input.variableSource,
   });
 }
 
@@ -96,6 +105,10 @@ export async function runPagedLifecycleTrigger(
   input: RunPagedLifecycleTriggerInput,
 ): Promise<TriggerEvalOutcome> {
   const outcome = outcomeFrom();
+  const variableSource = await loadEmailTemplateVariableSource({
+    organizationId: input.organizationId,
+    event: input.event,
+  });
   // M6-T4: bodyMode/bodyBlocks may be set (block-designed periodic email) —
   // derive ONCE per tick (the assembled HTML/text is identical for every
   // recipient page; only the per-recipient MERGE-TAG substitution differs,
@@ -164,12 +177,13 @@ export async function runPagedLifecycleTrigger(
         continue;
       }
 
-      const context = await buildCandidateContext({
-        candidate,
-        event: input.event,
-        eventId: input.eventId,
-        needsQrCode,
-      });
+        const context = await buildCandidateContext({
+          candidate,
+          event: input.event,
+          eventId: input.eventId,
+          needsQrCode,
+          variableSource,
+        });
 
       for (const dedupeKey of dedupeKeys) {
         validRecipients.push({

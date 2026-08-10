@@ -23,6 +23,10 @@ import { NextResponse } from "next/server";
 import { deriveBodyForDefinition } from "@/features/emails/server/render";
 import { resolveEffectiveEmailDefinition } from "@/features/emails/server/resolve-definition";
 import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
+import {
+  attachEmailTemplateVariables,
+  loadEmailTemplateVariableSource,
+} from "@/features/emails/server/template-variables";
 import { resolveRegistrationRouteScope } from "@/features/registration/server/route-scope";
 import { getAdminRegistrationDraftsForEvent } from "@/lib/db/adminRegistrationDraft";
 import { buildEmailMergeContext } from "@/lib/email/merge-context";
@@ -101,6 +105,10 @@ export async function POST(_request: Request, context: RouteContext) {
   // are counted, never sent, and never echoed back raw (Security L-3).
   const validRecipients: SendEventEmailBatchRecipient[] = [];
   let skippedInvalidEmail = 0;
+  const variableSource = await loadEmailTemplateVariableSource({
+    organizationId: scope.organizationId,
+    event: scope.event,
+  });
 
   for (const draft of eligible) {
     const name = [draft.firstName, draft.lastName]
@@ -122,13 +130,16 @@ export async function POST(_request: Request, context: RouteContext) {
       // SAME dedupe scheme as the automatic 24h trigger (spec §7) — the
       // entire safety mechanism.
       dedupeKey: draft.id,
-      context: buildEmailMergeContext({
-        event: scope.event,
-        submission: {
-          first_name: draft.firstName ?? "",
-          last_name: draft.lastName ?? "",
-          email: draft.email ?? "",
-        },
+      context: attachEmailTemplateVariables({
+        context: buildEmailMergeContext({
+          event: scope.event,
+          submission: {
+            first_name: draft.firstName ?? "",
+            last_name: draft.lastName ?? "",
+            email: draft.email ?? "",
+          },
+        }),
+        source: variableSource,
       }),
     });
   }

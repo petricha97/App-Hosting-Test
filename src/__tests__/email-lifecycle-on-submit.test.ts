@@ -20,10 +20,14 @@ const {
   getAdminEmailDefinitionByKind,
   sendEventEmail,
   resolveEmailBlockRenderContext,
+  loadEmailTemplateVariableSource,
+  attachEmailTemplateVariables,
 } = vi.hoisted(() => ({
   getAdminEmailDefinitionByKind: vi.fn(),
   sendEventEmail: vi.fn(),
   resolveEmailBlockRenderContext: vi.fn(),
+  loadEmailTemplateVariableSource: vi.fn(),
+  attachEmailTemplateVariables: vi.fn(),
 }));
 
 vi.mock("@/lib/db/adminEmailDefinition", () => ({
@@ -37,6 +41,10 @@ vi.mock("@/lib/email/send-service", () => ({ sendEventEmail }));
 // trigger-firing behavior it already locks.
 vi.mock("@/features/emails/server/resolve-block-context", () => ({
   resolveEmailBlockRenderContext,
+}));
+vi.mock("@/features/emails/server/template-variables", () => ({
+  loadEmailTemplateVariableSource,
+  attachEmailTemplateVariables,
 }));
 
 import { fireApprovalPendingEmail } from "@/features/emails/server/fire-on-submit-email";
@@ -62,6 +70,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   getAdminEmailDefinitionByKind.mockResolvedValue(null); // virtual default
   resolveEmailBlockRenderContext.mockResolvedValue({});
+  loadEmailTemplateVariableSource.mockResolvedValue({ values: {} });
+  attachEmailTemplateVariables.mockImplementation(
+    ({ context }: { context: unknown }) => context,
+  );
   sendEventEmail.mockResolvedValue({
     ok: true,
     outcome: "sent",

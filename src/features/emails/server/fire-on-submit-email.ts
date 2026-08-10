@@ -21,6 +21,10 @@ import "server-only";
 import { deriveBodyForDefinition } from "@/features/emails/server/render";
 import { resolveEffectiveEmailDefinition } from "@/features/emails/server/resolve-definition";
 import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
+import {
+  attachEmailTemplateVariables,
+  loadEmailTemplateVariableSource,
+} from "@/features/emails/server/template-variables";
 import { buildEmailMergeContext } from "@/lib/email/merge-context";
 import { sendEventEmail } from "@/lib/email/send-service";
 import type { EventDoc, WithId } from "@/types/collection";
@@ -60,6 +64,10 @@ export async function fireApprovalPendingEmail(
       event: input.event,
       submission: input.submission,
     });
+    const variableSource = await loadEmailTemplateVariableSource({
+      organizationId: input.organizationId,
+      event: input.event,
+    });
 
     // M6-T4: definition may be Plain-text or Block-designer authored —
     // deriveBodyForDefinition is the ONE place that branches on bodyMode,
@@ -97,7 +105,10 @@ export async function fireApprovalPendingEmail(
         bodyHtml,
         bodyText,
       },
-      context,
+      context: attachEmailTemplateVariables({
+        context,
+        source: variableSource,
+      }),
     });
 
     if (!result.ok) {

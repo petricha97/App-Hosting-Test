@@ -35,6 +35,8 @@ const {
   getAdminRegistrationDraftsForEvent,
   sendEventEmailBatch,
   resolveEmailBlockRenderContext,
+  loadEmailTemplateVariableSource,
+  attachEmailTemplateVariables,
 } = vi.hoisted(() => ({
   cookies: vi.fn(),
   decodeUser: vi.fn(),
@@ -44,6 +46,8 @@ const {
   getAdminRegistrationDraftsForEvent: vi.fn(),
   sendEventEmailBatch: vi.fn(),
   resolveEmailBlockRenderContext: vi.fn(),
+  loadEmailTemplateVariableSource: vi.fn(),
+  attachEmailTemplateVariables: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies }));
@@ -61,6 +65,10 @@ vi.mock("@/lib/email/send-service", () => ({ sendEventEmailBatch }));
 // email-block-render-context.test.ts, plus a pass-through assertion below).
 vi.mock("@/features/emails/server/resolve-block-context", () => ({
   resolveEmailBlockRenderContext,
+}));
+vi.mock("@/features/emails/server/template-variables", () => ({
+  loadEmailTemplateVariableSource,
+  attachEmailTemplateVariables,
 }));
 
 import { resetRateLimits } from "@/lib/rate-limit";
@@ -119,6 +127,10 @@ beforeEach(() => {
     organizations: [{ organizationId: ORG_ID, role: "owner" }],
     permissions: ["write:events"],
   });
+  loadEmailTemplateVariableSource.mockResolvedValue({ values: {} });
+  attachEmailTemplateVariables.mockImplementation(
+    ({ context }: { context: unknown }) => context,
+  );
   getAdminEventForOrganization.mockResolvedValue(EVENT);
   getAdminEmailDefinitionByKind.mockResolvedValue(null); // virtual default, enabled:true
   resolveEmailBlockRenderContext.mockResolvedValue({});
