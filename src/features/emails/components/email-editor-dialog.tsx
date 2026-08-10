@@ -1,15 +1,8 @@
 "use client";
 
-// Compose / edit dialog (M6-T2 design §3, extended by M6-T4 design §3) — the
-// ONE surface for both system (isSystem:true) and custom definitions, plus
-// "+ Create email" (blank custom). Width is now MODE-CONDITIONAL
-// (`sm:max-w-4xl` Plain-text / `sm:max-w-6xl` Block-designer, M6-T4 design
-// §3.1 — a further, explicitly-flagged divergence on top of T2's own
-// already-flagged `sm:max-w-4xl` divergence from the app's usual
-// `sm:max-w-lg`).
 import { useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -25,14 +18,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -72,6 +57,7 @@ import {
 } from "@/features/emails/schemas";
 import type {
   EmailBodyMode,
+  EmailComposerTokenSection,
   EmailPuckBlock,
   RenderedEmailPreview,
   SerializedEmailDefinition,
@@ -84,7 +70,6 @@ import {
   atMsToDateTimeLocalInput,
   dateTimeLocalInputToAtMs,
 } from "@/features/emails/utils";
-import { cn } from "@/lib/utils";
 
 const PREVIEW_DEBOUNCE_MS = 400;
 
@@ -94,16 +79,10 @@ interface EmailEditorDialogProps {
   eventId: string;
   timeZone: string;
   definitionsByKind: Map<string, SerializedEmailDefinition>;
-  // null = "+ Create email" (blank custom definition).
   definition: SerializedEmailDefinition | null;
   onSaved: () => void;
-  // M6-T4 (design §1) — set ONLY by the definition-picker menu's entry
-  // point: forces the mode toggle's INITIAL state to "Block designer" for
-  // this open. Ordinary row-click editing (email-group-table.tsx) omits
-  // this and keeps defaulting to the definition's persisted bodyMode.
-  // Forcing the default value (not calling setValue after reset) means this
-  // never marks the freshly-opened form dirty on its own.
   forceInitialMode?: EmailBodyMode;
+  tokenSections?: EmailComposerTokenSection[];
 }
 
 function buildDefaultValues(
@@ -125,6 +104,7 @@ function buildDefaultValues(
       bodyBlocks: [],
     };
   }
+
   return {
     name: definition.name,
     group: definition.group,
@@ -145,6 +125,7 @@ function buildDefaultValues(
 
 function buildTriggerPayload(values: EmailEditorFormValues, timeZone: string) {
   if (values.triggerType === "manual") return { type: "manual" as const };
+
   return {
     type: "scheduled" as const,
     atMs: dateTimeLocalInputToAtMs(values.scheduledAt, timeZone),
@@ -160,6 +141,7 @@ export function EmailEditorDialog({
   definition,
   onSaved,
   forceInitialMode,
+  tokenSections = [],
 }: EmailEditorDialogProps) {
   const isCreate = definition === null;
   const isSystem = definition?.isSystem ?? false;
@@ -190,32 +172,18 @@ export function EmailEditorDialog({
   const bodyBlocks = form.watch("bodyBlocks") as EmailPuckBlock[];
   const triggerType = form.watch("triggerType");
   const enabled = form.watch("enabled");
-  // Must be read synchronously during render (not only inside a callback)
-  // so RHF's formState Proxy subscribes this field for reactive tracking —
-  // otherwise attemptClose() below sees a stale, always-false value.
   const { isDirty } = form.formState;
 
   const isBlocksMode = bodyMode === "blocks";
   const isEmptyBlockCanvas = isBlocksMode && bodyBlocks.length === 0;
-  // Stable dependency for the preview effect below — bodyBlocks' array
-  // reference can change without its content changing; comparing the
-  // serialized form avoids re-fetching the preview on no-op re-renders.
   const bodyBlocksKey = JSON.stringify(bodyBlocks);
 
-  // Debounced live preview (design §3) — re-renders through the SAME
-  // server-side pipeline as the confirmation card / test send. M6-T4:
-  // widened to also send bodyMode/bodyBlocks — but `bodyBlocks` is included
-  // ONLY while actually in Block-designer mode. A definition's stored
-  // bodyBlocks can reference a since-removed block type that the RENDER
-  // pipeline gracefully skips (spec §1 AC-8) but the WRITE-time schema
-  // (reused here for request validation) rejects outright; sending it
-  // unconditionally would break the preview for a Plain-text-mode edit on
-  // such a definition even though bodyBlocks is completely irrelevant to a
-  // "text" mode render.
   useEffect(() => {
     if (!open) return undefined;
+
     let cancelled = false;
     setPreviewLoading(true);
+
     const timer = setTimeout(() => {
       fetch(
         `/api/dashboard/events/${encodeURIComponent(eventId)}/emails/preview`,
@@ -256,6 +224,7 @@ export function EmailEditorDialog({
       setDiscardConfirmOpen(true);
       return;
     }
+
     onOpenChange(false);
   };
 
@@ -267,23 +236,13 @@ export function EmailEditorDialog({
       enabled: values.enabled,
       subject: values.subject,
       body: values.body,
-      // M6-T4 (spec §2 AC-1) — join the same editable bucket as
-      // subject/body for BOTH system and custom definitions. `bodyMode` is
-      // a plain enum with no cross-field validation risk, so — like
-      // subject/body above — it's always sent. `bodyBlocks` is sent ONLY
-      // when the canvas was actually touched this session
-      // (form.formState.dirtyFields): a stored bodyBlocks array may
-      // reference a since-removed block type that the RENDER pipeline
-      // gracefully skips (spec §1 AC-8) but the WRITE-time schema rejects
-      // outright (a discriminated union with no matching member) —
-      // re-submitting it unconditionally on every unrelated plain-text
-      // edit would make such a definition permanently unsavable, even for
-      // a one-word Subject tweak.
       bodyMode: values.bodyMode,
     };
+
     if (form.formState.dirtyFields.bodyBlocks) {
       patchBody.bodyBlocks = values.bodyBlocks;
     }
+
     if (!isSystem) {
       patchBody.name = values.name;
       patchBody.group = values.group;
@@ -338,253 +297,245 @@ export function EmailEditorDialog({
     }
   };
 
+  if (!open) return null;
+
   const title = isCreate ? "New email" : definition!.name;
   const groupLabel = EMAIL_GROUP_LABELS[form.watch("group")];
+  const subtitle = isCreate
+    ? "Create a custom message with room to write, preview, and test."
+    : isSystem
+      ? "Edit the live lifecycle email in a full workspace."
+      : "Edit this custom email in a full workspace.";
 
   return (
     <>
-      <Dialog
-        open={open}
-        onOpenChange={(next) => {
-          if (!next) {
-            attemptClose();
-            return;
-          }
-          onOpenChange(next);
-        }}
-      >
-        <DialogContent
-          className={cn(
-            "max-h-[88vh] overflow-y-auto",
-            isBlocksMode ? "sm:max-w-6xl" : "sm:max-w-4xl",
-          )}
+      <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-sm">
+        <Tabs
+          defaultValue="compose"
+          className="flex min-h-[calc(100vh-12rem)] flex-col"
         >
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {title}
-              <Badge variant="secondary">
-                {isSystem ? "System" : "Custom"}
-              </Badge>
-            </DialogTitle>
-            <DialogDescription>{groupLabel}</DialogDescription>
-          </DialogHeader>
+          <div className="border-b border-slate-200 bg-white px-5 py-5 sm:px-7">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+                  <Badge variant="secondary">
+                    {isSystem ? "System" : "Custom"}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{groupLabel}</span>
+                  <span className="mx-2 text-slate-300">•</span>
+                  {subtitle}
+                </p>
+              </div>
 
-          <Tabs defaultValue="compose">
-            <TabsList>
-              <TabsTrigger value="compose">Compose</TabsTrigger>
-              <TabsTrigger value="history" disabled={isCreate}>
-                History
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="compose">
-              <Form {...form}>
-                <form
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className="space-y-4"
+              <div className="flex flex-wrap items-center gap-2">
+                <TabsList>
+                  <TabsTrigger value="compose">Compose</TabsTrigger>
+                  <TabsTrigger value="history" disabled={isCreate}>
+                    History
+                  </TabsTrigger>
+                </TabsList>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={attemptClose}
                 >
-                  {/* M6-T4 design §3.2: metadata fields move into a
-                      full-width strip shared by BOTH modes, so the top of
-                      the dialog looks identical when switching modes. */}
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {!isSystem ? (
-                      <FormField
-                        control={form.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Name</FormLabel>
-                            <FormControl>
-                              <Input maxLength={120} {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    ) : (
-                      <EmailEditorLockedRow
-                        label="Name"
-                        value={definition!.name}
-                      />
-                    )}
+                  <X className="h-4 w-4" />
+                  <span className="sr-only">Close editor</span>
+                </Button>
+              </div>
+            </div>
+          </div>
 
-                    {!isSystem ? (
-                      <FormField
-                        control={form.control}
-                        name="group"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Group</FormLabel>
-                            <Select
-                              value={field.value}
-                              onValueChange={field.onChange}
-                            >
-                              <FormControl>
-                                <SelectTrigger className="w-full">
-                                  <SelectValue />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {EMAIL_GROUP_OPTIONS.map((group) => (
-                                  <SelectItem key={group} value={group}>
-                                    {EMAIL_GROUP_LABELS[group]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    ) : (
-                      <EmailEditorLockedRow
-                        label="Group"
-                        value={EMAIL_GROUP_LABELS[definition!.group]}
-                      />
-                    )}
-
-                    <div className="space-y-4">
-                      <EmailEditorTriggerFields
-                        isSystem={isSystem}
-                        definitionTrigger={definition?.trigger ?? null}
-                        timeZone={timeZone}
-                        triggerType={triggerType}
-                        form={form}
-                      />
-                    </div>
-
-                    {!isSystem ? (
-                      <FormField
-                        control={form.control}
-                        name="audience"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Audience</FormLabel>
-                            <Select
-                              value={field.value}
-                              onValueChange={field.onChange}
-                            >
-                              <FormControl>
-                                <SelectTrigger className="w-full">
-                                  <SelectValue />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {EMAIL_AUDIENCE_OPTIONS.map((audience) => (
-                                  <SelectItem key={audience} value={audience}>
-                                    {EMAIL_AUDIENCE_LABELS[audience]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormDescription>
-                              Used for display only — audience targeting arrives
-                              with M6-T3.
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    ) : (
-                      <EmailEditorLockedRow
-                        label="Audience"
-                        value={EMAIL_AUDIENCE_LABELS[definition!.audience]}
-                      />
-                    )}
-
-                    <div className="space-y-3 sm:col-span-2 lg:col-span-4">
-                      {isSystem ? (
-                        <p className="text-xs text-muted-foreground">
-                          This is a default lifecycle email — its name, group,
-                          trigger type and audience are fixed.
-                        </p>
-                      ) : null}
-
-                      <FormField
-                        control={form.control}
-                        name="enabled"
-                        render={({ field }) => (
-                          <FormItem className="rounded-lg border border-border p-3">
-                            <div className="flex flex-row items-center justify-between gap-2">
-                              <FormLabel className="font-normal">
-                                Active
-                              </FormLabel>
-                              <FormControl>
-                                <Switch
-                                  checked={field.value}
-                                  onCheckedChange={field.onChange}
-                                  aria-label="Active"
-                                />
-                              </FormControl>
-                            </div>
-                            <FormDescription>
-                              Registrants receive this once automation is live
-                              (M6-T3).
-                            </FormDescription>
-                          </FormItem>
-                        )}
-                      />
-
-                      {!enabled ? (
-                        <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm">
-                          This email is off — it won&apos;t send when
-                          automations arrive.
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="subject"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Subject</FormLabel>
-                        <FormControl>
-                          <Input
-                            maxLength={255}
-                            className="max-w-xl"
-                            {...field}
+          <TabsContent
+            value="compose"
+            className="mt-0 flex min-h-0 flex-1 flex-col"
+          >
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="flex min-h-0 flex-1 flex-col"
+              >
+                <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-7">
+                  <div className="space-y-6">
+                    <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {!isSystem ? (
+                          <FormField
+                            control={form.control}
+                            name="name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Name</FormLabel>
+                                <FormControl>
+                                  <Input maxLength={120} {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                        ) : (
+                          <EmailEditorLockedRow
+                            label="Name"
+                            value={definition!.name}
+                          />
+                        )}
 
-                  <EmailEditorModeToggle form={form} />
+                        {!isSystem ? (
+                          <FormField
+                            control={form.control}
+                            name="group"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Group</FormLabel>
+                                <Select
+                                  value={field.value}
+                                  onValueChange={field.onChange}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {EMAIL_GROUP_OPTIONS.map((group) => (
+                                      <SelectItem key={group} value={group}>
+                                        {EMAIL_GROUP_LABELS[group]}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ) : (
+                          <EmailEditorLockedRow
+                            label="Group"
+                            value={EMAIL_GROUP_LABELS[definition!.group]}
+                          />
+                        )}
 
-                  {isBlocksMode ? (
-                    <EmailBlockDesigner
-                      form={form}
-                      preview={preview}
-                      previewLoading={previewLoading}
-                      previewError={previewError}
-                    />
-                  ) : (
-                    <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                        <div className="space-y-4">
+                          <EmailEditorTriggerFields
+                            isSystem={isSystem}
+                            definitionTrigger={definition?.trigger ?? null}
+                            timeZone={timeZone}
+                            triggerType={triggerType}
+                            form={form}
+                          />
+                        </div>
+
+                        {!isSystem ? (
+                          <FormField
+                            control={form.control}
+                            name="audience"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Audience</FormLabel>
+                                <Select
+                                  value={field.value}
+                                  onValueChange={field.onChange}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {EMAIL_AUDIENCE_OPTIONS.map((audience) => (
+                                      <SelectItem key={audience} value={audience}>
+                                        {EMAIL_AUDIENCE_LABELS[audience]}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                  Used for display only - audience targeting
+                                  arrives with M6-T3.
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ) : (
+                          <EmailEditorLockedRow
+                            label="Audience"
+                            value={EMAIL_AUDIENCE_LABELS[definition!.audience]}
+                          />
+                        )}
+                      </div>
+
+                      <div className="mt-4 space-y-3">
+                        {isSystem ? (
+                          <p className="text-xs text-muted-foreground">
+                            This is a default lifecycle email - its name, group,
+                            trigger type and audience stay fixed.
+                          </p>
+                        ) : null}
+
+                        <FormField
+                          control={form.control}
+                          name="enabled"
+                          render={({ field }) => (
+                            <FormItem className="rounded-xl border border-border bg-white p-3">
+                              <div className="flex flex-row items-center justify-between gap-2">
+                                <div>
+                                  <FormLabel className="font-medium">
+                                    Active
+                                  </FormLabel>
+                                  <FormDescription>
+                                    Registrants receive this once automation is
+                                    live (M6-T3).
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                    aria-label="Active"
+                                  />
+                                </FormControl>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+
+                        {!enabled ? (
+                          <p className="rounded-xl border border-border bg-muted/50 px-3 py-2 text-sm">
+                            This email is off - it won&apos;t send when automations
+                            arrive.
+                          </p>
+                        ) : null}
+                      </div>
+                    </section>
+
+                    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <h2 className="text-lg font-semibold">Content</h2>
+                          <p className="text-sm text-muted-foreground">
+                            Keep the message simple, then preview what attendees
+                            will actually receive.
+                          </p>
+                        </div>
+                        <EmailEditorModeToggle form={form} />
+                      </div>
+
                       <FormField
                         control={form.control}
-                        name="body"
+                        name="subject"
                         render={({ field }) => (
                           <FormItem>
-                            <div className="flex items-center justify-between gap-2">
-                              <FormLabel>Body</FormLabel>
-                              <MergeTagMenu
-                                textareaRef={textareaRef}
-                                value={field.value}
-                                onChange={field.onChange}
-                              />
-                            </div>
+                            <FormLabel>Subject</FormLabel>
                             <FormControl>
-                              <Textarea
-                                rows={10}
-                                className="font-mono text-sm"
+                              <Input
+                                maxLength={255}
+                                className="max-w-3xl"
                                 {...field}
-                                ref={(el) => {
-                                  field.ref(el);
-                                  textareaRef.current = el;
-                                }}
                               />
                             </FormControl>
                             <FormMessage />
@@ -592,34 +543,80 @@ export function EmailEditorDialog({
                         )}
                       />
 
-                      <div>
-                        <EmailPreviewFrame
-                          subject={preview?.subject ?? subject}
-                          bodyHtml={preview?.bodyHtml ?? ""}
-                          missingTags={preview?.missingTags ?? []}
-                          unknownTags={preview?.unknownTags ?? []}
-                          loading={previewLoading}
-                          error={previewError}
+                      {isBlocksMode ? (
+                        <EmailBlockDesigner
+                          form={form}
+                          preview={preview}
+                          previewLoading={previewLoading}
+                          previewError={previewError}
+                          tokenSections={tokenSections}
                         />
-                      </div>
-                    </div>
-                  )}
+                      ) : (
+                        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(24rem,0.7fr)] xl:items-start">
+                          <FormField
+                            control={form.control}
+                            name="body"
+                            render={({ field }) => (
+                              <FormItem>
+                                <div className="flex items-center justify-between gap-2">
+                                  <FormLabel>Body</FormLabel>
+                                  <MergeTagMenu
+                                    textareaRef={textareaRef}
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    tokenSections={tokenSections}
+                                  />
+                                </div>
+                                <FormControl>
+                                  <Textarea
+                                    rows={20}
+                                    className="min-h-[34rem] font-mono text-sm"
+                                    {...field}
+                                    ref={(el) => {
+                                      field.ref(el);
+                                      textareaRef.current = el;
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
 
+                          <div className="xl:sticky xl:top-6">
+                            <p className="mb-2 text-sm font-semibold text-foreground">
+                              Live preview
+                            </p>
+                            <EmailPreviewFrame
+                              subject={preview?.subject ?? subject}
+                              bodyHtml={preview?.bodyHtml ?? ""}
+                              missingTags={preview?.missingTags ?? []}
+                              unknownTags={preview?.unknownTags ?? []}
+                              unknownVariables={preview?.unknownVariables ?? []}
+                              loading={previewLoading}
+                              error={previewError}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-7">
                   <EmailEditorTestSendRow state={testSend} />
 
-                  <DialogFooter className="flex-wrap gap-2 sm:justify-between">
-                    <div>
-                      <EmailEditorTestSendButton
-                        state={testSend}
-                        enabled={enabled}
-                        isCreate={isCreate}
-                        disabledReason={
-                          isEmptyBlockCanvas
-                            ? "Add at least one content block before sending a test"
-                            : null
-                        }
-                      />
-                    </div>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <EmailEditorTestSendButton
+                      state={testSend}
+                      enabled={enabled}
+                      isCreate={isCreate}
+                      disabledReason={
+                        isEmptyBlockCanvas
+                          ? "Add at least one content block before sending a test"
+                          : null
+                      }
+                    />
                     <div className="flex gap-2">
                       <Button
                         type="button"
@@ -633,31 +630,28 @@ export function EmailEditorDialog({
                         disabled={form.formState.isSubmitting}
                       >
                         {form.formState.isSubmitting ? (
-                          <Loader2
-                            aria-hidden="true"
-                            className="animate-spin"
-                          />
+                          <Loader2 aria-hidden="true" className="animate-spin" />
                         ) : null}
                         Save
                       </Button>
                     </div>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </TabsContent>
+                  </div>
+                </div>
+              </form>
+            </Form>
+          </TabsContent>
 
-            <TabsContent value="history">
-              {definition ? (
-                <EmailHistoryTab
-                  eventId={eventId}
-                  kind={definition.kind}
-                  definitionsByKind={definitionsByKind}
-                />
-              ) : null}
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
+          <TabsContent value="history" className="mt-0 flex-1 px-5 py-5 sm:px-7">
+            {definition ? (
+              <EmailHistoryTab
+                eventId={eventId}
+                kind={definition.kind}
+                definitionsByKind={definitionsByKind}
+              />
+            ) : null}
+          </TabsContent>
+        </Tabs>
+      </section>
 
       <AlertDialog
         open={discardConfirmOpen}

@@ -1,20 +1,5 @@
 "use client";
 
-// Plain text / Block designer segmented control (design §2) — a 2-option
-// copy of the event-page-editor-workspace.tsx device-preview toggle's
-// `role="group"` + `aria-pressed` pattern, NOT a second nested `Tabs`
-// instance (the dialog already uses Tabs one level up for Compose/History —
-// nesting a second Tabs here would read as another top-level tab, not a
-// sub-mode of Compose).
-//
-// LOAD-BEARING detail (spec §4 AC-3 / design §2 "Dirty-tracking"): this
-// writes `bodyMode` through the SAME RHF form instance as every other field
-// via `form.setValue("bodyMode", next, { shouldDirty: true })` — never a
-// parallel `useState`. The dialog's existing `attemptClose()` reads
-// `form.formState.isDirty` synchronously during render (the QA-D-1 fix from
-// M6-T2), so routing the toggle through RHF makes mode-only switches trip
-// the unsaved-changes guard for free, with no second dirty-tracking path to
-// get wrong.
 import type { UseFormReturn } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -27,7 +12,7 @@ interface EmailEditorModeToggleProps {
 
 const MODE_OPTIONS: Array<{ value: "text" | "blocks"; label: string }> = [
   { value: "text", label: "Plain text" },
-  { value: "blocks", label: "Block designer" },
+  { value: "blocks", label: "Visual editor" },
 ];
 
 export function EmailEditorModeToggle({ form }: EmailEditorModeToggleProps) {
@@ -67,8 +52,8 @@ export function EmailEditorModeToggle({ form }: EmailEditorModeToggleProps) {
         })}
       </div>
       <p className="text-xs text-muted-foreground">
-        Switching modes doesn&apos;t delete your work — only the mode you save
-        in becomes the live email.
+        Switch between quick copy edits and the visual canvas without losing
+        your draft.
       </p>
     </div>
   );
