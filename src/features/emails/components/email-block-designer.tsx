@@ -1,11 +1,5 @@
 "use client";
 
-// Block-designer content region (design §3.4-3.6) — replaces the plain-text
-// textarea when EmailEditorModeToggle is on "Block designer": a
-// narrow-viewport notice (<768px, design §6) -> the disclaimer banner
-// (§3.3) -> the empty-canvas warning (§5, when applicable) -> the merge-tag
-// toolbar (§3.4) -> the fixed-height Puck shell (§3.5) -> the authoritative
-// preview, mounted FULL WIDTH BELOW the canvas, not beside it (§3.6).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Data } from "@measured/puck";
 import { Puck } from "@measured/puck";
@@ -23,6 +17,7 @@ import {
 import { MergeTagMenu } from "@/features/emails/components/merge-tag-menu";
 import type { EmailEditorFormValues } from "@/features/emails/schemas";
 import type {
+  EmailComposerTokenSection,
   EmailPuckBlock,
   EmailSafeBlockType,
   RenderedEmailPreview,
@@ -34,6 +29,7 @@ interface EmailBlockDesignerProps {
   preview: RenderedEmailPreview | null;
   previewLoading: boolean;
   previewError: string | null;
+  tokenSections?: EmailComposerTokenSection[];
 }
 
 function bodyBlocksToPuckData(blocks: EmailPuckBlock[]): Data {
@@ -71,25 +67,13 @@ export function EmailBlockDesigner({
   preview,
   previewLoading,
   previewError,
+  tokenSections = [],
 }: EmailBlockDesignerProps) {
   const elementRef = useRef<MergeTagFocusTarget | null>(null);
   const onChangeRef = useRef<((next: string) => void) | null>(null);
-  // A COUNTER, not a boolean — every focus event must force a re-render so
-  // `elementRef.current?.value` (read below, at render time) reflects the
-  // NEWLY focused field, not whatever field had focus during the last
-  // render. A boolean that only flips false -> true once would silently
-  // bail out of re-rendering on every focus AFTER the first (React skips a
-  // set-same-value update), leaving MergeTagMenu's `value` prop stale —
-  // insertTag() would then slice the PREVIOUS field's text and write that
-  // (plus the tag) into the newly focused field, corrupting it.
   const [focusVersion, setFocusVersion] = useState(0);
   const [shellReady, setShellReady] = useState(false);
 
-  // Loading state (design §5) — the Puck shell shows a Skeleton until the
-  // canvas config is constructed. There's no real async dependency for the
-  // email canvas (no assets, no live pricing/countdown data), so this is a
-  // deliberately short, honest simulation of that state rather than an
-  // unused branch.
   useEffect(() => {
     setShellReady(true);
   }, []);
@@ -124,32 +108,33 @@ export function EmailBlockDesigner({
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground sm:hidden">
-        Block designer works best on a larger screen — you can keep editing
-        here, but the canvas may need horizontal scrolling.
+        The visual editor works best on a larger screen, but you can still keep
+        editing here when needed.
       </p>
 
       <EmailCanvasDisclaimer />
 
       {isEmpty ? (
         <EmailBlockFieldNote tone="warning" variant="banner">
-          This email has no content blocks yet — drag a block from the panel to
-          add content.
+          This email has no content blocks yet. Drag a block from the panel to
+          start building the message.
         </EmailBlockFieldNote>
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          Click into any text field below, then insert a tag.
+          Click into any text field below, then insert a field or merge tag.
         </p>
         <MergeTagMenu
           textareaRef={elementRef}
           value={elementRef.current?.value ?? ""}
           onChange={(next) => onChangeRef.current?.(next)}
           disabled={!hasFocusedField}
+          tokenSections={tokenSections}
         />
       </div>
 
-      <div className="h-[36rem] overflow-hidden rounded-lg border border-border">
+      <div className="min-h-[42rem] overflow-hidden rounded-2xl border border-border bg-white">
         {shellReady ? (
           <Puck
             config={puckConfig}
@@ -168,13 +153,14 @@ export function EmailBlockDesigner({
 
       <div>
         <p className="mb-2 text-sm font-semibold text-foreground">
-          Email preview (this is what sends)
+          Live preview
         </p>
         <EmailPreviewFrame
           subject={preview?.subject ?? ""}
           bodyHtml={preview?.bodyHtml ?? ""}
           missingTags={preview?.missingTags ?? []}
           unknownTags={preview?.unknownTags ?? []}
+          unknownVariables={preview?.unknownVariables ?? []}
           loading={previewLoading}
           error={previewError}
         />

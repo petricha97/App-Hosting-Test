@@ -1,13 +1,5 @@
 "use client";
 
-// Shared render surface for the editor preview (§3), the confirmation card
-// (§4) and the send-log row detail (§5) — "one preview implementation, not
-// two". Subject line + a SANDBOXED iframe (sandbox="", no scripts) with the
-// server-derived bodyHtml as srcDoc, plus the unknown/missing-tag warning
-// rows. The `<script>` XSS case is guaranteed by construction upstream
-// (src/features/emails/server/render.ts HTML-escapes the template before
-// merge-tag substitution) — sandbox="" is defense-in-depth for the M6-T4
-// future, not "the" fix (design §3 note).
 import { Loader2 } from "lucide-react";
 
 interface EmailPreviewFrameProps {
@@ -15,6 +7,7 @@ interface EmailPreviewFrameProps {
   bodyHtml: string;
   missingTags?: string[];
   unknownTags?: string[];
+  unknownVariables?: string[];
   loading?: boolean;
   error?: string | null;
   className?: string;
@@ -25,6 +18,7 @@ export function EmailPreviewFrame({
   bodyHtml,
   missingTags = [],
   unknownTags = [],
+  unknownVariables = [],
   loading = false,
   error = null,
   className,
@@ -34,7 +28,7 @@ export function EmailPreviewFrame({
       {loading ? (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
-          Updating preview…
+          Updating preview...
         </p>
       ) : (
         <p className="truncate text-xs text-muted-foreground" title={subject}>
@@ -42,9 +36,6 @@ export function EmailPreviewFrame({
         </p>
       )}
 
-      {/* Deliberately NOT theme-following — emails render the same for every
-          recipient (design §8-1); only the bordered container follows the
-          app theme. */}
       <iframe
         sandbox=""
         srcDoc={bodyHtml}
@@ -54,11 +45,19 @@ export function EmailPreviewFrame({
 
       {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
 
-      {unknownTags.length > 0 || missingTags.length > 0 ? (
+      {unknownVariables.length > 0 ||
+      unknownTags.length > 0 ||
+      missingTags.length > 0 ? (
         <div className="mt-2 space-y-1">
+          {unknownVariables.map((key) => (
+            <p key={key} className="text-xs text-amber-700 dark:text-amber-400">
+              Unknown variable <span className="font-mono">{`{{${key}}}`}</span>{" "}
+              - choose a listed field or check spelling
+            </p>
+          ))}
           {unknownTags.map((tag) => (
             <p key={tag} className="text-xs text-amber-700 dark:text-amber-400">
-              Unknown tag <span className="font-mono">{`{${tag}}`}</span> —
+              Unknown tag <span className="font-mono">{`{${tag}}`}</span> -
               check spelling
             </p>
           ))}

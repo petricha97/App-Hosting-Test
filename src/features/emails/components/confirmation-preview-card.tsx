@@ -24,17 +24,21 @@ interface ConfirmationPreviewCardProps {
     | null;
   loadError: boolean;
   onEdit: () => void;
+  title?: string;
+  showEditLink?: boolean;
 }
 
 export function ConfirmationPreviewCard({
   preview,
   loadError,
   onEdit,
+  title = "What the attendee will see",
+  showEditLink = true,
 }: ConfirmationPreviewCardProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Confirmation email preview</CardTitle>
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {loadError ? (
@@ -54,6 +58,7 @@ export function ConfirmationPreviewCard({
               bodyHtml={preview.bodyHtml}
               missingTags={preview.missingTags}
               unknownTags={preview.unknownTags}
+              unknownVariables={preview.unknownVariables ?? []}
             />
 
             <div className="flex items-center gap-4">
@@ -109,14 +114,16 @@ export function ConfirmationPreviewCard({
           </>
         )}
 
-        <Button
-          variant="link"
-          size="sm"
-          className="h-auto p-0"
-          onClick={onEdit}
-        >
-          Edit this email
-        </Button>
+        {showEditLink ? (
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0"
+            onClick={onEdit}
+          >
+            Edit this email
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   );

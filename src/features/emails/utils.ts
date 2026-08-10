@@ -6,6 +6,9 @@ import {
   utcToEventLocalDate,
 } from "@/features/registration/utils";
 import type {
+  EmailBodyMode,
+  EmailComposerTokenItem,
+  EmailComposerTokenSection,
   SerializedEmailDefinition,
   SerializedEmailDefinitionTrigger,
 } from "@/features/emails/types";
@@ -45,6 +48,27 @@ export const EMAIL_GROUP_LABELS: Record<EmailDefinitionGroup, string> = {
   "pre-event": "Pre-event",
   "post-registration": "Post-registration",
   "debt-chase": "Debt chase & countdown",
+};
+
+export const EMAIL_GROUP_SECTION_COPY: Record<
+  EmailDefinitionGroup,
+  { title: string; description: string }
+> = {
+  "pre-event": {
+    title: "Before registration",
+    description:
+      "Invite people in, recover abandoned sign-ups, and send one-off updates before someone is fully registered.",
+  },
+  "post-registration": {
+    title: "After registration",
+    description:
+      "These messages confirm what happened after someone submits or gets accepted, so attendees know what comes next.",
+  },
+  "debt-chase": {
+    title: "Reminders and follow-up",
+    description:
+      "Use these messages for unpaid invoices, countdown reminders, and final prep as the event gets closer.",
+  },
 };
 
 export const EMAIL_AUDIENCE_LABELS: Record<EmailDefinitionAudience, string> = {
@@ -163,6 +187,76 @@ export const EMAIL_MESSAGE_STATUS_LABELS = {
   failed: "Failed",
 } as const;
 
+export function describeEmailTrigger(
+  trigger: SerializedEmailDefinitionTrigger,
+  timeZone: string,
+): string {
+  switch (trigger.type) {
+    case "manual":
+      return "Send this manually whenever you want to reach this audience.";
+    case "on-submit":
+      return "Sent automatically right after someone submits their registration.";
+    case "on-accept":
+      return "Sent automatically once a registration has been accepted.";
+    case "abandoned-24h":
+      return "Sent automatically when someone drops out of registration for 24 hours.";
+    case "unpaid-offsets":
+      return `Sent automatically ${trigger.offsetsDays.join(", ")} days after an unpaid registration remains outstanding.`;
+    case "scheduled":
+      return trigger.atMs === null
+        ? "This email is ready, but it does not have a date and time yet."
+        : `Scheduled to send on ${formatScheduledAt(trigger.atMs, timeZone)}.`;
+    default:
+      return "Send this manually whenever you want to reach this audience.";
+  }
+}
+
+export function describeEmailAudience(audience: EmailDefinitionAudience): string {
+  switch (audience) {
+    case "all-invitees":
+      return "Everyone you have invited.";
+    case "abandoned":
+      return "People who started registering but did not finish.";
+    case "pending-approval":
+      return "People waiting for approval after submitting.";
+    case "accepted-paid":
+      return "Accepted attendees whose registration is already paid.";
+    case "accepted-invoice":
+      return "Accepted attendees who still need to pay by invoice.";
+    case "accepted-all":
+      return "All accepted attendees, regardless of payment state.";
+    default:
+      return EMAIL_AUDIENCE_LABELS[audience];
+  }
+}
+
+export function summarizeEmailDefinition(
+  definition: SerializedEmailDefinition,
+  timeZone: string,
+): string {
+  const audience = describeEmailAudience(definition.audience);
+  const trigger = describeEmailTrigger(definition.trigger, timeZone);
+  return `${audience} ${trigger}`.trim();
+}
+
+export function emailBodyModeLabel(bodyMode: SerializedEmailDefinition["bodyMode"]): string {
+  return bodyMode === "blocks" ? "Designed layout" : "Plain text";
+}
+
+export function emailDeliveryLabel(trigger: SerializedEmailDefinitionTrigger): string {
+  return trigger.type === "manual" ? "Manual send" : "Automatic send";
+}
+
+export function emailBodyPreview(body: string): string {
+  const normalized = body.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "No body copy yet.";
+  }
+  return normalized.length > 140
+    ? `${normalized.slice(0, 137).trimEnd()}...`
+    : normalized;
+}
+
 // ?tab= URL sync (pricing-workspace.tsx precedent).
 export const EMAIL_WORKSPACE_TABS = ["lifecycle", "log"] as const;
 export type EmailWorkspaceTab = (typeof EMAIL_WORKSPACE_TABS)[number];
@@ -221,3 +315,53 @@ export const EMAIL_MERGE_TAG_DISPLAY: EmailMergeTagDisplayEntry[] = [
   },
   { tag: "event_url", label: "Event page URL", hint: "Public event page" },
 ];
+
+export function buildMergeTagTokenSection(): EmailComposerTokenSection {
+  return {
+    id: "merge-tags",
+    label: "Merge tags",
+    items: EMAIL_MERGE_TAG_DISPLAY.map<EmailComposerTokenItem>((entry) => ({
+      token: `{${entry.tag}}`,
+      label: entry.label,
+      hint: entry.hint,
+    })),
+  };
+}
+
+export interface EmailWorkspaceEditorState {
+  kind: string | null;
+  isCreate: boolean;
+  forceInitialMode?: EmailBodyMode;
+}
+
+export function resolveEmailWorkspaceEditorState(input: {
+  editor?: unknown;
+  editorMode?: unknown;
+}): EmailWorkspaceEditorState {
+  const editor =
+    typeof input.editor === "string" ? input.editor.trim() : "";
+  const editorMode =
+    input.editorMode === "blocks" ? ("blocks" as const) : undefined;
+
+  if (editor === "new") {
+    return {
+      kind: null,
+      isCreate: true,
+      forceInitialMode: editorMode,
+    };
+  }
+
+  if (editor.length > 0) {
+    return {
+      kind: editor,
+      isCreate: false,
+      forceInitialMode: editorMode,
+    };
+  }
+
+  return {
+    kind: null,
+    isCreate: false,
+    forceInitialMode: undefined,
+  };
+}
