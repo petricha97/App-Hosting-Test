@@ -23,6 +23,20 @@ export type { EmailPuckBlock, EmailSafeBlockType };
 
 export type EmailBodyMode = "text" | "blocks";
 
+export interface EmailComposerTokenItem {
+  token: string;
+  label: string;
+  hint: string;
+  previewValue?: string | null;
+  aliases?: string[];
+}
+
+export interface EmailComposerTokenSection {
+  id: string;
+  label: string;
+  items: EmailComposerTokenItem[];
+}
+
 export type SerializedEmailDefinitionTrigger =
   | { type: "manual" }
   | { type: "on-submit" }
@@ -103,4 +117,5 @@ export interface RenderedEmailPreview {
   bodyText: string;
   missingTags: string[];
   unknownTags: string[];
+  unknownVariables?: string[];
 }

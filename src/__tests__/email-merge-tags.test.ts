@@ -80,6 +80,7 @@ describe("renderEmailTemplate — catalog rendering (AC-1)", () => {
     );
     expect(result.missingTags).toEqual([]);
     expect(result.unknownTags).toEqual([]);
+    expect(result.unknownVariables).toEqual([]);
     expect(result.usedTags).toEqual(
       expect.arrayContaining([
         "event_title",
@@ -105,6 +106,7 @@ describe("renderEmailTemplate — catalog rendering (AC-1)", () => {
     expect(result.usedTags).toHaveLength(EMAIL_MERGE_TAGS.length);
     expect(result.missingTags).toEqual([]);
     expect(result.unknownTags).toEqual([]);
+    expect(result.unknownVariables).toEqual([]);
     // No unreplaced known tag survives anywhere.
     for (const tag of EMAIL_MERGE_TAGS) {
       expect(result.bodyHtml).not.toContain(`{${tag}}`);
@@ -162,6 +164,7 @@ describe("renderEmailTemplate — missing & unknown tags (AC-4)", () => {
     expect(result.bodyText).toBe("");
     expect(result.missingTags).toEqual(["company"]);
     expect(result.unknownTags).toEqual(["frist_name"]);
+    expect(result.unknownVariables).toEqual([]);
   });
 
   it("treats an empty-string context value as missing (Cvent blank-field parity)", () => {
@@ -172,6 +175,57 @@ describe("renderEmailTemplate — missing & unknown tags (AC-4)", () => {
 
     expect(result.subject).toBe("!");
     expect(result.missingTags).toEqual(["company"]);
+  });
+});
+
+describe("renderEmailTemplate — template variables", () => {
+  it("resolves org/event/recipient variables before merge tags", () => {
+    const result = renderEmailTemplate(
+      {
+        subject: "{{organization_name}} — {{Recipients_name}}",
+        bodyHtml:
+          "<p>{{EVENT_NAME}}</p><p>{{RECIPIENT_FIRST_NAME}}</p><p>{event_title}</p>",
+        bodyText:
+          "{{EVENT_NAME}} / {{RECIPIENTS_NAME}} / {{RECIPIENT_EMAIL}} / {event_title}",
+      },
+      {
+        ...FULL_CONTEXT,
+        variables: {
+          ORGANIZATION_NAME: "Eventa",
+          EVENT_NAME: "Summit Week",
+          RECIPIENT_NAME: "Kenneth Cha",
+          RECIPIENTS_NAME: "Kenneth Cha",
+          RECIPIENT_FIRST_NAME: "Kenneth",
+          RECIPIENTS_FIRST_NAME: "Kenneth",
+          RECIPIENT_EMAIL: "kenneth@example.com",
+          RECIPIENTS_EMAIL: "kenneth@example.com",
+        },
+      },
+    );
+
+    expect(result.subject).toBe("Eventa — Kenneth Cha");
+    expect(result.bodyHtml).toContain("<p>Summit Week</p>");
+    expect(result.bodyHtml).toContain("<p>Kenneth</p>");
+    expect(result.bodyHtml).toContain("<p>Innovation@50x Summit</p>");
+    expect(result.bodyText).toBe(
+      "Summit Week / Kenneth Cha / kenneth@example.com / Innovation@50x Summit",
+    );
+  });
+
+  it("keeps unknown variables literal and still resolves known merge tags", () => {
+    const result = renderEmailTemplate(
+      {
+        subject: "{{UNKNOWN_KEY}} {first_name}",
+        bodyHtml: "<p>{{UNKNOWN_KEY}}</p>",
+        bodyText: "{{UNKNOWN_KEY}}",
+      },
+      { firstName: "Ken" },
+    );
+
+    expect(result.subject).toBe("{{UNKNOWN_KEY}} Ken");
+    expect(result.bodyHtml).toBe("<p>{{UNKNOWN_KEY}}</p>");
+    expect(result.bodyText).toBe("{{UNKNOWN_KEY}}");
+    expect(result.unknownVariables).toEqual(["UNKNOWN_KEY"]);
   });
 });
 
@@ -233,6 +287,7 @@ describe("renderEmailTemplate — purity edges (AC-6)", () => {
       usedTags: [],
       missingTags: [],
       unknownTags: [],
+      unknownVariables: [],
     });
   });
 

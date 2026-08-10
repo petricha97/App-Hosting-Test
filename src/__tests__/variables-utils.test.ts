@@ -50,6 +50,17 @@ describe("variables utilities", () => {
     expect(result.unknownKeys).toEqual(["UNKNOWN_KEY"]);
   });
 
+  it("accepts mixed-case variable tokens and normalizes them before lookup", () => {
+    const result = resolveVariables({
+      text: "Hi {{Recipients_name}} from {{event-name}}",
+      eventVariables: [{ key: "EVENT_NAME", value: "Launch Day" }],
+      organizationVariables: [{ key: "RECIPIENTS_NAME", value: "Ada" }],
+    });
+
+    expect(result.output).toBe("Hi Ada from Launch Day");
+    expect(result.unknownKeys).toEqual([]);
+  });
+
   it("builds organization and event built-ins from live docs", () => {
     const orgBuiltIns = buildOrganizationBuiltInVariables({ name: "Eventa Org" });
     const eventBuiltIns = buildEventBuiltInVariables({

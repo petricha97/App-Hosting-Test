@@ -75,6 +75,7 @@ export interface RenderReport {
   usedTags: string[];
   missingTags: string[];
   unknownTags: string[];
+  unknownVariables?: string[];
 }
 
 export type SendEventEmailRejectionCode =
@@ -373,6 +374,7 @@ export async function sendEventEmail(
       usedTags: rendered.usedTags,
       missingTags: rendered.missingTags,
       unknownTags: rendered.unknownTags,
+      unknownVariables: rendered.unknownVariables,
     },
   };
 }

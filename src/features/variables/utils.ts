@@ -1,4 +1,11 @@
-import type { EventDoc, OrganizationDoc, VariableDoc, VariableScope, WithId } from "@/types/collection";
+import type {
+  EventDoc,
+  OrganizationDoc,
+  VariableDoc,
+  VariableScope,
+  WithId,
+} from "@/types/collection";
+import { normalizeVariableKey } from "@/features/variables/schema";
 
 export const ORGANIZATION_BUILT_IN_VARIABLE_KEYS = ["ORGANIZATION_NAME"] as const;
 export const EVENT_BUILT_IN_VARIABLE_KEYS = [
@@ -134,7 +141,11 @@ export function buildOrganizationBuiltInVariables(
 }
 
 export function buildEventBuiltInVariables(
-  event: Pick<EventDoc, "name" | "status" | "timezone" | "periods"> | null | undefined,
+  event:
+    | (Pick<EventDoc, "name" | "timezone" | "periods"> &
+        Partial<Pick<EventDoc, "status">>)
+    | null
+    | undefined,
 ): BuiltInVariable[] {
   return [
     {
@@ -193,7 +204,7 @@ interface ResolveVariablesInput {
   eventBuiltIns?: Array<Pick<BuiltInVariable, "key" | "value">>;
 }
 
-const VARIABLE_TOKEN_PATTERN = /\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}/g;
+const VARIABLE_TOKEN_PATTERN = /\{\{\s*([A-Za-z][A-Za-z0-9_\s-]*)\s*\}\}/g;
 
 export function resolveVariables({
   text,
@@ -211,7 +222,7 @@ export function resolveVariables({
 
   const unknownKeys = new Set<string>();
   const output = text.replace(VARIABLE_TOKEN_PATTERN, (match, rawKey: string) => {
-    const key = rawKey.trim().toUpperCase();
+    const key = normalizeVariableKey(rawKey);
     if (!values.has(key)) {
       unknownKeys.add(key);
       return match;

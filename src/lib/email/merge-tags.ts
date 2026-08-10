@@ -78,11 +78,26 @@ export interface EmailMergeContext {
   // markup replacement in the catalog. HTML body only.
   qrCodeSvg?: string;
   eventUrl?: string;
+  variables?: Record<string, string>;
 }
+
+type EmailScalarContextKey =
+  | "eventTitle"
+  | "eventDate"
+  | "firstName"
+  | "lastName"
+  | "email"
+  | "company"
+  | "jobTitle"
+  | "ticketName"
+  | "registrationType"
+  | "orderTotal"
+  | "paymentStatus"
+  | "eventUrl";
 
 const TAG_TO_CONTEXT_KEY: Record<
   Exclude<EmailMergeTag, "full_name" | "qr_code">,
-  keyof EmailMergeContext
+  EmailScalarContextKey
 > = {
   event_title: "eventTitle",
   event_date: "eventDate",
@@ -134,13 +149,25 @@ export interface RenderEmailTemplateResult {
   // Syntactically valid tags not in the catalog — left LITERAL in the
   // output (typo signal for T2's preview).
   unknownTags: string[];
+  // Variables referenced as {{KEY}} but not found in the available variable
+  // map. Left literal so authors can spot the typo in preview.
+  unknownVariables: string[];
 }
 
 // Tag syntax: {lowercase_snake_case}. "{}", "{unclosed", "{Upper}" and
 // "{kebab-case}" are NOT tag syntax — left untouched and unreported.
 const TAG_RE = /\{([a-z][a-z0-9_]*)\}/g;
+const VARIABLE_RE = /\{\{\s*([A-Za-z][A-Za-z0-9_\s-]*)\s*\}\}/g;
 
 type RenderPart = "subject" | "html" | "text";
+
+function normalizeVariableKey(input: string): string {
+  return input
+    .trim()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^A-Za-z0-9_]/g, "")
+    .toUpperCase();
+}
 
 // Resolves the RAW (unescaped) value for a known tag; null = value missing.
 function resolveTagValue(
@@ -172,9 +199,23 @@ function renderPart(
     used: Set<EmailMergeTag>;
     missing: Set<EmailMergeTag>;
     unknown: Set<string>;
+    unknownVariables: Set<string>;
   },
 ): string {
-  return input.replace(TAG_RE, (literal, tagName: string) => {
+  const withVariables = input.replace(VARIABLE_RE, (literal, rawKey: string) => {
+    const key = normalizeVariableKey(rawKey);
+    const value = context.variables?.[key];
+    if (value === undefined) {
+      report.unknownVariables.add(key);
+      return literal;
+    }
+
+    if (part === "html") return escapeHtml(value);
+    if (part === "subject") return stripControlChars(value);
+    return value;
+  });
+
+  return withVariables.replace(TAG_RE, (literal, tagName: string) => {
     if (!KNOWN_TAGS.has(tagName)) {
       report.unknown.add(tagName);
       return literal;
@@ -209,6 +250,7 @@ export function renderEmailTemplate(
     used: new Set<EmailMergeTag>(),
     missing: new Set<EmailMergeTag>(),
     unknown: new Set<string>(),
+    unknownVariables: new Set<string>(),
   };
 
   const subject = renderPart(template.subject, "subject", context, report);
@@ -222,5 +264,6 @@ export function renderEmailTemplate(
     usedTags: [...report.used],
     missingTags: [...report.missing],
     unknownTags: [...report.unknown],
+    unknownVariables: [...report.unknownVariables],
   };
 }
