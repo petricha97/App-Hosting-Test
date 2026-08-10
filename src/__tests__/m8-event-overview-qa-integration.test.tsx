@@ -55,6 +55,14 @@ function matches(name: string, filters: Array<[string, string, unknown]>) {
 }
 
 vi.mock("@/app/lib/firestore", () => ({ adminDb: { collection } }));
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({
+    organization: {
+      name: "Eventa",
+      logoUrl: null,
+    },
+  }),
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
   usePathname: () => "/dashboard/events/evt-owned/pricing",

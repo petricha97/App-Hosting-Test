@@ -157,6 +157,7 @@ export const templateBuilderSchema = z.object({
   status: formTemplateStatusSchema,
   fields: z
     .array(formFieldSchema)
+    .min(1, "Template must include at least one field.")
     // M3-T2: templates are org-level and reusable across events; commerce
     // fields bind to event-scoped TicketTypes/EventPromotions, so they are
     // rejected here outright (T2 AC-3).

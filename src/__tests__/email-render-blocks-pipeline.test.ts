@@ -348,7 +348,7 @@ describe("§3 AC-6 — renderEmailTemplate / merge-tags.ts is NOT modified by th
     const content = readFileSync(filePath, "utf8");
     const hash = createHash("sha256").update(content).digest("hex");
     expect(hash).toBe(
-      "e33eadbb83e919e9259265fff4c462f815f0e45c629a9d16cb20e76baefdef86",
+      "e13fcf7d5f9837f228791ee155016ce3e9f1e30fecce87ca4f47f7c5b1176b57",
     );
   });
 

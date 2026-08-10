@@ -17,7 +17,7 @@
  *    rule)
  */
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -75,7 +75,9 @@ describe("src/lib/email import boundaries", () => {
           'from "@/lib/email/dev-outbox-transport"',
         ),
       )
-      .map((path) => path.split("/src/")[1]);
+      .map((path) =>
+        relative(join(process.cwd(), "src"), path).split(sep).join("/"),
+      );
 
     expect(offenders).toEqual(["lib/email/transport.ts"]);
   });
