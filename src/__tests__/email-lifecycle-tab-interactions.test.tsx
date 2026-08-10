@@ -1,13 +1,14 @@
 /**
- * QA (M6-T2 gate 3) — component-level interaction test for
- * `LifecycleEmailsTab` / `EmailGroupTable` / `EmailActiveSwitch`. Closes the
- * Full-Stack Developer's self-reported gap ("no component-level interaction
- * testing was done") for: the optimistic Active-switch toggle + rollback on
- * failure, the custom-definition delete confirm dialog, the M6-T3
- * not-built tooltip affordance on non-manual rows (absent on manual rows),
- * and the row-name click opening the editor. Spec refs: §1 AC-2, AC-4, AC-5.
+ * QA (M6-T2 gate 3) - component-level interaction test for
+ * `LifecycleEmailsTab` / `EmailActiveSwitch`.
  */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
@@ -64,21 +65,21 @@ const DEFAULT_DEFINITIONS: SerializedEmailDefinition[] = [
   }),
   def({
     kind: "confirmation-paid",
-    name: "Registration confirmation — paid",
+    name: "Registration confirmation - paid",
     group: "post-registration",
     trigger: { type: "on-accept" },
     audience: "accepted-paid",
   }),
   def({
     kind: "confirmation-payment-due",
-    name: "Registration confirmation — payment due",
+    name: "Registration confirmation - payment due",
     group: "post-registration",
     trigger: { type: "on-accept" },
     audience: "accepted-invoice",
   }),
   def({
     kind: "payment-reminder",
-    name: "Payment reminder 1–3",
+    name: "Payment reminder 1-3",
     group: "debt-chase",
     trigger: { type: "unpaid-offsets", offsetsDays: [7, 14, 21] },
     audience: "accepted-invoice",
@@ -127,41 +128,74 @@ function renderTab(
   };
 }
 
+function rowFor(kind: string) {
+  const row = document.querySelector(`[data-email-row="${kind}"]`);
+  expect(row).not.toBeNull();
+  return row as HTMLElement;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("QA — LifecycleEmailsTab: default rows + row-open (spec §1 AC-1, row click)", () => {
-  it("renders exactly the 8 default rows across the three grouped tables", () => {
+describe("LifecycleEmailsTab basics", () => {
+  it("can show the full plan when All is selected", () => {
     renderTab();
-    for (const d of DEFAULT_DEFINITIONS) {
-      expect(screen.getByText(d.name)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^All/ }));
+    for (const definition of DEFAULT_DEFINITIONS) {
+      expect(screen.getAllByText(definition.name).length).toBeGreaterThan(0);
     }
   });
 
-  it("clicking a row name opens the editor for that kind", () => {
+  it("opens the editor from a row action", () => {
     const { onOpenEditor } = renderTab();
-    fireEvent.click(screen.getByText("Invitation"));
+    fireEvent.click(screen.getByRole("button", { name: /^Before registration/ }));
+    fireEvent.click(
+      within(rowFor("invitation")).getByRole("button", { name: "Edit" }),
+    );
     expect(onOpenEditor).toHaveBeenCalledWith("invitation");
+  });
+
+  it("updates the detail panel when a different row is selected", () => {
+    renderTab();
+    fireEvent.click(screen.getByRole("button", { name: /^Before registration/ }));
+    fireEvent.click(
+      within(rowFor("abandoned-reminder")).getByRole("button", { name: "View" }),
+    );
+    expect(within(rowFor("abandoned-reminder")).getByText("Viewing")).toBeTruthy();
+    expect(within(rowFor("invitation")).queryByText("Viewing")).toBeNull();
+  });
+
+  it("starts focused on a single lifecycle phase", () => {
+    renderTab();
+    expect(screen.getAllByText("After registration").length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-email-row="approval-pending"]')).not.toBeNull();
+    expect(document.querySelector('[data-email-row="invitation"]')).toBeNull();
   });
 });
 
-describe("QA — TriggerCell M6-T3 tooltip retirement (spec: m6-lifecycle-triggers.md)", () => {
-  it("no row renders the M6-T3-not-built affordance — every trigger type is live now", () => {
+describe("Trigger display", () => {
+  it("does not render the retired not-built tooltip copy", () => {
     renderTab();
     expect(screen.queryByText("Automation not yet built")).toBeNull();
   });
 
-  it("still renders the canonical trigger label on both manual and automated rows", () => {
+  it("still renders canonical trigger labels for manual and automated rows", () => {
     renderTab();
-    expect(screen.getByText("Manual")).toBeTruthy();
-    expect(screen.getByText("Auto · on submit")).toBeTruthy();
-    expect(screen.getByText("Auto · 24h after drop-off")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^All/ }));
+    expect(within(rowFor("invitation")).getAllByText(/Manual/i).length).toBeGreaterThan(0);
+    expect(
+      within(rowFor("approval-pending")).getAllByText(/on submit/i).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(rowFor("abandoned-reminder")).getAllByText(/24h after drop-off/i)
+        .length,
+    ).toBeGreaterThan(0);
   });
 });
 
-describe("QA — Active switch: optimistic toggle + rollback on failure (spec §1 AC-2)", () => {
-  it("flips the badge immediately on click (optimistic), before the fetch resolves", async () => {
+describe("Active switch", () => {
+  it("flips the badge immediately on click before the fetch resolves", async () => {
     let resolveFetch: (value: Response) => void = () => {};
     vi.stubGlobal(
       "fetch",
@@ -175,21 +209,22 @@ describe("QA — Active switch: optimistic toggle + rollback on failure (spec §
 
     renderTab([def({ kind: "invitation", name: "Invitation" })]);
 
-    expect(screen.getByText("On")).toBeTruthy();
+    expect(within(rowFor("invitation")).getByText("On")).toBeTruthy();
     fireEvent.click(
       screen.getByRole("switch", { name: "Toggle Invitation active" }),
     );
 
-    // Optimistic flip happens synchronously, before the in-flight fetch settles.
-    await waitFor(() => expect(screen.getByText("Off")).toBeTruthy());
-    expect(screen.queryByText("On")).toBeNull();
+    await waitFor(() =>
+      expect(within(rowFor("invitation")).getAllByText("Off").length).toBeGreaterThan(0),
+    );
+    expect(within(rowFor("invitation")).queryByText("On")).toBeNull();
 
     resolveFetch(
       new Response(JSON.stringify({ definition: {} }), { status: 200 }),
     );
   });
 
-  it("rolls back to the prior state and toasts an error when the PATCH fails", async () => {
+  it("rolls back to the prior state and toasts an error when PATCH fails", async () => {
     vi.stubGlobal(
       "fetch",
       vi
@@ -205,33 +240,30 @@ describe("QA — Active switch: optimistic toggle + rollback on failure (spec §
       screen.getByRole("switch", { name: "Toggle Invitation active" }),
     );
 
-    // Rolls back to "On" once the failed response resolves.
-    await waitFor(() => expect(screen.getByText("On")).toBeTruthy());
-    expect(screen.queryByText("Off")).toBeNull();
+    await waitFor(() =>
+      expect(within(rowFor("invitation")).getByText("On")).toBeTruthy(),
+    );
     expect(toastError).toHaveBeenCalledWith("Failed to update the email.");
   });
 
-  it("rolls back on a network error (fetch throws), not just a non-ok response", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockRejectedValue(new Error("network down")),
-    );
+  it("rolls back on a network error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
 
     renderTab([def({ kind: "invitation", name: "Invitation" })]);
     fireEvent.click(
       screen.getByRole("switch", { name: "Toggle Invitation active" }),
     );
 
-    await waitFor(() => expect(screen.getByText("On")).toBeTruthy());
+    await waitFor(() =>
+      expect(within(rowFor("invitation")).getByText("On")).toBeTruthy(),
+    );
     expect(toastError).toHaveBeenCalled();
   });
 });
 
-describe("QA — custom definition delete (spec §1 AC-5)", () => {
+describe("Custom definition delete", () => {
   it("system rows render no delete affordance", () => {
-    renderTab([
-      def({ kind: "invitation", name: "Invitation", isSystem: true }),
-    ]);
+    renderTab([def({ kind: "invitation", name: "Invitation", isSystem: true })]);
     expect(
       screen.queryByRole("button", { name: "Delete Invitation" }),
     ).toBeNull();
@@ -242,7 +274,7 @@ describe("QA — custom definition delete (spec §1 AC-5)", () => {
     renderTab([CUSTOM_DEFINITION]);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Delete VIP reminder" }),
+      screen.getAllByRole("button", { name: "Delete VIP reminder" })[0]!,
     );
     expect(screen.getByText("Delete VIP reminder?")).toBeTruthy();
 
@@ -258,7 +290,7 @@ describe("QA — custom definition delete (spec §1 AC-5)", () => {
     renderTab([CUSTOM_DEFINITION]);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Delete VIP reminder" }),
+      screen.getAllByRole("button", { name: "Delete VIP reminder" })[0]!,
     );
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
@@ -274,16 +306,23 @@ describe("QA — custom definition delete (spec §1 AC-5)", () => {
   });
 });
 
-describe("QA — responsive grid (spec §1 AC-7, design §1)", () => {
-  it("the debt-chase/preview region uses a grid that stacks below lg (grid + lg:grid-cols-2)", () => {
+describe("Responsive layout", () => {
+  it("uses a two-column xl master-detail grid", () => {
     const { container } = renderTab();
-    const grid = container.querySelector(".grid.gap-6.lg\\:grid-cols-2");
+    const grid = container.querySelector(
+      ".grid.gap-6.xl\\:grid-cols-\\[0\\.88fr_1\\.12fr\\]",
+    );
     expect(grid).not.toBeNull();
   });
 
-  it("each grouped table scrolls horizontally inside its own wrap (overflow-x-auto), never the page", () => {
-    const { container } = renderTab();
-    const scrollWraps = container.querySelectorAll(".overflow-x-auto");
-    expect(scrollWraps.length).toBeGreaterThanOrEqual(3); // 3 grouped tables
+  it("shows phase filters and can reveal all lifecycle sections together", () => {
+    renderTab();
+    expect(screen.getByRole("button", { name: /^All/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Before registration/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^All/ }));
+    expect(screen.getAllByText("Before registration").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("After registration").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Reminders and follow-up").length).toBeGreaterThan(0);
+    expect(screen.getByText("Selected email")).toBeTruthy();
   });
 });

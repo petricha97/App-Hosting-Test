@@ -1,6 +1,6 @@
 "use client";
 
-// "Open Email Designer" definition-picker menu (design §1) — replaces the
+// "Design existing email" definition-picker menu (design §1) — replaces the
 // disabled button in emails-workspace.tsx. Grouped by the SAME 3 groups the
 // lifecycle table already renders (EMAIL_GROUP_LABELS), reusing
 // `definitionsByKind`'s already-loaded data — no new fetch (spec §4 "no new
@@ -46,7 +46,7 @@ export function EmailDefinitionPickerMenu({
       <DropdownMenuTrigger asChild>
         <Button variant="outline">
           <Blocks aria-hidden="true" />
-          Open Email Designer
+          Design existing email
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">

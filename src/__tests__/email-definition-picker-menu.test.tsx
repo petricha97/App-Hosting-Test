@@ -52,7 +52,7 @@ const DEFINITIONS: SerializedEmailDefinition[] = [
 ];
 
 function openMenu() {
-  const trigger = screen.getByRole("button", { name: "Open Email Designer" });
+  const trigger = screen.getByRole("button", { name: "Design existing email" });
   fireEvent.pointerDown(trigger, { button: 0, pointerId: 1 });
   fireEvent.click(trigger);
 }
