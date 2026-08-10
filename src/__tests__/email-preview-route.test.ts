@@ -22,6 +22,8 @@ const {
   getAdminEventForOrganization,
   listAdminAttendeesForEvent,
   resolveEmailBlockRenderContext,
+  loadEmailTemplateVariableSource,
+  attachEmailTemplateVariables,
 } = vi.hoisted(() => ({
   cookies: vi.fn(),
   decodeUser: vi.fn(),
@@ -29,6 +31,8 @@ const {
   getAdminEventForOrganization: vi.fn(),
   listAdminAttendeesForEvent: vi.fn(),
   resolveEmailBlockRenderContext: vi.fn(),
+  loadEmailTemplateVariableSource: vi.fn(),
+  attachEmailTemplateVariables: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies }));
@@ -40,6 +44,10 @@ vi.mock("@/lib/db/adminAttendee", () => ({ listAdminAttendeesForEvent }));
 // email-block-render-context.test.ts).
 vi.mock("@/features/emails/server/resolve-block-context", () => ({
   resolveEmailBlockRenderContext,
+}));
+vi.mock("@/features/emails/server/template-variables", () => ({
+  loadEmailTemplateVariableSource,
+  attachEmailTemplateVariables,
 }));
 
 import { POST } from "@/app/api/dashboard/events/[eventId]/emails/preview/route";
@@ -89,6 +97,10 @@ beforeEach(() => {
   getAdminEventForOrganization.mockResolvedValue(EVENT);
   listAdminAttendeesForEvent.mockResolvedValue([]);
   resolveEmailBlockRenderContext.mockResolvedValue({});
+  loadEmailTemplateVariableSource.mockResolvedValue({ values: {} });
+  attachEmailTemplateVariables.mockImplementation(
+    ({ context }: { context: unknown }) => context,
+  );
 });
 
 describe("POST preview — plain-text mode (unchanged)", () => {
@@ -104,6 +116,28 @@ describe("POST preview — plain-text mode (unchanged)", () => {
     const body = await response.json();
     expect(body.subject).toContain("Sample");
     expect(body.bodyHtml).toContain("Innovation Summit");
+  });
+
+  it("returns unknown variable warnings without breaking the rendered preview", async () => {
+    attachEmailTemplateVariables.mockImplementation(
+      ({ context }: { context: { firstName?: string } }) => ({
+        ...context,
+        variables: {},
+      }),
+    );
+
+    const response = await POST(
+      previewRequest({
+        subject: "Hi {{RECIPIENT_NAME}}",
+        body: "Welcome to {event_title}",
+      }),
+      makeContext(),
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.subject).toContain("{{RECIPIENT_NAME}}");
+    expect(body.unknownVariables).toEqual(["RECIPIENT_NAME"]);
   });
 });
 

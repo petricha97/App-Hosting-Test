@@ -9,6 +9,10 @@ import { renderEmailDefinitionPreview } from "@/features/emails/server/render";
 import { readEmailRouteJsonBody } from "@/features/emails/server/read-json-body";
 import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
 import { loadSampleEmailContext } from "@/features/emails/server/sample-context";
+import {
+  attachEmailTemplateVariables,
+  loadEmailTemplateVariableSource,
+} from "@/features/emails/server/template-variables";
 import { resolveRegistrationRouteScope } from "@/features/registration/server/route-scope";
 import {
   emailBodyBlocksSchema,
@@ -75,7 +79,7 @@ export async function POST(request: Request, context: RouteContext) {
   // pricing/registration/countdown data (once per request, never per
   // recipient) so RegistrationEmbed/TicketPricingTable/CountdownTimer show
   // real content here instead of always falling back to their empty state.
-  const [sample, blockContext] = await Promise.all([
+  const [sample, blockContext, variableSource] = await Promise.all([
     loadSampleEmailContext({
       eventId,
       organizationId: scope.organizationId,
@@ -85,12 +89,19 @@ export async function POST(request: Request, context: RouteContext) {
       eventId,
       organizationId: scope.organizationId,
     }),
+    loadEmailTemplateVariableSource({
+      organizationId: scope.organizationId,
+      event: scope.event,
+    }),
   ]);
 
   const rendered = renderEmailDefinitionPreview({
     subjectTemplate: parsed.data.subject,
     bodyTemplate: parsed.data.body,
-    context: sample.context,
+    context: attachEmailTemplateVariables({
+      context: sample.context,
+      source: variableSource,
+    }),
     bodyMode: parsed.data.bodyMode,
     bodyBlocks: parsed.data.bodyBlocks,
     blockContext,
@@ -102,5 +113,6 @@ export async function POST(request: Request, context: RouteContext) {
     bodyText: rendered.bodyText,
     missingTags: rendered.missingTags,
     unknownTags: rendered.unknownTags,
+    unknownVariables: rendered.unknownVariables,
   });
 }

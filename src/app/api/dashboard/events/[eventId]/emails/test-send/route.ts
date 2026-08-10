@@ -15,6 +15,10 @@ import { deriveBodyForDefinition } from "@/features/emails/server/render";
 import { readEmailRouteJsonBody } from "@/features/emails/server/read-json-body";
 import { resolveEmailBlockRenderContext } from "@/features/emails/server/resolve-block-context";
 import { loadSampleEmailContext } from "@/features/emails/server/sample-context";
+import {
+  attachEmailTemplateVariables,
+  loadEmailTemplateVariableSource,
+} from "@/features/emails/server/template-variables";
 import { resolveRegistrationRouteScope } from "@/features/registration/server/route-scope";
 import { getAdminEmailDefinitionByKind } from "@/lib/db/adminEmailDefinition";
 import { emailDefinitionId } from "@/lib/db/emailDefinitionId";
@@ -107,7 +111,7 @@ export async function POST(request: Request, context: RouteContext) {
   // M6-T4 B-1 fix: a test-send is a real send — RegistrationEmbed/
   // TicketPricingTable/CountdownTimer must render real data here, not the
   // empty-state fallback, for a test recipient to actually verify them.
-  const [sample, blockContext] = await Promise.all([
+  const [sample, blockContext, variableSource] = await Promise.all([
     loadSampleEmailContext({
       eventId,
       organizationId: scope.organizationId,
@@ -116,6 +120,10 @@ export async function POST(request: Request, context: RouteContext) {
     resolveEmailBlockRenderContext({
       eventId,
       organizationId: scope.organizationId,
+    }),
+    loadEmailTemplateVariableSource({
+      organizationId: scope.organizationId,
+      event: scope.event,
     }),
   ]);
 
@@ -145,7 +153,10 @@ export async function POST(request: Request, context: RouteContext) {
       bodyHtml,
       bodyText,
     },
-    context: sample.context,
+    context: attachEmailTemplateVariables({
+      context: sample.context,
+      source: variableSource,
+    }),
   });
 
   if (!result.ok) {
