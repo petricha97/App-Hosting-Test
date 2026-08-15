@@ -13,10 +13,17 @@ const firestoreTimestampSchema = z.custom<Timestamp | FieldValue>(
 export const eventStatusSchema = z.enum(["Draft", "Published"]);
 export const eventPageModeSchema = z.enum(["default", "custom", "redirect"]);
 
+/** Today's date as "YYYY-MM-DD" (UTC), used for the not-in-the-past check. */
 function getTodayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * Build a Zod schema for a start/end date+time range. Every part is required,
+ * the end must be on/after the start, and (when `disallowPastStartDate` is set)
+ * the start cannot be before today. Reused for both the registration window and
+ * each event schedule block.
+ */
 function createDateTimeRangeSchema(options?: {
   disallowPastStartDate?: boolean;
   startDateMessage?: string;
@@ -48,9 +55,11 @@ function createDateTimeRangeSchema(options?: {
         const start = new Date(`${value.startDate}T${value.startTime}`);
         const end = new Date(`${value.endDate}T${value.endTime}`);
 
-        return !Number.isNaN(start.getTime()) &&
+        return (
+          !Number.isNaN(start.getTime()) &&
           !Number.isNaN(end.getTime()) &&
-          end.getTime() >= start.getTime();
+          end.getTime() >= start.getTime()
+        );
       },
       {
         message: "End date and time must be after the start date and time.",
@@ -71,36 +80,38 @@ export const eventRegistrationPeriodDocumentSchema = z.record(
   z.string(),
 );
 
-export const eventFormSchema = z.object({
-  name: z.string().trim().min(1, "Name is required"),
-  description: z.string().trim().min(1, "Description is required"),
-  capacity: z.coerce.number().int().min(1, "Capacity must be at least 1"),
-  expectedGuests: z.coerce
-    .number()
-    .int()
-    .min(0, "Expected guests cannot be negative"),
-  eventPagePath: z.string().trim().optional(),
-  formPath: z.string().trim().min(1, "Form path is required"),
-  invoicePath: z.string().trim().default(""),
-  organizationPath: z.string().trim().min(1, "Organization path is required"),
-  timezone: z.string().trim().min(1, "Timezone is required"),
-  allowOverlap: z.boolean(),
-  status: eventStatusSchema,
-  pageMode: eventPageModeSchema.default("default"),
-  redirectUrl: z.string().trim().default(""),
-  registrationPeriod: eventRegistrationPeriodSchema,
-  periods: z
-    .array(eventScheduleRangeSchema)
-    .min(1, "Add at least one date and time range."),
-}).superRefine((value, context) => {
-  if (value.pageMode === "redirect" && value.redirectUrl.length === 0) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Redirect URL is required when page mode is redirect.",
-      path: ["redirectUrl"],
-    });
-  }
-});
+export const eventFormSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required"),
+    description: z.string().trim().min(1, "Description is required"),
+    capacity: z.coerce.number().int().min(1, "Capacity must be at least 1"),
+    expectedGuests: z.coerce
+      .number()
+      .int()
+      .min(0, "Expected guests cannot be negative"),
+    eventPagePath: z.string().trim().optional(),
+    formPath: z.string().trim().min(1, "Form path is required"),
+    invoicePath: z.string().trim().default(""),
+    organizationPath: z.string().trim().min(1, "Organization path is required"),
+    timezone: z.string().trim().min(1, "Timezone is required"),
+    allowOverlap: z.boolean(),
+    status: eventStatusSchema,
+    pageMode: eventPageModeSchema.default("default"),
+    redirectUrl: z.string().trim().default(""),
+    registrationPeriod: eventRegistrationPeriodSchema,
+    periods: z
+      .array(eventScheduleRangeSchema)
+      .min(1, "Add at least one date and time range."),
+  })
+  .superRefine((value, context) => {
+    if (value.pageMode === "redirect" && value.redirectUrl.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Redirect URL is required when page mode is redirect.",
+        path: ["redirectUrl"],
+      });
+    }
+  });
 
 export const eventDocumentSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),

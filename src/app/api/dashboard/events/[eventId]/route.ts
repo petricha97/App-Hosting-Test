@@ -16,6 +16,13 @@ interface RouteContext {
   params: Promise<{ eventId: string }>;
 }
 
+/**
+ * POST /api/dashboard/events/[eventId] — the EDIT save endpoint.
+ * Called by the edit workspace (event-form-core.ts → submitEventForm, edit
+ * branch). Authenticates the session, resolves the caller's organization,
+ * verifies the event belongs to that org, validates the body against
+ * eventFormSchema, and writes the update. Returns 401/403/404/422 on failure.
+ */
 export async function POST(request: Request, context: RouteContext) {
   const { eventId } = await context.params;
   const cookieStore = await cookies();
@@ -47,7 +54,10 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const event = await getAdminEventForOrganization(eventId, userDoc.organizationId);
+  const event = await getAdminEventForOrganization(
+    eventId,
+    userDoc.organizationId,
+  );
 
   if (!event) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
@@ -57,7 +67,10 @@ export async function POST(request: Request, context: RouteContext) {
   const parsed = eventFormSchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   if (

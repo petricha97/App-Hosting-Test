@@ -1,33 +1,57 @@
 "use client";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// EDIT screen — single-page event form.
+// ─────────────────────────────────────────────────────────────────────────────
+// This is the flat, scroll-through form used to EDIT an existing event
+// (rendered by src/app/dashboard/(event)/events/[eventId]/edit/page.tsx with
+// mode="edit"). Editors want to jump straight to a field, so this stays a single
+// page rather than a wizard.
+//
+// CREATING a new event now uses the step-by-step wizard instead
+// (src/features/event/create-event-wizard.tsx). This component still technically
+// supports mode="create", but the create route no longer renders it that way.
+//
+// The actual field markup is NOT defined here — it comes from the SHARED field
+// groups in src/features/event/fields/*, which the create wizard renders too, so
+// there is one source of truth per field group. This file only arranges those
+// groups on one page and adds the EDIT-only bits (status <select>, dev-only
+// linkage paths, and the right-hand context panel).
+// Save logic (create + edit) lives in event-form-core.ts → submitEventForm.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { serverTimestamp } from "firebase/firestore";
 import {
   CalendarClock,
   FileStack,
   Globe,
   Loader2,
-  Plus,
   Sparkles,
-  Trash2,
 } from "lucide-react";
-import { useFieldArray, useForm } from "react-hook-form";
-import { toast } from "sonner";
+import { useForm } from "react-hook-form";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { createEvent } from "@/lib/db/event";
 import { DashboardPageHeader } from "@/features/dashboard/components/page-header";
 import {
   eventFormSchema,
   type EventFormInput,
-  type EventRegistrationPeriodValues,
-  type EventScheduleRangeValues,
   type EventFormValues,
 } from "@/features/event/schema";
-import { buildOrganizationEventPath } from "@/features/event/utils";
+import {
+  PENDING_FORM_PATH,
+  buildOrganizationPath,
+  buildWorkspaceDefaults,
+  submitEventForm,
+  type EventWorkspaceInitialValues,
+  type EventWorkspaceMode,
+} from "@/features/event/event-form-core";
+// Shared field groups — the SAME components the create wizard renders.
+import { EventBasicsFields } from "@/features/event/fields/event-basics-fields";
+import { EventScheduleFields } from "@/features/event/fields/event-schedule-fields";
+import { EventPublicPageFields } from "@/features/event/fields/event-public-page-fields";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -46,102 +70,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 
 const FORM_ID = "create-event-form";
-
-const EMPTY_SCHEDULE_RANGE: EventScheduleRangeValues = {
-  startDate: "",
-  startTime: "",
-  endDate: "",
-  endTime: "",
-};
-const buildEmptyRegistrationPeriod = (
-  todayDate: string,
-): EventRegistrationPeriodValues => ({
-  startDate: todayDate,
-  startTime: "",
-  endDate: todayDate,
-  endTime: "",
-});
-
-const PENDING_FORM_PATH = "Form/pending";
-
-type EventWorkspaceMode = "create" | "edit";
-
-interface EventWorkspaceInitialValues {
-  name?: string;
-  description?: string;
-  capacity?: number;
-  expectedGuests?: number;
-  formPath?: string;
-  invoicePath?: string;
-  organizationPath?: string;
-  timezone?: string;
-  allowOverlap?: boolean;
-  status?: "Draft" | "Published";
-  pageMode?: "default" | "custom" | "redirect";
-  redirectUrl?: string;
-  registrationPeriod?: Partial<EventRegistrationPeriodValues>;
-  periods?: Array<Partial<EventScheduleRangeValues>>;
-}
 
 interface CreateEventWorkspaceProps {
   mode?: EventWorkspaceMode;
   eventId?: string;
   initialValues?: EventWorkspaceInitialValues;
-}
-
-function buildOrganizationPath(organizationId: string | null) {
-  return organizationId ? buildOrganizationEventPath(organizationId) : "";
-}
-
-function normalizeScheduleRange(
-  value: Partial<EventScheduleRangeValues> | Record<string, string> | undefined,
-): EventScheduleRangeValues {
-  const recordValue = value as Record<string, string> | undefined;
-
-  return {
-    startDate: value?.startDate ?? recordValue?.date ?? "",
-    startTime: value?.startTime ?? recordValue?.start_time ?? "",
-    endDate: value?.endDate ?? recordValue?.date ?? "",
-    endTime: value?.endTime ?? recordValue?.end_time ?? "",
-  };
-}
-
-function buildWorkspaceDefaults(
-  organizationPathDefault: string,
-  todayDateString: string,
-  initialValues?: EventWorkspaceInitialValues,
-): EventFormInput {
-  const registrationPeriod = initialValues?.registrationPeriod;
-
-  return {
-    name: initialValues?.name ?? "",
-    description: initialValues?.description ?? "",
-    capacity: initialValues?.capacity ?? 1,
-    expectedGuests: initialValues?.expectedGuests ?? 0,
-    formPath: initialValues?.formPath ?? PENDING_FORM_PATH,
-    invoicePath: initialValues?.invoicePath ?? "",
-    organizationPath:
-      initialValues?.organizationPath ?? organizationPathDefault,
-    timezone: initialValues?.timezone ?? "Asia/Singapore",
-    allowOverlap: initialValues?.allowOverlap ?? false,
-    status: initialValues?.status ?? "Draft",
-    pageMode: initialValues?.pageMode ?? "default",
-    redirectUrl: initialValues?.redirectUrl ?? "",
-    registrationPeriod: {
-      startDate: registrationPeriod?.startDate ?? todayDateString,
-      startTime: registrationPeriod?.startTime ?? "",
-      endDate: registrationPeriod?.endDate ?? todayDateString,
-      endTime: registrationPeriod?.endTime ?? "",
-    },
-    periods:
-      initialValues?.periods && initialValues.periods.length > 0
-        ? initialValues.periods.map((period) => normalizeScheduleRange(period))
-        : [{ ...EMPTY_SCHEDULE_RANGE }],
-  };
 }
 
 export function CreateEventWorkspace({
@@ -151,7 +86,10 @@ export function CreateEventWorkspace({
 }: CreateEventWorkspaceProps) {
   const router = useRouter();
   const { organization, organizationId, initializing } = useAuth();
-  const todayDateString = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayDateString = useMemo(
+    () => new Date().toISOString().slice(0, 10),
+    [],
+  );
 
   const organizationPathDefault = useMemo(
     () => buildOrganizationPath(organizationId),
@@ -172,11 +110,9 @@ export function CreateEventWorkspace({
     resolver: zodResolver(eventFormSchema),
     defaultValues,
   });
-  const scheduleRanges = useFieldArray({
-    control: form.control,
-    name: "periods",
-  });
 
+  // Keep organizationPath filled from the active workspace unless the user has
+  // touched it.
   useEffect(() => {
     const currentPath = form.getValues("organizationPath");
     const isUntouched = !form.getFieldState("organizationPath").isDirty;
@@ -190,6 +126,8 @@ export function CreateEventWorkspace({
     }
   }, [form, organizationPathDefault]);
 
+  // On create, formPath stays the system-managed placeholder until the form
+  // builder saves its first draft.
   useEffect(() => {
     const currentFormPath = form.getValues("formPath");
 
@@ -202,69 +140,9 @@ export function CreateEventWorkspace({
     }
   }, [form, mode]);
 
+  // Delegates to the shared submit logic (identical for create + edit).
   async function onSubmit(values: EventFormValues) {
-    try {
-      if (mode === "edit" && eventId) {
-        const response = await fetch(`/api/dashboard/events/${eventId}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(values),
-        });
-
-        const payload = await response.json().catch(() => null);
-
-        if (!response.ok) {
-          throw new Error(
-            typeof payload?.error === "string"
-              ? payload.error
-              : "Unable to update the event.",
-          );
-        }
-
-        toast.success("Event updated", {
-          description:
-            values.pageMode === "redirect"
-              ? "The public page settings were updated for this event."
-              : "The event details have been saved.",
-        });
-
-        router.push(`/dashboard/events/${eventId}`);
-        router.refresh();
-      } else {
-        const id = await createEvent({
-          ...values,
-          createdAt: serverTimestamp() as never,
-          updatedAt: serverTimestamp() as never,
-          periods: values.periods,
-        });
-
-        toast.success(
-          values.status === "Published" ? "Event published" : "Draft event created",
-          {
-            description:
-              values.status === "Published"
-                ? "The event has been saved and can now appear in the public events list."
-                : "The event has been saved. Opening the event workspace now.",
-          },
-        );
-
-        router.push(`/dashboard/events/${id}`);
-        router.refresh();
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error(
-        mode === "edit" ? "Failed to update event" : "Failed to create event",
-        {
-          description:
-            error instanceof Error
-              ? error.message
-              : "Please review the fields and try again.",
-        },
-      );
-    }
+    await submitEventForm({ mode, eventId, values, router });
   }
 
   const isSubmitting = form.formState.isSubmitting;
@@ -315,7 +193,8 @@ export function CreateEventWorkspace({
         : "Saving..."
     : secondarySubmitLabel;
 
-  const backHref = isEditing && eventId ? `/dashboard/events/${eventId}` : "/dashboard/events";
+  const backHref =
+    isEditing && eventId ? `/dashboard/events/${eventId}` : "/dashboard/events";
 
   return (
     <div className="space-y-6">
@@ -351,6 +230,7 @@ export function CreateEventWorkspace({
             onSubmit={form.handleSubmit(onSubmit)}
             className="space-y-6"
           >
+            {/* ── Event basics + public page (shared field groups) ────────── */}
             <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">
               <CardHeader className="px-6 pt-6">
                 <div className="flex items-center gap-3">
@@ -369,146 +249,12 @@ export function CreateEventWorkspace({
                 </div>
               </CardHeader>
               <CardContent className="space-y-5 px-6 pb-6 pt-0">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Event name</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Tech Meetup 2026"
-                          className="h-12 rounded-2xl border-slate-200 bg-slate-50"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Describe the event"
-                          className="min-h-32 rounded-[1.5rem] border-slate-200 bg-slate-50"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid gap-5 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="capacity"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Capacity</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={1}
-                            className="h-12 rounded-2xl border-slate-200 bg-slate-50"
-                            name={field.name}
-                            ref={field.ref}
-                            onBlur={field.onBlur}
-                            value={
-                              field.value === undefined ? "" : String(field.value)
-                            }
-                            onChange={(event) => field.onChange(event.target.value)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="expectedGuests"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Expected guests</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={0}
-                            className="h-12 rounded-2xl border-slate-200 bg-slate-50"
-                            name={field.name}
-                            ref={field.ref}
-                            onBlur={field.onBlur}
-                            value={
-                              field.value === undefined ? "" : String(field.value)
-                            }
-                            onChange={(event) => field.onChange(event.target.value)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid gap-5 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="pageMode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Public page mode</FormLabel>
-                        <FormControl>
-                          <select
-                            className="flex h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm shadow-sm outline-none transition focus:border-orange-300"
-                            value={field.value}
-                            onChange={field.onChange}
-                          >
-                            <option value="default">Use default event page</option>
-                            <option value="custom">Design a custom page later</option>
-                            <option value="redirect">Redirect to my own page</option>
-                          </select>
-                        </FormControl>
-                        <FormDescription>
-                          Choose whether this event should use the default public
-                          page, a future custom page, or an external redirect.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="redirectUrl"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Redirect URL</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="https://example.com/my-event-page"
-                            className="h-12 rounded-2xl border-slate-200 bg-slate-50"
-                            disabled={form.watch("pageMode") !== "redirect"}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Required only when page mode is set to redirect.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                <EventBasicsFields form={form} />
+                <EventPublicPageFields form={form} />
               </CardContent>
             </Card>
 
+            {/* ── Schedule (shared) + EDIT-only status select ─────────────── */}
             <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">
               <CardHeader className="px-6 pt-6">
                 <div className="flex items-center gap-3">
@@ -528,295 +274,37 @@ export function CreateEventWorkspace({
                 </div>
               </CardHeader>
               <CardContent className="space-y-5 px-6 pb-6 pt-0">
-                <div className="space-y-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-950">
-                      Registration period
-                    </h3>
-                    <p className="text-sm leading-6 text-slate-600">
-                      Registration must open and close within a valid range, and
-                      it cannot start before today.
-                    </p>
-                  </div>
+                <EventScheduleFields
+                  form={form}
+                  todayDateString={todayDateString}
+                />
 
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <FormField
-                      control={form.control}
-                      name="registrationPeriod.startDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Registration start date</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="date"
-                              min={todayDateString}
-                              className="h-12 rounded-2xl border-slate-200 bg-white"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="registrationPeriod.startTime"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Registration start time</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="time"
-                              className="h-12 rounded-2xl border-slate-200 bg-white"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <FormField
-                      control={form.control}
-                      name="registrationPeriod.endDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Registration end date</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="date"
-                              min={
-                                form.watch("registrationPeriod.startDate") ||
-                                todayDateString
-                              }
-                              className="h-12 rounded-2xl border-slate-200 bg-white"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="registrationPeriod.endTime"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Registration end time</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="time"
-                              className="h-12 rounded-2xl border-slate-200 bg-white"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-950">
-                        Event date ranges
-                      </h3>
-                      <p className="text-sm leading-6 text-slate-600">
-                        Each range represents one continuous block of event time.
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-full"
-                      onClick={() => scheduleRanges.append({ ...EMPTY_SCHEDULE_RANGE })}
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add range
-                    </Button>
-                  </div>
-
-                  {scheduleRanges.fields.map((range, index) => (
-                    <div
-                      key={range.id}
-                      className="space-y-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-950">
-                            Range {index + 1}
-                          </p>
-                          <p className="text-xs leading-6 text-slate-500">
-                            Start and end are required for every schedule block.
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-full"
-                          onClick={() => scheduleRanges.remove(index)}
-                          disabled={scheduleRanges.fields.length === 1}
-                          title="Remove range"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Remove range</span>
-                        </Button>
-                      </div>
-
-                      <div className="grid gap-5 md:grid-cols-2">
-                        <FormField
-                          control={form.control}
-                          name={`periods.${index}.startDate`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Start date</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="date"
-                                  className="h-12 rounded-2xl border-slate-200 bg-white"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name={`periods.${index}.startTime`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Start time</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="time"
-                                  className="h-12 rounded-2xl border-slate-200 bg-white"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <div className="grid gap-5 md:grid-cols-2">
-                        <FormField
-                          control={form.control}
-                          name={`periods.${index}.endDate`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>End date</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="date"
-                                  className="h-12 rounded-2xl border-slate-200 bg-white"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name={`periods.${index}.endTime`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>End time</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="time"
-                                  className="h-12 rounded-2xl border-slate-200 bg-white"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid gap-5 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="timezone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Timezone</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Asia/Singapore"
-                            className="h-12 rounded-2xl border-slate-200 bg-slate-50"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Example: Asia/Singapore
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <FormControl>
-                          <select
-                            className="flex h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm shadow-sm outline-none transition focus:border-orange-300"
-                            value={field.value}
-                            onChange={field.onChange}
-                          >
-                            <option value="Draft">Draft</option>
-                            <option value="Published">Published</option>
-                          </select>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
+                {/* EDIT-only: publish status. In CREATE this Draft/Publish
+                    choice lives on the wizard's Review step instead. */}
                 <FormField
                   control={form.control}
-                  name="allowOverlap"
+                  name="status"
                   render={({ field }) => (
-                    <FormItem className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4">
-                      <div className="space-y-1">
-                        <FormLabel>Allow overlap</FormLabel>
-                        <FormDescription>
-                          Useful when separate schedule ranges might collide with
-                          each other or with shared venue usage rules.
-                        </FormDescription>
-                      </div>
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
                       <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
+                        <select
+                          className="flex h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm shadow-sm outline-none transition focus:border-orange-300"
+                          value={field.value}
+                          onChange={field.onChange}
+                        >
+                          <option value="Draft">Draft</option>
+                          <option value="Published">Published</option>
+                        </select>
                       </FormControl>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
               </CardContent>
             </Card>
 
+            {/* ── Dev-only linkage paths (system-managed, read-only) ───────── */}
             <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">
               <CardHeader className="px-6 pt-6">
                 <div className="flex items-center gap-3">
@@ -878,7 +366,8 @@ export function CreateEventWorkspace({
                         />
                       </FormControl>
                       <FormDescription>
-                        This is filled from the active workspace and cannot be edited here.
+                        This is filled from the active workspace and cannot be
+                        edited here.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -889,6 +378,7 @@ export function CreateEventWorkspace({
           </form>
         </Form>
 
+        {/* ── Right-hand context panel (EDIT-screen chrome) ───────────────── */}
         <div className="space-y-6">
           <Card className="rounded-[2rem] border-white/70 bg-white/92 py-0 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.35)]">
             <CardHeader className="px-6 pt-6">
@@ -913,7 +403,9 @@ export function CreateEventWorkspace({
                 </span>
                 <p className="mt-2 text-base font-semibold text-slate-950">
                   {organization?.name ??
-                    (initializing ? "Loading workspace..." : "No workspace found")}
+                    (initializing
+                      ? "Loading workspace..."
+                      : "No workspace found")}
                 </p>
               </div>
 

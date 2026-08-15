@@ -8,6 +8,8 @@ interface EditEventPageProps {
   params: Promise<{ eventId: string }>;
 }
 
+/** Map a stored event period to the form's range shape, tolerating the older
+ *  `{date, start_time, end_time}` document format. */
 function normalizeRange(period: Record<string, string>) {
   return {
     startDate: period.startDate ?? period.date ?? "",
@@ -17,12 +19,18 @@ function normalizeRange(period: Record<string, string>) {
   };
 }
 
+/** Route: /dashboard/events/[eventId]/edit — the EDIT flow. Server component:
+ *  resolves the org scope, loads the event (404 if missing/cross-org), then
+ *  renders the single-page workspace pre-filled with the event's current values. */
 export default async function DashboardEditEventPage({
   params,
 }: EditEventPageProps) {
   const { eventId } = await params;
   const scope = await getDashboardScope();
-  const event = await getAdminEventForOrganization(eventId, scope.organizationId);
+  const event = await getAdminEventForOrganization(
+    eventId,
+    scope.organizationId,
+  );
 
   if (!event) {
     notFound();

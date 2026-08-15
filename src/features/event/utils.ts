@@ -43,6 +43,8 @@ export type SerializedEvent = Omit<
   updatedAt: SerializedTimestamp | null;
 };
 
+/** Canonical Firestore path for an organization ("Organization/<id>"), stored on
+ *  the event as `organizationPath`. Used to scope create/edit to the active org. */
 export function buildOrganizationEventPath(organizationId: string) {
   return `Organization/${organizationId}`;
 }
