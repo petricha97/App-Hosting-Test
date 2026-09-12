@@ -10,6 +10,7 @@
 //   ordered by createdAt asc, bounded by a limit.
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 
 import { adminDb } from "@/app/lib/firestore";
@@ -159,4 +160,68 @@ export async function isAdminRegistrationTypeCodeTaken(input: {
     .get();
 
   return snap.docs.some((d) => d.id !== input.excludeId);
+}
+
+export type EnsureAdminDefaultRegistrationTypeResult =
+  | { ok: true; registrationTypeId: string; name: string; code: string; capacity: number | null }
+  | { ok: false; code: "CODE_TAKEN" | "NOT_FOUND" };
+
+// Ensures one ordinary General attendee type per event/org on explicit submission.
+// The stable document identity serializes concurrent creates; reuse returns saved
+// values unchanged, including later organizer edits to its name, code or capacity.
+export async function ensureAdminDefaultRegistrationType(input: {
+  organizationId: string;
+  eventId: string;
+  capacity: number | null;
+}): Promise<EnsureAdminDefaultRegistrationTypeResult> {
+  const identity = createHash("sha256")
+    .update(JSON.stringify([input.organizationId, input.eventId]))
+    .digest("hex");
+  const ref = registrationTypeCol().doc(`default-${identity}`);
+
+  return adminDb.runTransaction<EnsureAdminDefaultRegistrationTypeResult>(async (tx) => {
+    const existing = await tx.get(ref);
+    if (existing.exists) {
+      const data = existing.data() as RegistrationTypeDoc;
+      if (data.organizationId !== input.organizationId || data.eventId !== input.eventId) {
+        return { ok: false, code: "NOT_FOUND" };
+      }
+      return {
+        ok: true,
+        registrationTypeId: ref.id,
+        name: data.name,
+        code: data.code,
+        capacity: data.capacity,
+      };
+    }
+
+    // Do not adopt another audience just because its organizer chose GENERAL.
+    // The bounded, tenant-scoped lookup runs before the transaction's write.
+    const collision = await tx.get(
+      registrationTypeCol()
+        .where("eventId", "==", input.eventId)
+        .where("organizationId", "==", input.organizationId)
+        .where("code", "==", "GENERAL")
+        .limit(1),
+    );
+    if (!collision.empty) return { ok: false, code: "CODE_TAKEN" };
+
+    tx.create(ref, {
+      organizationId: input.organizationId,
+      eventId: input.eventId,
+      name: "General attendee",
+      code: "GENERAL",
+      capacity: input.capacity,
+      registeredCount: 0,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return {
+      ok: true,
+      registrationTypeId: ref.id,
+      name: "General attendee",
+      code: "GENERAL",
+      capacity: input.capacity,
+    };
+  });
 }

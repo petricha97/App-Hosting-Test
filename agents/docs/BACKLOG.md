@@ -56,6 +56,7 @@ Tickets re-entering after fixes resume at **Review**, never restart. Agents: RL 
 | M8-T12 | CI + risk-weighted coverage gates | M8 | Done (2026-07-20) | — | GitHub Actions enforces lint, baseline-aware typecheck, full coverage suite, global floor, and higher DAL/API/lib regression floors on prototype pushes and PRs |
 | M8-T13 | Core money DAL test hardening + defense-in-depth tenancy guards (tax/fee/ticket-type) | M8 | Done (2026-07-20) | Review APPROVED | SEC PASS: original gap defense-in-depth (routes gate, not exploitable); 6 mutations now transactional ownership-guarded; DAL 0-6%→89-100% br |
 | M8-T14 | Public buying-flow DAL test hardening (ticketType/registrationType/adminFormData) + accepted-status guard | M8 | Done (2026-07-20) | Orchestrator-verified (test-only + 1 Low guard) | 23-57%→96-100% br; found+fixed 1 Low defense-in-depth (attendeeCreated flip now rejects explicitly-non-accepted, grandfathers legacy); DAL 80%+ br |
+| M9-T1 | Create Ticket wizard (Registration Type + Ticket Type + Fee, one atomic flow) | M9 | Done (2026-08-24) | Review APPROVED, SEC PASS, QA SIGNED OFF | New `POST .../tickets/with-pricing` transactional route replaces the 3-page create flow with one wizard; inline registration-type quick-add persists immediately (confirmed intentional, not rolled back on wizard abandon) |
 
 ---
 
@@ -550,6 +551,26 @@ Rationale for reordering vs. the AGENT_LOOP.md seed:
 - **Code:** `src/__tests__/helpers/fake-admin-db.ts` (add transaction-conflict simulation) or a new integration test against emulated Firestore; `src/__tests__/admin-user-organization-iam.test.ts`.
 - **Deps:** M8-T1 (Done).
 - **Agents:** BE (own the fix — either extend the fake-db double or add an emulator-backed test) · CR · QA (confirm the new test actually fails against a hypothetical non-transactional regression, not just passes against current code).
+
+---
+
+## M9 — Registration UX (Create Ticket wizard)
+
+### M9-T2 — Simplified ticket setup — **Implemented locally (2026-09-12); final browser QA pending**
+- **Goal:** Implement the approved simplified mockup: optional quantity and scheduling, generated editable codes under Advanced settings, retained inline registration-type creation with price, General attendee default for empty events, and Pause/Resume sales management.
+- **Specs:** `agents/docs/specs/m9-t2-ticket-ux.md`, `agents/docs/design/m9-t2-ticket-ux.md`.
+- **Agents:** Full-Stack wizard · Backend endpoints/DAL · Full-Stack management UI → Code Review → Security → QA.
+- **Baseline:** `npm run lint` passes; full test suite has 2197 passing tests and one existing `email-render-blocks-pipeline.test.ts` source-hash failure, reproduced before implementation. Working branch `prototype-v2`; preserve existing uncommitted M9-T1 and configuration work.
+- **Verification:** Independent backend, management, and wizard code reviews APPROVED; security PASS. 81 feature tests pass. Final full suite: 2268 passing tests, the same one baseline email source-hash failure. Lint and production build pass (build executed in an isolated source copy to preserve the running development server). Standalone `tsc --noEmit` still reports ten unrelated existing test-fixture errors. No feature type errors.
+- **Limits:** Final signed-in browser/responsive/theme QA could not finish: the session expired and the browser later became unavailable. Earlier ticket-only code generation/manual override checks passed. No commit, merge, deployment or infrastructure provisioning performed; the new default-audience index is included for normal deployment. See `agents/docs/qa/m9-t2-ticket-ux.md` and `agents/docs/CHANGES-m9-t2-ticket-ux.md`.
+
+### M9-T1 — Create Ticket wizard (Registration Type + Ticket Type + Fee, one atomic flow) — **Done (2026-08-24)**
+- **Goal:** Creating one priced, audience-scoped ticket required three separate screens (Registration Types → Ticket Types → Pricing → Fees), with no price field at all on the Ticket Types dialog. Ship a single 3-step wizard (details → audience+price → review) that produces the same three writes with one atomic final save, plus an inline "+ New registration type" quick-add so a missing registration type no longer forces navigating away mid-task.
+- **Screens:** no new prototype HTML — user-approved Artifact mockup (`prototype`/`proposed` comparison) preceded this ticket; spec defines behavior/contract, not pixel layout.
+- **Code:** new `src/features/ticket-wizard/` (schemas + wizard components), new `src/app/api/dashboard/events/[eventId]/tickets/with-pricing/route.ts`, new `src/lib/db/adminTicketTypeWithPricing.ts` (transactional DAL), new `src/lib/fees/wizard-fee-name.ts`; modified `src/features/registration/components/ticket-types-workspace.tsx` (wizard is now the primary "Create ticket" action, old `TicketTypeDialog` create flow demoted to a secondary "Create ticket type only" menu item). Existing `/tickets`, `/registration-types` routes and their DAL files untouched.
+- **Deps:** M1-T1, M1-T2, M2-T1 (reuses their DAL/routes unmodified).
+- **Agents:** RL (spec `agents/docs/specs/m9-ticket-wizard.md`) · BE (transactional route + DAL) · FS (3-step wizard UI + entry-point wiring) · CR · SEC · QA.
+- **Closure:** Research resolved two open questions (no event-level currency concept exists — wizard fixed to `WIZARD_DEFAULT_CURRENCY = "USD"` v1, multi-currency stays on the full Pricing screen; wizard coexists with the old ticket-only dialog rather than replacing it). Code Review APPROVED, 0 Blockers, 1 Should-fix (this BACKLOG entry — closed by this edit). Security PASS, 0 Critical/High/Medium (1 Low, informational: no rate limiting, but consistent with both sibling create routes, not a new gap). QA SIGNED OFF, 0 defects — specifically traced end-to-end and regression-tested the user's original motivating question (an inline-created registration type via the quick-add survives wizard abandonment, indistinguishable from one created on the standalone screen), plus added coverage for the zero-registration-types empty state. Orchestrator independently re-verified every gate (re-ran lint/tsc/full test suite at each phase rather than trusting agent self-reports, read the transaction function and route directly to confirm read-before-write ordering and server-derived `registrationTypeIds`). Final suite: 201 files / 2198 tests (1 pre-existing, unrelated failure — `email-render-blocks-pipeline.test.ts` hash tripwire — unchanged from before this ticket).
 
 ---
 

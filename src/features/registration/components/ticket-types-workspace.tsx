@@ -7,14 +7,30 @@
 // (case-insensitive substring), the type filter uses contains-or-empty
 // semantics (unrestricted tickets are eligible for every type), and both
 // compose with AND.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Search, Ticket, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  Loader2,
+  Pause,
+  Play,
+  Pencil,
+  Plus,
+  Search,
+  Ticket,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -38,7 +54,6 @@ import {
   EntityEmptyState,
   EntityTableError,
 } from "@/features/registration/components/entity-table-states";
-import { InfoNote } from "@/features/registration/components/info-note";
 import { TicketTypeDialog } from "@/features/registration/components/ticket-type-dialog";
 import type {
   SerializedRegistrationType,
@@ -46,8 +61,9 @@ import type {
 } from "@/features/registration/types";
 import {
   getSalesWindowLabel,
-  isTicketOpen,
+  getTicketOpenState,
 } from "@/features/registration/utils";
+import { CreateTicketWizard } from "@/features/ticket-wizard/components/create-ticket-wizard";
 
 const ALL_TYPES = "all";
 
@@ -63,6 +79,22 @@ interface TicketTypesWorkspaceProps {
   loadError: boolean;
 }
 
+// Combines manual sales controls, inclusive date windows, and quantity availability.
+function getSalesStatus(
+  ticket: SerializedTicketType,
+  nowMs: number,
+  hasPricing: boolean,
+): string {
+  const windowState = getTicketOpenState(ticket, nowMs);
+  if (windowState === "closed-manual") return "Paused";
+  if (windowState === "ended") return "Ended";
+  if (windowState === "not-started") return "Scheduled";
+  if (ticket.capacity !== null && ticket.registeredCount >= ticket.capacity)
+    return "Sold out";
+  return hasPricing ? "On sale" : "Needs pricing";
+}
+
+// Lists ticket inventory and manages sales availability without overwriting ticket details.
 export function TicketTypesWorkspace({
   eventId,
   tickets,
@@ -76,13 +108,34 @@ export function TicketTypesWorkspace({
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>(ALL_TYPES);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // M9-T1: the wizard is now the PRIMARY "Create ticket" action; `dialogOpen`
+  // (TicketTypeDialog) stays reachable as a secondary, unobtrusive option for
+  // organizers who deliberately want the old unpriced create flow, and is
+  // still the only path for editing an existing ticket (unchanged).
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [editing, setEditing] = useState<SerializedTicketType | null>(null);
   const [deleting, setDeleting] = useState<SerializedTicketType | null>(null);
   const [deleteBlocked, setDeleteBlocked] = useState<string | null>(null);
   const [deletePending, setDeletePending] = useState(false);
 
+  const [salesPending, setSalesPending] = useState<string | null>(null);
+  const salesInFlight = useRef(false);
+  const [salesOverrides, setSalesOverrides] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [salesError, setSalesError] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(Date.now);
+
+  // Server refreshes replace temporary successful sales changes with current inventory.
+  useEffect(() => setSalesOverrides({}), [tickets]);
+  // Keep scheduled/ended labels current while the organiser leaves the list open.
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // Refreshes server-owned inventory after a successful mutation.
   const refresh = () => router.refresh();
-  const nowMs = Date.now();
   const pricingHref = `/dashboard/events/${encodeURIComponent(eventId)}/pricing`;
 
   const filteredTickets = useMemo(() => {
@@ -102,7 +155,14 @@ export function TicketTypesWorkspace({
 
   const isFiltered = search.trim() !== "" || typeFilter !== ALL_TYPES;
 
-  const openCreate = () => {
+  // Primary "Create ticket" action (M9-T1 OQ-1: wizard is primary, coexists
+  // with the old dialog).
+  const openWizard = () => setWizardOpen(true);
+
+  // Secondary "Create ticket type only" action — the pre-M9 flow, reachable
+  // via the header dropdown for organizers who deliberately want to skip
+  // audience/pricing at creation time (e.g. bulk-scripted setups, spec OQ-1).
+  const openCreateTicketOnly = () => {
     setEditing(null);
     setDialogOpen(true);
   };
@@ -170,6 +230,69 @@ export function TicketTypesWorkspace({
     }
   };
 
+  // Sends only the desired sales flag, preserving newer dates, names, and quantity changes.
+  const toggleSales = async (ticket: SerializedTicketType) => {
+    if (salesInFlight.current) return;
+    salesInFlight.current = true;
+    setSalesPending(ticket.id);
+    setSalesError(null);
+    const nextIsOpen = !ticket.isOpen;
+    try {
+      const response = await fetch(
+        `/api/dashboard/events/${encodeURIComponent(eventId)}/tickets/${encodeURIComponent(ticket.id)}/sales`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isOpen: nextIsOpen }),
+        },
+      );
+      const data = (await response.json().catch(() => null)) as {
+        ticketTypeId?: string;
+        isOpen?: boolean;
+        error?: unknown;
+      } | null;
+      if (!response.ok) {
+        throw new Error(
+          typeof data?.error === "string"
+            ? data.error
+            : "Failed to update ticket sales.",
+        );
+      }
+      if (
+        data?.ticketTypeId !== ticket.id ||
+        typeof data.isOpen !== "boolean"
+      ) {
+        throw new Error(
+          "Could not confirm the sales update. Refresh and try again.",
+        );
+      }
+      setSalesOverrides((current) => ({
+        ...current,
+        [ticket.id]: data.isOpen as boolean,
+      }));
+      toast.success(
+        nextIsOpen ? "Ticket sales resumed" : "Ticket sales paused",
+        nextIsOpen
+          ? {
+              description:
+                "Sales dates and ticket quantity limits still apply.",
+            }
+          : undefined,
+      );
+      refresh();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to update ticket sales.";
+      setSalesError(message);
+      toast.error(message);
+    } finally {
+      salesInFlight.current = false;
+      setSalesPending(null);
+    }
+  };
+
   // Full ISO window for the cell tooltip (both bounds are UTC instants).
   const windowTitle = (ticket: SerializedTicketType) => {
     const parts = [
@@ -189,8 +312,8 @@ export function TicketTypesWorkspace({
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Ticket types</h1>
           <p className="text-sm text-muted-foreground">
-            What an attendee registers as. Each ticket has its own code,
-            capacity and open window; price lives in{" "}
+            What attendees buy, such as an Early Bird or Standard pass. Set
+            quantity and sales dates here; audience prices live in{" "}
             <Link
               href={pricingHref}
               className="text-primary underline-offset-4 hover:underline"
@@ -200,17 +323,39 @@ export function TicketTypesWorkspace({
             .
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus aria-hidden="true" />
-          Create ticket type
-        </Button>
+        {/* M9-T1: split button — primary launches the guided wizard
+            (ticket + audience + price in one save); the chevron menu keeps
+            the old, unpriced-only create flow reachable as a secondary,
+            clearly-labeled option. */}
+        <div className="flex">
+          <Button onClick={openWizard} className="rounded-r-none">
+            <Plus aria-hidden="true" />
+            Create ticket
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="default"
+                className="rounded-l-none border-l border-primary-foreground/20 px-2"
+                aria-label="More create ticket options"
+              >
+                <ChevronDown aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={openCreateTicketOnly}>
+                Create ticket type only (no pricing yet)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
-      <InfoNote>
-        <b>New concept vs a single-form model:</b> an event sells many{" "}
-        <b>typed tickets</b> (Cvent&apos;s &ldquo;Admission Item&rdquo;).
-        Fields shown to the buyer are still driven by your form.
-      </InfoNote>
+      {salesError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {salesError}
+        </p>
+      ) : null}
 
       {loadError ? (
         <EntityTableError entityLabel="ticket types" onRetry={refresh} />
@@ -218,9 +363,9 @@ export function TicketTypesWorkspace({
         <EntityEmptyState
           icon={Ticket}
           title="No ticket types yet"
-          description="Create admission items like early bird, standard, and comp tickets. Pricing comes next."
-          actionLabel="+ Create ticket type"
-          onAction={openCreate}
+          description="Create admission items like early bird, standard, and comp tickets, and price them for each audience — all in one guided flow."
+          actionLabel="+ Create ticket"
+          onAction={openWizard}
         />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -286,18 +431,39 @@ export function TicketTypesWorkspace({
                   <TableHead>Code</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead>Registered</TableHead>
-                  <TableHead>Capacity</TableHead>
+                  <TableHead>Ticket quantity</TableHead>
                   <TableHead>Sales window</TableHead>
-                  <TableHead>Open</TableHead>
+                  <TableHead>Sales status</TableHead>
                   <TableHead>
                     <span className="sr-only">Actions</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTickets.map((ticket) => {
-                  const open = isTicketOpen(ticket, nowMs);
-                  const priceDisplay = getTicketPriceDisplay(ticket.id, fees);
+                {filteredTickets.map((sourceTicket) => {
+                  const ticket = {
+                    ...sourceTicket,
+                    isOpen:
+                      salesOverrides[sourceTicket.id] ?? sourceTicket.isOpen,
+                  };
+                  const eligibleFees = fees.filter(
+                    (fee) =>
+                      fee.registrationTypeId === null ||
+                      ticket.registrationTypeIds.length === 0 ||
+                      ticket.registrationTypeIds.includes(
+                        fee.registrationTypeId,
+                      ),
+                  );
+                  const priceDisplay = getTicketPriceDisplay(
+                    ticket.id,
+                    eligibleFees,
+                  );
+                  const salesStatus = getSalesStatus(
+                    ticket,
+                    nowMs,
+                    priceDisplay !== null,
+                  );
+                  const open = salesStatus === "On sale";
                   return (
                     <TableRow key={ticket.id}>
                       <TableCell className="font-medium text-foreground">
@@ -346,20 +512,44 @@ export function TicketTypesWorkspace({
                       <TableCell>
                         {open ? (
                           <Badge className="rounded-full bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-                            Yes
+                            {salesStatus}
                           </Badge>
                         ) : (
                           <Badge variant="secondary" className="rounded-full">
-                            No
+                            {salesStatus}
                           </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={salesPending !== null}
+                            aria-label={`${ticket.isOpen ? "Pause" : "Resume"} sales for ${ticket.name}`}
+                            onClick={() => toggleSales(ticket)}
+                          >
+                            {salesPending === ticket.id ? (
+                              <Loader2
+                                aria-hidden="true"
+                                className="animate-spin"
+                              />
+                            ) : ticket.isOpen ? (
+                              <Pause aria-hidden="true" />
+                            ) : (
+                              <Play aria-hidden="true" />
+                            )}
+                            {salesPending === ticket.id
+                              ? "Updating…"
+                              : ticket.isOpen
+                                ? "Pause sales"
+                                : "Resume sales"}
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="text-muted-foreground hover:text-foreground"
+                            disabled={salesPending !== null}
                             aria-label={`Edit ${ticket.name}`}
                             onClick={() => openEdit(ticket)}
                           >
@@ -369,6 +559,7 @@ export function TicketTypesWorkspace({
                             variant="ghost"
                             size="icon"
                             className="text-muted-foreground hover:text-destructive"
+                            disabled={salesPending !== null}
                             aria-label={`Delete ${ticket.name}`}
                             onClick={() => openDelete(ticket)}
                           >
@@ -390,6 +581,15 @@ export function TicketTypesWorkspace({
         onOpenChange={setDialogOpen}
         eventId={eventId}
         ticketType={editing}
+        registrationTypes={registrationTypes}
+        timeZone={timeZone}
+        onSaved={refresh}
+      />
+
+      <CreateTicketWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        eventId={eventId}
         registrationTypes={registrationTypes}
         timeZone={timeZone}
         onSaved={refresh}

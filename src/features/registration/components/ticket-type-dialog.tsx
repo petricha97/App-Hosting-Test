@@ -4,7 +4,7 @@
 // Sales dates are native date inputs holding event-local calendar dates; the
 // API converts them to UTC instants in the event's timezone. Empty
 // registration-type selection = unrestricted ("All registration types").
-import { useEffect, useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { generateRegistrationCode } from "@/features/registration/generate-code";
 import { applyApiFormError } from "@/features/registration/components/form-errors";
 import { InfoNote } from "@/features/registration/components/info-note";
 import {
@@ -58,6 +59,7 @@ interface TicketTypeDialogProps {
   onSaved: () => void;
 }
 
+// Restores identifiers and event-local sales dates when editing a saved ticket.
 function buildDefaultValues(
   ticketType: SerializedTicketType | null,
   timeZone: string,
@@ -84,6 +86,7 @@ function buildDefaultValues(
   };
 }
 
+// Offers ticket-only creation and editing with optional scheduling and code settings.
 export function TicketTypeDialog({
   open,
   onOpenChange,
@@ -94,6 +97,9 @@ export function TicketTypeDialog({
   onSaved,
 }: TicketTypeDialogProps) {
   const isEdit = ticketType !== null;
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [scheduleSales, setScheduleSales] = useState(false);
+  const manualCode = useRef(false);
   const hasRegistrationTypes = registrationTypes.length > 0;
   const groupLabelId = useId();
 
@@ -105,12 +111,18 @@ export function TicketTypeDialog({
   useEffect(() => {
     if (open) {
       form.reset(buildDefaultValues(ticketType, timeZone));
+      manualCode.current = false;
+      setAdvancedOpen(false);
+      setScheduleSales(
+        ticketType?.salesStartMs != null || ticketType?.salesEndMs != null,
+      );
     }
   }, [open, ticketType, timeZone, form]);
 
   const limitCapacity = form.watch("limitCapacity");
   const { isSubmitting } = form.formState;
 
+  // Persists ticket details without changing saved codes when only the name changes.
   const onSubmit = async (values: TicketTypeFormValues) => {
     const payload = buildTicketTypePayload(values);
     const url = isEdit
@@ -132,6 +144,7 @@ export function TicketTypeDialog({
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
+        setAdvancedOpen(true);
         applyApiFormError(form, data, fallbackMessage);
         return;
       }
@@ -147,58 +160,50 @@ export function TicketTypeDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!isSubmitting) onOpenChange(next);
+      }}
+    >
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
             {isEdit ? "Edit ticket type" : "Create ticket type"}
           </DialogTitle>
           <DialogDescription>
-            Tickets are what attendees register as — each with its own code,
-            capacity and sales window. Price is set in Pricing (M2).
+            Tickets are what attendees buy, such as an Early Bird or Standard
+            pass. Set prices for each audience in Pricing.
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form
+            onSubmit={form.handleSubmit(onSubmit, () => setAdvancedOpen(true))}
+            className="space-y-4"
+          >
             <FormField
               control={form.control}
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>Ticket name</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="e.g. GC Early Bird"
                       maxLength={80}
                       {...field}
+                      onChange={(event) => {
+                        field.onChange(event);
+                        if (!isEdit && !manualCode.current) {
+                          form.setValue(
+                            "code",
+                            generateRegistrationCode(event.target.value),
+                          );
+                        }
+                      }}
                     />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="code"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Code</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="GC-EB"
-                      className="font-mono"
-                      maxLength={12}
-                      {...field}
-                      onChange={(event) =>
-                        field.onChange(event.target.value.toUpperCase())
-                      }
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Short unique code used in pricing and reports, e.g. GC-SEB.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -255,9 +260,8 @@ export function TicketTypeDialog({
                       })}
                     </div>
                     <FormDescription>
-                      Leave all unchecked to make this ticket available to
-                      every registration type (&ldquo;All registration
-                      types&rdquo;).
+                      Leave all unchecked to make this ticket available to every
+                      registration type (&ldquo;All registration types&rdquo;).
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -282,12 +286,12 @@ export function TicketTypeDialog({
               name="limitCapacity"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between gap-2 rounded-lg border border-border p-3">
-                  <FormLabel className="font-normal">Limit capacity</FormLabel>
+                  <FormLabel className="font-normal">Set quantity</FormLabel>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
-                      aria-label="Limit capacity"
+                      aria-label="Set quantity"
                     />
                   </FormControl>
                 </FormItem>
@@ -300,7 +304,7 @@ export function TicketTypeDialog({
                 name="capacity"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Capacity</FormLabel>
+                    <FormLabel>Ticket quantity</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -308,7 +312,6 @@ export function TicketTypeDialog({
                         step={1}
                         inputMode="numeric"
                         placeholder="e.g. 150"
-                        autoFocus
                         {...field}
                       />
                     </FormControl>
@@ -318,66 +321,108 @@ export function TicketTypeDialog({
               />
             ) : (
               <p className="text-sm text-muted-foreground">
-                Capacity: Unlimited
+                Ticket quantity: Unlimited
               </p>
             )}
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="salesStart"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sales open</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="salesEnd"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sales close</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border p-3">
+              <Label htmlFor={`${groupLabelId}-schedule`}>
+                Schedule ticket sales
+              </Label>
+              <Switch
+                id={`${groupLabelId}-schedule`}
+                checked={scheduleSales}
+                onCheckedChange={(checked) => {
+                  setScheduleSales(checked);
+                  if (!checked) {
+                    form.setValue("salesStart", "");
+                    form.setValue("salesEnd", "");
+                    form.clearErrors(["salesStart", "salesEnd"]);
+                  }
+                }}
               />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Leave both empty to keep the ticket always open. Times use the
-              event timezone (open at 00:00, close at 23:59).
-            </p>
+            {scheduleSales ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="salesStart"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sales open</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="salesEnd"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sales close</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Leave both empty to keep the ticket always open. Times use the
+                  event timezone (open at 00:00, close at 23:59).
+                </p>
+              </>
+            ) : null}
 
-            <FormField
-              control={form.control}
-              name="isOpen"
-              render={({ field }) => (
-                <FormItem className="rounded-lg border border-border p-3">
-                  <div className="flex flex-row items-center justify-between gap-2">
-                    <FormLabel className="font-normal">
-                      Available for registration
-                    </FormLabel>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        aria-label="Available for registration"
-                      />
-                    </FormControl>
-                  </div>
-                  <FormDescription>
-                    Manual override — a closed sales window wins.
-                  </FormDescription>
-                </FormItem>
-              )}
-            />
+            <Button
+              type="button"
+              variant="ghost"
+              aria-expanded={advancedOpen}
+              onClick={() => setAdvancedOpen(!advancedOpen)}
+            >
+              Advanced settings
+            </Button>
+            {advancedOpen ? (
+              <div className="space-y-4 rounded-lg border border-border p-4">
+                <FormField
+                  control={form.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Code</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="GC-EB"
+                          className="font-mono"
+                          maxLength={12}
+                          {...field}
+                          onChange={(event) => {
+                            manualCode.current = true;
+                            field.onChange(event.target.value.toUpperCase());
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Generated from the name. Saved ticket codes stay
+                        unchanged when renamed.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            ) : null}
+            {isEdit ? (
+              <p className="text-sm text-muted-foreground">
+                Pause or resume sales from the ticket list. Sales dates and
+                quantity limits still apply.
+              </p>
+            ) : null}
 
             <DialogFooter>
               <Button
